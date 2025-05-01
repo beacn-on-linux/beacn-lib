@@ -1,0 +1,102 @@
+// Adapt time is interesting, and may actually require listening to the audio from the Mic.
+// During set up I saw (f32) 100 -> 1000 -> 2000 -> 5000, before finally settling on 1000, I'm
+// assuming these values are in milliseconds.
+// I did *NOT* during this time check data received, I might need to ask Beacn how this is handled.
+
+use byteorder::{ByteOrder, LittleEndian};
+use strum::{EnumIter, IntoEnumIterator};
+use crate::generate_range;
+use crate::messages::{Message, BeacnSubMessage};
+use crate::types::{read_value, write_value, BeacnValue, Percent, ReadBeacn, WriteBeacn};
+use crate::types::sealed::Sealed;
+
+#[derive(Debug)]
+pub enum Suppressor {
+    GetEnabled,
+    Enabled(bool),
+
+    GetAmount,
+    Amount(Percent),
+
+    GetStyle,
+    Style(SuppressorStyle),
+
+    GetAdaptTime,
+    AdaptTime(SupressorAdaptTime),
+}
+
+impl BeacnSubMessage for Suppressor {
+    fn to_beacn_key(&self) -> [u8; 2] {
+        match self {
+            Suppressor::GetEnabled | Suppressor::Enabled(_) => [0x00, 0x00],
+            Suppressor::GetAmount | Suppressor::Amount(_) => [0x02, 0x00],
+            Suppressor::GetStyle | Suppressor::Style(_) => [0x04, 0x00],
+            Suppressor::GetAdaptTime | Suppressor::AdaptTime(_) => [0x08, 0x00]
+        }
+    }
+
+    fn to_beacn_value(&self) -> BeacnValue {
+        match self {
+            Suppressor::Enabled(v) => v.write_beacn(),
+            Suppressor::Amount(v) => write_value(v),
+            Suppressor::Style(v) => v.write_beacn(),
+            Suppressor::AdaptTime(v) => write_value(v),
+            _ => panic!("Attempted to Set a Getter")
+        }
+    }
+
+    fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self {
+        match key[0] {
+            0x00 => Self::Enabled(bool::read_beacn(&value)),
+            0x02 => Self::Amount(read_value(&value)),
+            0x04 => Self::Style(SuppressorStyle::read_beacn(&value)),
+            0x08 => Self::AdaptTime(read_value(&value)),
+            _ => panic!("Unexpected Key {}", key[0])
+        }
+    }
+
+    fn generate_fetch_message() -> Vec<Message> {
+        vec![
+            Message::Suppressor(Suppressor::GetEnabled),
+            Message::Suppressor(Suppressor::GetAmount),
+            Message::Suppressor(Suppressor::GetStyle),
+            Message::Suppressor(Suppressor::GetAdaptTime),
+        ]
+    }
+}
+
+generate_range!(SupressorAdaptTime, f32, 100.0..=5000.0);
+
+// enum Suppressor {
+//     Enabled = 0x00,
+//     Amount = 0x02,      // f32 (0..=100)
+//     Style = 0x04,       // SuppressorStyle
+//     AdaptTime = 0x08,    // Suppressor Adaption Time
+// }
+
+#[derive(Copy, Clone, EnumIter, Debug)]
+pub enum SuppressorStyle {
+    Off = 0x01,
+    Adaptive = 0x02,
+    Snapshot = 0x03,
+}
+impl Sealed for SuppressorStyle {}
+impl WriteBeacn for SuppressorStyle {
+    fn write_beacn(&self) -> BeacnValue {
+        let mut buf = [0; 4];
+        LittleEndian::write_u32(&mut buf, *self as u8 as u32);
+        buf
+    }
+}
+
+impl ReadBeacn for SuppressorStyle {
+    fn read_beacn(buf: &BeacnValue) -> Self {
+        let value = LittleEndian::read_u32(buf);
+        for var in Self::iter() {
+            if var as u32 == value {
+                return var;
+            }
+        }
+        panic!("Could not Find Value");
+    }
+}
