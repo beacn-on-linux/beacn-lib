@@ -1,3 +1,3 @@
 pub mod device;
 pub mod messages;
-mod types;
+pub mod types;
