@@ -1,11 +1,11 @@
-use std::io::{Cursor, Read, Seek};
-use std::time::Duration;
-use anyhow::{bail, Result};
+use crate::messages::Message;
+use crate::version::VersionNumber;
+use anyhow::{Result, bail};
 use byteorder::{LittleEndian, ReadBytesExt};
 use log::debug;
 use rusb::{Device, DeviceDescriptor, DeviceHandle, GlobalContext};
-use crate::messages::Message;
-use crate::version::VersionNumber;
+use std::io::{Cursor, Read, Seek};
+use std::time::Duration;
 
 const VID_BEACN_MIC: u16 = 0x33ae;
 const PID_BEACN_MIC: u16 = 0x0001;
@@ -13,7 +13,7 @@ const PID_BEACN_MIC: u16 = 0x0001;
 pub struct BeacnMic {
     handle: DeviceHandle<GlobalContext>,
     device: Device<GlobalContext>,
-    descriptor: DeviceDescriptor,
+    _descriptor: DeviceDescriptor,
 
     serial: String,
     firmware_version: VersionNumber,
@@ -66,10 +66,18 @@ impl BeacnMic {
         }
         let serial = String::from_utf8_lossy(&serial_bytes).to_string();
 
+        debug!(
+            "Loaded Device, Location: {}.{}, Serial: {}, Version: {}",
+            device.bus_number(),
+            device.address(),
+            serial.clone(),
+            firmware_version
+        );
+
         Ok(Self {
             handle,
             device,
-            descriptor,
+            _descriptor: descriptor,
 
             serial,
             firmware_version,
@@ -82,6 +90,10 @@ impl BeacnMic {
 
     pub fn get_version(&self) -> VersionNumber {
         self.firmware_version
+    }
+
+    pub fn get_location(&self) -> String {
+        format!("{}.{}", self.device.bus_number(), self.device.address())
     }
 
     pub fn fetch_value(&self, message: Message) -> Result<Message> {
@@ -112,7 +124,9 @@ impl BeacnMic {
                     let bus_number = device.bus_number();
                     let address = device.address();
 
-                    if descriptor.vendor_id() == VID_BEACN_MIC && descriptor.product_id() == PID_BEACN_MIC {
+                    if descriptor.vendor_id() == VID_BEACN_MIC
+                        && descriptor.product_id() == PID_BEACN_MIC
+                    {
                         debug!("Found Beacn Mic at address {}.{}", bus_number, address);
                         return Ok((device, descriptor));
                     }
@@ -125,7 +139,7 @@ impl BeacnMic {
     fn param_lookup(&self, key: [u8; 3]) -> Result<[u8; 8]> {
         let timeout = Duration::from_secs(3);
 
-        let mut request = [0;4];
+        let mut request = [0; 4];
         request[0..3].copy_from_slice(&key);
         request[3] = 0xa3;
 
