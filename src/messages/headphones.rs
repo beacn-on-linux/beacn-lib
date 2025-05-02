@@ -56,8 +56,8 @@ impl BeacnSubMessage for Headphones {
         match key[0] {
             0x04 => Self::HeadphoneLevel(read_value(&value)),
             0x06 => Self::MicMonitor(read_value(&value)),
-            0x07 => Self::MicOutputGain(read_value(&value)),
-            0x10 => Self::ChannelsLinked(bool::read_beacn(&value)),
+            0x07 => Self::ChannelsLinked(bool::read_beacn(&value)),
+            0x10 => Self::MicOutputGain(read_value(&value)),
             0x11 => Self::HeadphoneType(HeadphoneTypes::read_beacn(&value)),
             0x12 => Self::FXEnabled(bool::read_beacn(&value)),
             _ => panic!("Unexpected Key: {}", key[0]),
