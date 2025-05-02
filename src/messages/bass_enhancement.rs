@@ -146,7 +146,7 @@ impl BeacnSubMessage for BassEnhancement {
 
 
 impl BassEnhancement {
-    fn get_preset(preset: BassPreset) -> Vec<Message> {
+    pub fn get_preset(preset: BassPreset) -> Vec<Message> {
         match preset {
             BassPreset::Preset1 => vec![
                 Message::BassEnhancement(BassEnhancement::Attack(TimeFrame(10.0))),
@@ -200,7 +200,7 @@ impl BassEnhancement {
         }
     }
 
-    fn get_amount(amount: f32) -> Vec<Message> {
+    pub fn get_amount(amount: f32) -> Vec<Message> {
         vec![
             Message::BassEnhancement(BassEnhancement::Amount(BassAmount(amount))),
             Message::BassEnhancement(BassEnhancement::Drive(BassDrive(3.2 * amount))),
