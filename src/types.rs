@@ -3,6 +3,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 
+
 // Create the base values which everything comes from
 pub type BeacnValue = [u8; 4];
 pub struct MessageValue<T>(pub T);
@@ -37,7 +38,7 @@ where
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct RGB {
     pub red: u8,
     pub green: u8,
@@ -274,8 +275,8 @@ impl ReadBeacn for RGB {
 // -----------------------------------------------------------------------------------------------
 // Timeframe is used for most Attack / Release values
 
-#[derive(Debug)]
-pub struct TimeFrame(f32);
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct TimeFrame(pub f32);
 impl HasRange<f32> for TimeFrame {
     fn range() -> RangeInclusive<f32> {
         1.0..=2000.0
@@ -295,8 +296,8 @@ impl ToInner<f32> for TimeFrame {
 // -----------------------------------------------------------------------------------------------
 // Make-up Gain is used in a couple of places
 
-#[derive(Debug)]
-pub struct MakeUpGain(f32);
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct MakeUpGain(pub f32);
 impl HasRange<f32> for MakeUpGain {
     fn range() -> RangeInclusive<f32> {
         0.0..=12.0
@@ -313,8 +314,10 @@ impl ToInner<f32> for MakeUpGain {
     }
 }
 
-#[derive(Debug)]
-pub struct Percent(f32);
+// -----------------------------------------------------------------------------------------------
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Percent(pub f32);
 impl HasRange<f32> for Percent {
     fn range() -> RangeInclusive<f32> {
         0.0..=100.0
