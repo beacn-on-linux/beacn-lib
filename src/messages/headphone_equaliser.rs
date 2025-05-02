@@ -6,8 +6,8 @@ use strum::{EnumIter, IntoEnumIterator};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum HeadphoneEQ {
-    GetValue(HPEQType),
-    Value(HPEQType, HPEQValue),
+    GetAmount(HPEQType),
+    Amount(HPEQType, HPEQValue),
 
     GetEnabled(HPEQType),
     Enabled(HPEQType, bool),
@@ -16,8 +16,8 @@ pub enum HeadphoneEQ {
 impl BeacnSubMessage for HeadphoneEQ {
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
-            HeadphoneEQ::GetValue(t) | HeadphoneEQ::Value(t, _) => {
-                [PackedEnumKey(*t, HPEQKeys::Value).to_encoded(), 0]
+            HeadphoneEQ::GetAmount(t) | HeadphoneEQ::Amount(t, _) => {
+                [PackedEnumKey(*t, HPEQKeys::Amount).to_encoded(), 0]
             }
             HeadphoneEQ::GetEnabled(t) | HeadphoneEQ::Enabled(t, _) => {
                 [PackedEnumKey(*t, HPEQKeys::Enabled).to_encoded(), 0]
@@ -27,7 +27,7 @@ impl BeacnSubMessage for HeadphoneEQ {
 
     fn to_beacn_value(&self) -> BeacnValue {
         match self {
-            HeadphoneEQ::Value(_, v) => write_value(v),
+            HeadphoneEQ::Amount(_, v) => write_value(v),
             HeadphoneEQ::Enabled(_, v) => v.write_beacn(),
             _ => panic!("Attempted to Set a Getter"),
         }
@@ -38,7 +38,7 @@ impl BeacnSubMessage for HeadphoneEQ {
         let eq_type = key.get_upper();
         match key.get_lower() {
             HPEQKeys::Enabled => HeadphoneEQ::Enabled(eq_type, bool::read_beacn(&value)),
-            HPEQKeys::Value => HeadphoneEQ::Value(eq_type, read_value(&value)),
+            HPEQKeys::Amount => HeadphoneEQ::Amount(eq_type, read_value(&value)),
         }
     }
 
@@ -46,7 +46,7 @@ impl BeacnSubMessage for HeadphoneEQ {
         let mut messages = vec![];
         for eq_type in HPEQType::iter() {
             messages.push(Message::HeadphoneEQ(HeadphoneEQ::GetEnabled(eq_type)));
-            messages.push(Message::HeadphoneEQ(HeadphoneEQ::GetValue(eq_type)));
+            messages.push(Message::HeadphoneEQ(HeadphoneEQ::GetAmount(eq_type)));
         }
         messages
     }
@@ -68,7 +68,7 @@ impl Into<u8> for HPEQType {
 
 #[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum HPEQKeys {
-    Value = 0x02,   // f32 (-12..12)
+    Amount = 0x02,   // f32 (-12..12)
     Enabled = 0x05, // bool
 }
 impl Into<u8> for HPEQKeys {
