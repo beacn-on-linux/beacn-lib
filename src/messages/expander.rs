@@ -1,12 +1,15 @@
 use crate::generate_range;
-use crate::messages::{Message, BeacnSubMessage};
+use crate::messages::{BeacnSubMessage, Message};
 use crate::types::sealed::Sealed;
-use crate::types::{read_value, write_value, BeacnValue, PackedEnumKey, ReadBeacn, TimeFrame, WriteBeacn};
+use crate::types::{
+    BeacnValue, PackedEnumKey, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
+};
 use byteorder::{ByteOrder, LittleEndian};
-use std::iter::{Iterator};
+use enum_map::Enum;
+use std::iter::Iterator;
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Expander {
     GetMode,
     Mode(ExpanderMode),
@@ -97,8 +100,9 @@ impl BeacnSubMessage for Expander {
 generate_range!(ExpanderRatio, f32, 1.0..=10.0);
 generate_range!(ExpanderThreshold, f32, -90.0..=0.0);
 
-#[derive(Copy, Clone, Hash, Eq, PartialEq, EnumIter, Debug)]
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum ExpanderMode {
+    #[default]
     Simple = 0x00,
     Advanced = 0x01,
 }
@@ -128,8 +132,7 @@ impl ReadBeacn for ExpanderMode {
     }
 }
 
-
-#[derive(Copy, Clone, Hash, Eq, PartialEq, EnumIter)]
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum ExpanderKeys {
     Threshold = 0x03, // f32 (-90..=0)
     Ratio = 0x04,     // f32 (1..=10)

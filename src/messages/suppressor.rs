@@ -3,14 +3,15 @@
 // assuming these values are in milliseconds.
 // I did *NOT* during this time check data received, I might need to ask Beacn how this is handled.
 
-use byteorder::{ByteOrder, LittleEndian};
-use strum::{EnumIter, IntoEnumIterator};
 use crate::generate_range;
-use crate::messages::{Message, BeacnSubMessage};
-use crate::types::{read_value, write_value, BeacnValue, Percent, ReadBeacn, WriteBeacn};
+use crate::messages::{BeacnSubMessage, Message};
 use crate::types::sealed::Sealed;
+use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
+use byteorder::{ByteOrder, LittleEndian};
+use enum_map::Enum;
+use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Suppressor {
     GetEnabled,
     Enabled(bool),
@@ -31,7 +32,7 @@ impl BeacnSubMessage for Suppressor {
             Suppressor::GetEnabled | Suppressor::Enabled(_) => [0x00, 0x00],
             Suppressor::GetAmount | Suppressor::Amount(_) => [0x02, 0x00],
             Suppressor::GetStyle | Suppressor::Style(_) => [0x04, 0x00],
-            Suppressor::GetAdaptTime | Suppressor::AdaptTime(_) => [0x08, 0x00]
+            Suppressor::GetAdaptTime | Suppressor::AdaptTime(_) => [0x08, 0x00],
         }
     }
 
@@ -41,7 +42,7 @@ impl BeacnSubMessage for Suppressor {
             Suppressor::Amount(v) => write_value(v),
             Suppressor::Style(v) => v.write_beacn(),
             Suppressor::AdaptTime(v) => write_value(v),
-            _ => panic!("Attempted to Set a Getter")
+            _ => panic!("Attempted to Set a Getter"),
         }
     }
 
@@ -51,7 +52,7 @@ impl BeacnSubMessage for Suppressor {
             0x02 => Self::Amount(read_value(&value)),
             0x04 => Self::Style(SuppressorStyle::read_beacn(&value)),
             0x08 => Self::AdaptTime(read_value(&value)),
-            _ => panic!("Unexpected Key {}", key[0])
+            _ => panic!("Unexpected Key {}", key[0]),
         }
     }
 
@@ -74,8 +75,9 @@ generate_range!(SupressorAdaptTime, f32, 100.0..=5000.0);
 //     AdaptTime = 0x08,    // Suppressor Adaption Time
 // }
 
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum SuppressorStyle {
+    #[default]
     Off = 0x01,
     Adaptive = 0x02,
     Snapshot = 0x03,

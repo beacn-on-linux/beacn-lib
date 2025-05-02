@@ -1,8 +1,8 @@
 use crate::generate_range;
-use crate::messages::{Message, BeacnSubMessage};
-use crate::types::{read_value, write_value, BeacnValue, Percent, ReadBeacn, WriteBeacn};
+use crate::messages::{BeacnSubMessage, Message};
+use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Subwoofer {
     GetMakeupGain,
     MakeupGain(SubwooferMakeupGain),
@@ -38,7 +38,7 @@ impl BeacnSubMessage for Subwoofer {
             Subwoofer::Mix(v) => write_value(v),
             Subwoofer::Enabled(v) => v.write_beacn(),
             Subwoofer::Amount(v) => write_value(v),
-            _ => panic!("Attempted to Set a Getter")
+            _ => panic!("Attempted to Set a Getter"),
         }
     }
 
@@ -49,7 +49,7 @@ impl BeacnSubMessage for Subwoofer {
             0x0b => Self::Mix(read_value(&value)),
             0x0c => Self::Enabled(bool::read_beacn(&value)),
             0x0e => Self::Amount(read_value(&value)),
-            _ => panic!("Unexpected Key: {}", key[0])
+            _ => panic!("Unexpected Key: {}", key[0]),
         }
     }
 

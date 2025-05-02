@@ -2,11 +2,12 @@ use crate::messages::{BeacnSubMessage, Message};
 
 use crate::generate_range;
 use crate::types::sealed::Sealed;
-use crate::types::{read_value, write_value, BeacnValue, ReadBeacn, WriteBeacn};
+use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};
+use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Headphones {
     GetHeadphoneLevel,
     HeadphoneLevel(HPLevel),
@@ -59,7 +60,7 @@ impl BeacnSubMessage for Headphones {
             0x10 => Self::ChannelsLinked(bool::read_beacn(&value)),
             0x11 => Self::HeadphoneType(HeadphoneTypes::read_beacn(&value)),
             0x12 => Self::FXEnabled(bool::read_beacn(&value)),
-            _ => panic!("Unexpected Key: {}", key[0])
+            _ => panic!("Unexpected Key: {}", key[0]),
         }
     }
 
@@ -79,8 +80,9 @@ generate_range!(HPLevel, f32, -70.0..=-0.0);
 generate_range!(HPMicMonitorLevel, f32, -100.0..=0.0);
 generate_range!(HPMicOutputGain, f32, 0.0..=12.0);
 
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum HeadphoneTypes {
+    #[default]
     LineLevel = 0x00,
     NormalPower = 0x01,
     HighImpedance = 0x02,

@@ -1,12 +1,13 @@
-use crate::messages::{Message, BeacnSubMessage};
-use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, write_value, read_value};
+use crate::messages::{BeacnSubMessage, Message};
+use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 
 use crate::generate_range;
 use crate::types::sealed::Sealed;
 use byteorder::{ByteOrder, LittleEndian};
+use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Equaliser {
     GetMode,
     Mode(EQMode),
@@ -79,7 +80,7 @@ impl BeacnSubMessage for Equaliser {
             EqualiserKeys::Type => Self::Type(mode, band, EQBandType::read_beacn(&value)),
             EqualiserKeys::Gain => Self::Gain(mode, band, read_value(&value)),
             EqualiserKeys::Frequency => Self::Frequency(mode, band, read_value(&value)),
-            EqualiserKeys::Enabled => Self::Enabled(mode, band, bool::read_beacn(&value))
+            EqualiserKeys::Enabled => Self::Enabled(mode, band, bool::read_beacn(&value)),
         }
     }
 
@@ -106,7 +107,7 @@ generate_range!(EQGain, f32, -12.0..=12.0);
 generate_range!(EQFrequency, f32, 20.0..=2000.0);
 generate_range!(EQQ, f32, -0.1..=10.0);
 
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum EQMode {
     Simple = 0x00,
     Advanced = 0x01,
@@ -137,15 +138,14 @@ impl From<u8> for EQMode {
     fn from(value: u8) -> Self {
         for var in Self::iter() {
             if var as u8 == value {
-                return var
+                return var;
             }
         }
         panic!("Unable to Locate Value")
     }
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum EQBand {
     Band1 = 0x00,
     Band2 = 0x01,
@@ -162,8 +162,7 @@ impl Into<u8> for EQBand {
     }
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, EnumIter)]
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 enum EqualiserKeys {
     Type = 0x01,      // BandType
     Gain = 0x02,      // f32 (-12..=12)
@@ -177,8 +176,9 @@ impl Into<u8> for EqualiserKeys {
     }
 }
 
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum EQBandType {
+    #[default]
     NotSet = 0x00,
     LowPassFilter = 0x01,
     HighPassFilter = 0x02,

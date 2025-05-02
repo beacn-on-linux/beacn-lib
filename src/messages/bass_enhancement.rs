@@ -1,12 +1,13 @@
 use crate::generate_range;
 use crate::messages::{BeacnSubMessage, Message};
 use crate::types::{
-    BeacnValue, MakeUpGain, Percent, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
+    read_value, write_value, BeacnValue, MakeUpGain, Percent, ReadBeacn, TimeFrame, WriteBeacn,
 };
 use byteorder::{ByteOrder, LittleEndian};
+use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BassEnhancement {
     GetDrive,
     Drive(BassDrive),
@@ -208,9 +209,9 @@ impl BassEnhancement {
     }
 }
 
-// Needs to come back as f32
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum BassPreset {
+    #[default]
     Preset1 = 0x00,
     Preset2 = 0x01,
     Preset3 = 0x02,

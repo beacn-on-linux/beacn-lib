@@ -1,15 +1,15 @@
+use crate::generate_range;
 use crate::messages::{BeacnSubMessage, Message};
 use crate::types::sealed::Sealed;
 use crate::types::{
-    read_value, write_value, BeacnValue, MakeUpGain, PackedEnumKey, ReadBeacn, TimeFrame,
-    WriteBeacn,
+    BeacnValue, MakeUpGain, PackedEnumKey, ReadBeacn, TimeFrame, WriteBeacn, read_value,
+    write_value,
 };
 use byteorder::{ByteOrder, LittleEndian};
-
-use crate::generate_range;
+use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Compressor {
     GetMode,
     Mode(CompressorMode),
@@ -108,8 +108,9 @@ impl BeacnSubMessage for Compressor {
 generate_range!(CompressorThreshold, f32, -50.0..=0.0);
 generate_range!(CompressorRatio, f32, 1.0..=16.0);
 
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum CompressorMode {
+    #[default]
     Simple = 0x00,
     Advanced = 0x01,
 }
@@ -139,7 +140,7 @@ impl ReadBeacn for CompressorMode {
     }
 }
 
-#[derive(Copy, Clone, EnumIter)]
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 enum CompressorKeys {
     Attack = 0x01,     // f32 (0..=2000)
     Release = 0x02,    // f32 (0..=2000)

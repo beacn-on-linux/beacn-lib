@@ -1,7 +1,7 @@
-use crate::messages::{Message, BeacnSubMessage};
-use crate::types::{read_value, write_value, BeacnValue, Percent, ReadBeacn, WriteBeacn};
+use crate::messages::{BeacnSubMessage, Message};
+use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum DeEsser {
     GetAmount,
     Amount(Percent),
@@ -14,7 +14,7 @@ impl BeacnSubMessage for DeEsser {
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             DeEsser::Amount(_) | DeEsser::GetAmount => [0x03, 0x00],
-            DeEsser::Enabled(_) | DeEsser::GetEnabled => [0x04, 0x00]
+            DeEsser::Enabled(_) | DeEsser::GetEnabled => [0x04, 0x00],
         }
     }
 
@@ -22,7 +22,7 @@ impl BeacnSubMessage for DeEsser {
         match self {
             DeEsser::Amount(v) => write_value(v),
             DeEsser::Enabled(v) => v.write_beacn(),
-            _ => panic!("Attmpted to Set a Get")
+            _ => panic!("Attmpted to Set a Get"),
         }
     }
 
@@ -30,14 +30,14 @@ impl BeacnSubMessage for DeEsser {
         match key[0] {
             0x03 => Self::Amount(read_value(&value)),
             0x04 => Self::Enabled(bool::read_beacn(&value)),
-            _ => panic!("Unexpected Key: {}", key[0])
+            _ => panic!("Unexpected Key: {}", key[0]),
         }
     }
 
     fn generate_fetch_message() -> Vec<Message> {
         vec![
             Message::DeEsser(DeEsser::GetAmount),
-            Message::DeEsser(DeEsser::GetEnabled)
+            Message::DeEsser(DeEsser::GetEnabled),
         ]
     }
 }

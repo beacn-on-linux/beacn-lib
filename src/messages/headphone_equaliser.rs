@@ -1,9 +1,10 @@
 use crate::generate_range;
-use crate::messages::{Message, BeacnSubMessage};
-use crate::types::{read_value, write_value, BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn};
+use crate::messages::{BeacnSubMessage, Message};
+use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
+use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum HeadphoneEQ {
     GetValue(HPEQType),
     Value(HPEQType, HPEQValue),
@@ -28,7 +29,7 @@ impl BeacnSubMessage for HeadphoneEQ {
         match self {
             HeadphoneEQ::Value(_, v) => write_value(v),
             HeadphoneEQ::Enabled(_, v) => v.write_beacn(),
-            _ => panic!("Attempted to Set a Getter")
+            _ => panic!("Attempted to Set a Getter"),
         }
     }
 
@@ -53,7 +54,7 @@ impl BeacnSubMessage for HeadphoneEQ {
 
 generate_range!(HPEQValue, f32, -12.0..=12.0);
 
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum HPEQType {
     Bass = 0x00,
     Mids = 0x01,
@@ -65,7 +66,7 @@ impl Into<u8> for HPEQType {
     }
 }
 
-#[derive(Copy, Clone, EnumIter)]
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum HPEQKeys {
     Value = 0x02,   // f32 (-12..12)
     Enabled = 0x05, // bool

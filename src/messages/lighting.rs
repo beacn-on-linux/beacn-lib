@@ -1,11 +1,12 @@
 use crate::generate_range;
 use crate::messages::{BeacnSubMessage, Message};
 use crate::types::sealed::Sealed;
-use crate::types::{BeacnValue, RGB, ReadBeacn, WriteBeacn, write_value, read_value};
+use crate::types::{BeacnValue, RGB, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};
+use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Lighting {
     GetMode,
     Mode(LightingMode),
@@ -88,7 +89,7 @@ impl BeacnSubMessage for Lighting {
             0x09 => Self::MuteColour(RGB::read_beacn(&value)),
             0x0b => Self::SuspendMode(LightingSuspendMode::read_beacn(&value)),
             0x0c => Self::SuspendBrightness(read_value(&value)),
-            _ => panic!("Unexpected Key: {}", key[0])
+            _ => panic!("Unexpected Key: {}", key[0]),
         }
     }
 
@@ -128,8 +129,9 @@ generate_range!(LightingSuspendBrightness, u32, 0..=10);
 //     SuspendBrightness = 0x0c, // u32 (0..=100)    // VERIFY THIS, SHOULD MATCH Brightness
 // }
 
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum LightingMode {
+    #[default]
     Solid = 0x00,
     Spectrum = 0x01,
     Gradient = 0x02,
@@ -159,8 +161,9 @@ impl WriteBeacn for LightingMode {
     }
 }
 
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum LightingMuteMode {
+    #[default]
     Nothing = 0x00,
     Solid = 0x01,
     Off = 0x02,
@@ -186,8 +189,9 @@ impl WriteBeacn for LightingMuteMode {
     }
 }
 
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum LightingSuspendMode {
+    #[default]
     Nothing = 0x00,
     Off = 0x01,
     Brightness = 0x02,
@@ -212,8 +216,9 @@ impl WriteBeacn for LightingSuspendMode {
     }
 }
 
-#[derive(Copy, Clone, EnumIter, Debug)]
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum LightingMeterSource {
+    #[default]
     Microphone = 0x00,
     Headphones = 0x01,
 }
