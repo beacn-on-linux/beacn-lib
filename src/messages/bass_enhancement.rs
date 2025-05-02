@@ -142,6 +142,72 @@ impl BeacnSubMessage for BassEnhancement {
     }
 }
 
+
+
+impl BassEnhancement {
+    fn get_preset(preset: BassPreset) -> Vec<Message> {
+        match preset {
+            BassPreset::Preset1 => vec![
+                Message::BassEnhancement(BassEnhancement::Attack(TimeFrame(10.0))),
+                Message::BassEnhancement(BassEnhancement::Release(TimeFrame(250.0))),
+                Message::BassEnhancement(BassEnhancement::Threshold(BassThreshold(-27.0))),
+                Message::BassEnhancement(BassEnhancement::Knee(BassKnee(2.0))),
+                Message::BassEnhancement(BassEnhancement::MakeupGain(MakeUpGain(6.0))),
+                Message::BassEnhancement(BassEnhancement::Ratio(BassRatio(8.0))),
+                Message::BassEnhancement(BassEnhancement::Cutoff(BassCutoff(102.0))),
+                Message::BassEnhancement(BassEnhancement::Q(BassQ(0.7))),
+                Message::BassEnhancement(BassEnhancement::LowerCutoff(BassCutoff(10.0))),
+                Message::BassEnhancement(BassEnhancement::LowerQ(BassQ(0.2))),
+            ],
+            BassPreset::Preset2 => vec![
+                Message::BassEnhancement(BassEnhancement::Attack(TimeFrame(10.0))),
+                Message::BassEnhancement(BassEnhancement::Release(TimeFrame(250.0))),
+                Message::BassEnhancement(BassEnhancement::Threshold(BassThreshold(-21.0))),
+                Message::BassEnhancement(BassEnhancement::Knee(BassKnee(2.0))),
+                Message::BassEnhancement(BassEnhancement::MakeupGain(MakeUpGain(8.0))),
+                Message::BassEnhancement(BassEnhancement::Ratio(BassRatio(5.5))),
+                Message::BassEnhancement(BassEnhancement::Cutoff(BassCutoff(105.0))),
+                Message::BassEnhancement(BassEnhancement::Q(BassQ(0.9))),
+                Message::BassEnhancement(BassEnhancement::LowerCutoff(BassCutoff(40.0))),
+                Message::BassEnhancement(BassEnhancement::LowerQ(BassQ(0.2))),
+
+            ],
+            BassPreset::Preset3 => vec![
+                Message::BassEnhancement(BassEnhancement::Attack(TimeFrame(10.0))),
+                Message::BassEnhancement(BassEnhancement::Release(TimeFrame(250.0))),
+                Message::BassEnhancement(BassEnhancement::Threshold(BassThreshold(0.0))),
+                Message::BassEnhancement(BassEnhancement::Knee(BassKnee(3.0))),
+                Message::BassEnhancement(BassEnhancement::MakeupGain(MakeUpGain(0.0))),
+                Message::BassEnhancement(BassEnhancement::Ratio(BassRatio(16.0))),
+                Message::BassEnhancement(BassEnhancement::Cutoff(BassCutoff(160.0))),
+                Message::BassEnhancement(BassEnhancement::Q(BassQ(0.8))),
+                Message::BassEnhancement(BassEnhancement::LowerCutoff(BassCutoff(30.0))),
+                Message::BassEnhancement(BassEnhancement::LowerQ(BassQ(0.7))),
+            ],
+            BassPreset::Preset4 => vec![
+                Message::BassEnhancement(BassEnhancement::Attack(TimeFrame(10.0))),
+                Message::BassEnhancement(BassEnhancement::Release(TimeFrame(250.0))),
+                Message::BassEnhancement(BassEnhancement::Threshold(BassThreshold(-30.0))),
+                Message::BassEnhancement(BassEnhancement::Knee(BassKnee(3.0))),
+                Message::BassEnhancement(BassEnhancement::MakeupGain(MakeUpGain(0.0))),
+                Message::BassEnhancement(BassEnhancement::Ratio(BassRatio(8.0))),
+                Message::BassEnhancement(BassEnhancement::Cutoff(BassCutoff(150.0))),
+                Message::BassEnhancement(BassEnhancement::Q(BassQ(0.7))),
+                Message::BassEnhancement(BassEnhancement::LowerCutoff(BassCutoff(30.0))),
+                Message::BassEnhancement(BassEnhancement::LowerQ(BassQ(0.7))),
+            ],
+        }
+    }
+
+    fn get_amount(amount: f32) -> Vec<Message> {
+        vec![
+            Message::BassEnhancement(BassEnhancement::Amount(BassAmount(amount))),
+            Message::BassEnhancement(BassEnhancement::Drive(BassDrive(3.2 * amount))),
+            Message::BassEnhancement(BassEnhancement::Mix(Percent(amount * 10.0))),
+        ]
+    }
+}
+
 // Needs to come back as f32
 #[derive(Copy, Clone, EnumIter, Debug)]
 pub enum BassPreset {
@@ -179,71 +245,3 @@ generate_range!(BassKnee, f32, 0.0..=5.0);
 generate_range!(BassRatio, f32, 0.0..=16.0);
 generate_range!(BassCutoff, f32, 0.0..=160.0);
 generate_range!(BassQ, f32, 0.0..=16.0);
-
-// static BASS_PRESET_1: Lazy<HashMap<BaseEnhancementKeys, f32>> = Lazy::new(|| {
-//     [
-//         (BaseEnhancementKeys::Attack, 10.0),
-//         (BaseEnhancementKeys::Release, 250.0),
-//         (BaseEnhancementKeys::Threshold, -27.0),
-//         (BaseEnhancementKeys::Knee, 2.0),
-//         (BaseEnhancementKeys::MakeupGain, 6.0),
-//         (BaseEnhancementKeys::Ratio, 8.0),
-//         (BaseEnhancementKeys::Cutoff, 102.0),
-//         (BaseEnhancementKeys::Q, 0.7),
-//         (BaseEnhancementKeys::LowerCutoff, 10.0),
-//         (BaseEnhancementKeys::LowerQ, 0.2),
-//     ]
-//     .into_iter()
-//     .collect()
-// });
-//
-// static BASS_PRESET_2: Lazy<HashMap<BaseEnhancementKeys, f32>> = Lazy::new(|| {
-//     [
-//         (BaseEnhancementKeys::Attack, 10.0),
-//         (BaseEnhancementKeys::Release, 250.0),
-//         (BaseEnhancementKeys::Threshold, -21.0),
-//         (BaseEnhancementKeys::Knee, 2.0),
-//         (BaseEnhancementKeys::MakeupGain, 8.0),
-//         (BaseEnhancementKeys::Ratio, 5.5),
-//         (BaseEnhancementKeys::Cutoff, 105.0),
-//         (BaseEnhancementKeys::Q, 0.9),
-//         (BaseEnhancementKeys::LowerCutoff, 40.0),
-//         (BaseEnhancementKeys::LowerQ, 0.2),
-//     ]
-//     .into_iter()
-//     .collect()
-// });
-//
-// static BASS_PRESET_3: Lazy<HashMap<BaseEnhancementKeys, f32>> = Lazy::new(|| {
-//     [
-//         (BaseEnhancementKeys::Attack, 10.0),
-//         (BaseEnhancementKeys::Release, 250.0),
-//         (BaseEnhancementKeys::Threshold, 0.0),
-//         (BaseEnhancementKeys::Knee, 3.0),
-//         (BaseEnhancementKeys::MakeupGain, 0.0),
-//         (BaseEnhancementKeys::Ratio, 16.0),
-//         (BaseEnhancementKeys::Cutoff, 160.0),
-//         (BaseEnhancementKeys::Q, 0.8),
-//         (BaseEnhancementKeys::LowerCutoff, 30.0),
-//         (BaseEnhancementKeys::LowerQ, 0.7),
-//     ]
-//     .into_iter()
-//     .collect()
-// });
-//
-// static BASS_PRESET_4: Lazy<HashMap<BaseEnhancementKeys, f32>> = Lazy::new(|| {
-//     [
-//         (BaseEnhancementKeys::Attack, 10.0),
-//         (BaseEnhancementKeys::Release, 250.0),
-//         (BaseEnhancementKeys::Threshold, -30.0),
-//         (BaseEnhancementKeys::Knee, 3.0),
-//         (BaseEnhancementKeys::MakeupGain, 0.0),
-//         (BaseEnhancementKeys::Ratio, 8.0),
-//         (BaseEnhancementKeys::Cutoff, 150.0),
-//         (BaseEnhancementKeys::Q, 0.7),
-//         (BaseEnhancementKeys::LowerCutoff, 30.0),
-//         (BaseEnhancementKeys::LowerQ, 0.7),
-//     ]
-//     .into_iter()
-//     .collect()
-// });
