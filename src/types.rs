@@ -400,7 +400,7 @@ impl From<MessageValue<RGB>> for BeacnValue {
 macro_rules! generate_range {
     ($name:ident, $type:ty, $range:expr) => {
         #[derive(Debug, Clone, Copy, PartialEq)]
-        pub struct $name($type);
+        pub struct $name(pub $type);
 
         impl crate::types::HasRange<$type> for $name {
             fn range() -> std::ops::RangeInclusive<$type> {
