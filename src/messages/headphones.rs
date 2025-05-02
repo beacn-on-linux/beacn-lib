@@ -33,8 +33,8 @@ impl BeacnSubMessage for Headphones {
         match self {
             Headphones::HeadphoneLevel(_) | Headphones::GetHeadphoneLevel => [0x04, 0x00],
             Headphones::MicMonitor(_) | Headphones::GetMicMonitor => [0x06, 0x00],
-            Headphones::ChannelsLinked(_) | Headphones::GetMicOutputGain => [0x07, 0x00],
-            Headphones::MicOutputGain(_) | Headphones::GetChannelsLinked => [0x10, 0x00],
+            Headphones::ChannelsLinked(_) | Headphones::GetChannelsLinked => [0x07, 0x00],
+            Headphones::MicOutputGain(_) | Headphones::GetMicOutputGain => [0x10, 0x00],
             Headphones::HeadphoneType(_) | Headphones::GetHeadphoneType => [0x11, 0x00],
             Headphones::FXEnabled(_) | Headphones::GetFXEnabled => [0x12, 0x00],
         }
