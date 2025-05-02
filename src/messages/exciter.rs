@@ -10,7 +10,7 @@ pub enum Exciter {
     Amount(Percent),
 
     GetFrequency,
-    Frequency(ExciterFrequency),
+    Frequency(ExciterFreq),
 
     GetEnabled,
     Enabled(bool),
@@ -59,4 +59,4 @@ pub enum ExciterKeys {
     Enabled = 0x03,   // bool
 }
 
-generate_range!(ExciterFrequency, f32, 0.0..=5000.0);
+generate_range!(ExciterFreq, f32, 0.0..=5000.0);
