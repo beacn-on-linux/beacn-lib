@@ -23,7 +23,7 @@ pub enum Suppressor {
     Style(SuppressorStyle),
 
     GetSensitivity,
-    Sensitivity(Percent),
+    Sensitivity(SuppressorSensitivity),
 
     GetAdaptTime,
     AdaptTime(SupressorAdaptTime),
@@ -73,6 +73,7 @@ impl BeacnSubMessage for Suppressor {
     }
 }
 
+generate_range!(SuppressorSensitivity, f32, -120.0..=-60.0);
 generate_range!(SupressorAdaptTime, f32, 100.0..=5000.0);
 
 // enum Suppressor {
@@ -85,9 +86,9 @@ generate_range!(SupressorAdaptTime, f32, 100.0..=5000.0);
 #[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum SuppressorStyle {
     #[default]
-    Off = 0x01,
-    Adaptive = 0x02,
-    Snapshot = 0x03,
+    Off = 0x00,
+    Adaptive = 0x01,
+    Snapshot = 0x02,
 }
 impl Sealed for SuppressorStyle {}
 impl WriteBeacn for SuppressorStyle {

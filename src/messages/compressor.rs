@@ -145,8 +145,8 @@ enum CompressorKeys {
     Attack = 0x01,     // f32 (0..=2000)
     Release = 0x02,    // f32 (0..=2000)
     Threshold = 0x03,  // f32 (-50..0)
-    Amount = 0x05,     // f32, SIMPLE ONLY (amount == 0) ? 0 : 1 + (percent * 0.9)
-    MakeupGain = 0x06, // f32 (0..=12)
+    Amount = 0x06,     // f32, SIMPLE ONLY (amount == 0) ? 0 : 1 + (percent * 0.9)
+    MakeupGain = 0x05, // f32 (0..=12)
     Enabled = 0x07,    // bool
 }
 impl Into<u8> for CompressorKeys {
