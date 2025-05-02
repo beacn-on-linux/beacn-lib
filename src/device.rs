@@ -35,7 +35,7 @@ impl BeacnMic {
         })
     }
 
-    fn fetch_value(&self, message: Message) -> Result<Message> {
+    pub fn fetch_value(&self, message: Message) -> Result<Message> {
         // Ok, first we need to deconstruct this message into something more useful
         let key = message.to_beacn_key();
 
@@ -45,7 +45,7 @@ impl BeacnMic {
         Ok(Message::from_beacn_message(param))
     }
 
-    fn set_value(&self, message: Message) -> Result<Message> {
+    pub fn set_value(&self, message: Message) -> Result<Message> {
         let key = message.to_beacn_key();
         let value = message.to_beacn_value();
 
