@@ -22,6 +22,9 @@ pub enum Suppressor {
     GetStyle,
     Style(SuppressorStyle),
 
+    GetSensitivity,
+    Sensitivity(Percent),
+
     GetAdaptTime,
     AdaptTime(SupressorAdaptTime),
 }
@@ -32,6 +35,7 @@ impl BeacnSubMessage for Suppressor {
             Suppressor::GetEnabled | Suppressor::Enabled(_) => [0x00, 0x00],
             Suppressor::GetAmount | Suppressor::Amount(_) => [0x02, 0x00],
             Suppressor::GetStyle | Suppressor::Style(_) => [0x04, 0x00],
+            Suppressor::GetSensitivity | Suppressor::Sensitivity(_) => [0x05, 0x00],
             Suppressor::GetAdaptTime | Suppressor::AdaptTime(_) => [0x08, 0x00],
         }
     }
@@ -41,6 +45,7 @@ impl BeacnSubMessage for Suppressor {
             Suppressor::Enabled(v) => v.write_beacn(),
             Suppressor::Amount(v) => write_value(v),
             Suppressor::Style(v) => v.write_beacn(),
+            Suppressor::Sensitivity(v) => write_value(v),
             Suppressor::AdaptTime(v) => write_value(v),
             _ => panic!("Attempted to Set a Getter"),
         }
@@ -51,6 +56,7 @@ impl BeacnSubMessage for Suppressor {
             0x00 => Self::Enabled(bool::read_beacn(&value)),
             0x02 => Self::Amount(read_value(&value)),
             0x04 => Self::Style(SuppressorStyle::read_beacn(&value)),
+            0x05 => Self::Sensitivity(read_value(&value)),
             0x08 => Self::AdaptTime(read_value(&value)),
             _ => panic!("Unexpected Key {}", key[0]),
         }
@@ -61,6 +67,7 @@ impl BeacnSubMessage for Suppressor {
             Message::Suppressor(Suppressor::GetEnabled),
             Message::Suppressor(Suppressor::GetAmount),
             Message::Suppressor(Suppressor::GetStyle),
+            Message::Suppressor(Suppressor::GetSensitivity),
             Message::Suppressor(Suppressor::GetAdaptTime),
         ]
     }
