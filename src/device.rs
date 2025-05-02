@@ -1,8 +1,11 @@
+use std::io::{Cursor, Read, Seek};
 use std::time::Duration;
 use anyhow::{bail, Result};
+use byteorder::{LittleEndian, ReadBytesExt};
 use log::debug;
 use rusb::{Device, DeviceDescriptor, DeviceHandle, GlobalContext};
 use crate::messages::Message;
+use crate::version::VersionNumber;
 
 const VID_BEACN_MIC: u16 = 0x33ae;
 const PID_BEACN_MIC: u16 = 0x0001;
@@ -13,7 +16,7 @@ pub struct BeacnMic {
     descriptor: DeviceDescriptor,
 
     serial: String,
-    firmware_version: String,
+    firmware_version: VersionNumber,
 }
 
 impl BeacnMic {
@@ -24,15 +27,61 @@ impl BeacnMic {
         let handle = device.open()?;
         handle.claim_interface(3)?;
         handle.set_alternate_setting(3, 1)?;
+        handle.clear_halt(0x83)?;
+
+        let setup_timeout = Duration::from_millis(2000);
+
+        let request = [0x00, 0x00, 0x00, 0xa0];
+        handle.write_bulk(0x03, &request, setup_timeout)?;
+
+        let mut input = [0; 512];
+        let request = [0x00, 0x00, 0x00, 0xa1];
+        handle.write_bulk(0x03, &request, setup_timeout)?;
+        handle.read_bulk(0x83, &mut input, setup_timeout)?;
+
+        // So, this is consistent between the Mix Create and the Mic :D
+        let mut cursor = Cursor::new(input);
+        cursor.seek_relative(4)?;
+
+        let version = cursor.read_u32::<LittleEndian>()?;
+
+        // Break it down
+        let major = version >> 0x1c;
+        let minor = (version >> 0x18) & 0xf;
+        let patch = (version >> 0x10) & 0xff;
+        let build = version & 0xffff;
+
+        let firmware_version = VersionNumber(major, minor, patch, build);
+
+        // Now grab the Serial...
+        let mut serial_bytes = vec![];
+        for byte in cursor.bytes() {
+            let byte = byte?;
+
+            // Check for Null Termination
+            if byte == 0 {
+                break;
+            }
+            serial_bytes.push(byte);
+        }
+        let serial = String::from_utf8_lossy(&serial_bytes).to_string();
 
         Ok(Self {
             handle,
             device,
             descriptor,
 
-            serial: String::from("NotImplemented"),
-            firmware_version: String::from("0.0.0 build 0")
+            serial,
+            firmware_version,
         })
+    }
+
+    pub fn get_serial(&self) -> String {
+        self.serial.clone()
+    }
+
+    pub fn get_version(&self) -> VersionNumber {
+        self.firmware_version
     }
 
     pub fn fetch_value(&self, message: Message) -> Result<Message> {
