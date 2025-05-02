@@ -77,7 +77,7 @@ impl BeacnSubMessage for Headphones {
 }
 
 generate_range!(HPLevel, f32, -70.0..=-0.0);
-generate_range!(HPMicMonitorLevel, f32, -100.0..=0.0);
+generate_range!(HPMicMonitorLevel, f32, -100.0..=6.0);
 generate_range!(HPMicOutputGain, f32, 0.0..=12.0);
 
 #[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
