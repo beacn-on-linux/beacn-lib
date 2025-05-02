@@ -5,11 +5,11 @@ use strum::{EnumIter, IntoEnumIterator};
 
 #[derive(Debug)]
 pub enum HeadphoneEQ {
-    GetValue(HeadphoneEQType),
-    Value(HeadphoneEQType, HeadphoneEQValue),
+    GetValue(HPEQType),
+    Value(HPEQType, HPEQValue),
 
-    GetEnabled(HeadphoneEQType),
-    Enabled(HeadphoneEQType, bool),
+    GetEnabled(HPEQType),
+    Enabled(HPEQType, bool),
 }
 
 impl BeacnSubMessage for HeadphoneEQ {
@@ -43,7 +43,7 @@ impl BeacnSubMessage for HeadphoneEQ {
 
     fn generate_fetch_message() -> Vec<Message> {
         let mut messages = vec![];
-        for eq_type in HeadphoneEQType::iter() {
+        for eq_type in HPEQType::iter() {
             messages.push(Message::HeadphoneEQ(HeadphoneEQ::GetEnabled(eq_type)));
             messages.push(Message::HeadphoneEQ(HeadphoneEQ::GetValue(eq_type)));
         }
@@ -51,15 +51,15 @@ impl BeacnSubMessage for HeadphoneEQ {
     }
 }
 
-generate_range!(HeadphoneEQValue, f32, -12.0..=12.0);
+generate_range!(HPEQValue, f32, -12.0..=12.0);
 
 #[derive(Copy, Clone, EnumIter, Debug)]
-pub enum HeadphoneEQType {
+pub enum HPEQType {
     Bass = 0x00,
     Mids = 0x01,
     Treble = 0x02,
 }
-impl Into<u8> for HeadphoneEQType {
+impl Into<u8> for HPEQType {
     fn into(self) -> u8 {
         self as u8
     }
