@@ -2,7 +2,7 @@ use crate::messages::Message;
 use crate::version::VersionNumber;
 use anyhow::{Result, bail};
 use byteorder::{LittleEndian, ReadBytesExt};
-use log::debug;
+use log::{debug, warn};
 use rusb::{Device, DeviceDescriptor, DeviceHandle, GlobalContext};
 use std::io::{Cursor, Read, Seek};
 use std::time::Duration;
@@ -175,6 +175,7 @@ impl BeacnMic {
 
         // Compare the new response
         if new_value != request[4..8] {
+            warn!("Value Set: {:?} does not match value on Device: {:?}", &request[4..8], new_value);
             bail!("Value was not changed on the device!");
         }
         Ok(new_value)
