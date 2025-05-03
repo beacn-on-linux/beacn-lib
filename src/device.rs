@@ -174,7 +174,7 @@ impl BeacnMic {
         let new_value = self.param_lookup(key)?;
 
         // Compare the new response
-        if new_value != request[4..8] {
+        if new_value[4..8] != request[4..8] {
             warn!("Value Set: {:?} does not match value on Device: {:?}", &request[4..8], &new_value[4..8]);
             bail!("Value was not changed on the device!");
         }
