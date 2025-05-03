@@ -1,4 +1,5 @@
 use crate::generate_range;
+use crate::messages::bass_enhancement::BassPreset::{Preset1, Preset2, Preset3, Preset4};
 use crate::messages::{BeacnSubMessage, Message};
 use crate::types::{
     read_value, write_value, BeacnValue, MakeUpGain, Percent, ReadBeacn, TimeFrame, WriteBeacn,
@@ -144,11 +145,11 @@ impl BeacnSubMessage for BassEnhancement {
 }
 
 
-
 impl BassEnhancement {
     pub fn get_preset(preset: BassPreset) -> Vec<Message> {
         match preset {
-            BassPreset::Preset1 => vec![
+            Preset1 => vec![
+                Message::BassEnhancement(BassEnhancement::Preset(Preset1)),
                 Message::BassEnhancement(BassEnhancement::Attack(TimeFrame(10.0))),
                 Message::BassEnhancement(BassEnhancement::Release(TimeFrame(250.0))),
                 Message::BassEnhancement(BassEnhancement::Threshold(BassThreshold(-27.0))),
@@ -160,7 +161,8 @@ impl BassEnhancement {
                 Message::BassEnhancement(BassEnhancement::LowerCutoff(BassCutoff(10.0))),
                 Message::BassEnhancement(BassEnhancement::LowerQ(BassQ(0.2))),
             ],
-            BassPreset::Preset2 => vec![
+            Preset2 => vec![
+                Message::BassEnhancement(BassEnhancement::Preset(Preset2)),
                 Message::BassEnhancement(BassEnhancement::Attack(TimeFrame(10.0))),
                 Message::BassEnhancement(BassEnhancement::Release(TimeFrame(250.0))),
                 Message::BassEnhancement(BassEnhancement::Threshold(BassThreshold(-21.0))),
@@ -171,9 +173,9 @@ impl BassEnhancement {
                 Message::BassEnhancement(BassEnhancement::Q(BassQ(0.9))),
                 Message::BassEnhancement(BassEnhancement::LowerCutoff(BassCutoff(40.0))),
                 Message::BassEnhancement(BassEnhancement::LowerQ(BassQ(0.2))),
-
             ],
-            BassPreset::Preset3 => vec![
+            Preset3 => vec![
+                Message::BassEnhancement(BassEnhancement::Preset(Preset3)),
                 Message::BassEnhancement(BassEnhancement::Attack(TimeFrame(10.0))),
                 Message::BassEnhancement(BassEnhancement::Release(TimeFrame(250.0))),
                 Message::BassEnhancement(BassEnhancement::Threshold(BassThreshold(0.0))),
@@ -185,7 +187,8 @@ impl BassEnhancement {
                 Message::BassEnhancement(BassEnhancement::LowerCutoff(BassCutoff(30.0))),
                 Message::BassEnhancement(BassEnhancement::LowerQ(BassQ(0.7))),
             ],
-            BassPreset::Preset4 => vec![
+            Preset4 => vec![
+                Message::BassEnhancement(BassEnhancement::Preset(Preset4)),
                 Message::BassEnhancement(BassEnhancement::Attack(TimeFrame(10.0))),
                 Message::BassEnhancement(BassEnhancement::Release(TimeFrame(250.0))),
                 Message::BassEnhancement(BassEnhancement::Threshold(BassThreshold(-30.0))),
