@@ -64,6 +64,23 @@ impl BeacnSubMessage for Subwoofer {
     }
 }
 
+impl Subwoofer {
+    pub fn get_amount_messages(amount: u8) -> Vec<Message> {
+        let gain = if amount < 6 { 2 } else { amount + 1 };
+        let ratio = 12 - amount;
+        let mix = amount * 10;
+
+        let messages = vec![
+            Message::Subwoofer(Subwoofer::Amount(SubwooferAmount(amount as i32))),
+            Message::Subwoofer(Subwoofer::Mix(Percent(mix as f32))),
+            Message::Subwoofer(Subwoofer::Ratio(SubwooferRatio(ratio as f32))),
+            Message::Subwoofer(Subwoofer::MakeupGain(SubwooferMakeupGain(gain as f32)))
+        ];
+
+        messages
+    }
+}
+
 generate_range!(SubwooferMakeupGain, f32, 2.0..=11.0);
 generate_range!(SubwooferRatio, f32, 0.0..=12.0);
 generate_range!(SubwooferAmount, i32, 0..=10);
