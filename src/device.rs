@@ -1,3 +1,4 @@
+use crate::manager::DeviceLocation;
 use crate::messages::Message;
 use crate::version::VersionNumber;
 use anyhow::{Result, bail};
@@ -20,9 +21,9 @@ pub struct BeacnMic {
 }
 
 impl BeacnMic {
-    pub fn open() -> Result<Self> {
+    pub fn open(location: DeviceLocation) -> Result<Self> {
         // Attempt to Locate a Beacn Mic
-        let (device, descriptor) = Self::find_devices()?;
+        let (device, descriptor) = Self::find_device(location)?;
 
         let handle = device.open()?;
         handle.claim_interface(3)?;
@@ -117,25 +118,6 @@ impl BeacnMic {
         Ok(Message::from_beacn_message(result))
     }
 
-    fn find_devices() -> Result<(Device<GlobalContext>, DeviceDescriptor)> {
-        if let Ok(devices) = rusb::devices() {
-            for device in devices.iter() {
-                if let Ok(descriptor) = device.device_descriptor() {
-                    let bus_number = device.bus_number();
-                    let address = device.address();
-
-                    if descriptor.vendor_id() == VID_BEACN_MIC
-                        && descriptor.product_id() == PID_BEACN_MIC
-                    {
-                        debug!("Found Beacn Mic at address {}.{}", bus_number, address);
-                        return Ok((device, descriptor));
-                    }
-                }
-            }
-        }
-        bail!("Unable to Locate Device")
-    }
-
     fn param_lookup(&self, key: [u8; 3]) -> Result<[u8; 8]> {
         let timeout = Duration::from_secs(3);
 
@@ -173,11 +155,33 @@ impl BeacnMic {
         // Check whether the value has changed
         let new_value = self.param_lookup(key)?;
 
+        let old = &request[4..8];
+        let new = &new_value[4..8];
+
         // Compare the new response
-        if new_value[4..8] != request[4..8] {
-            warn!("Value Set: {:?} does not match value on Device: {:?}", &request[4..8], &new_value[4..8]);
+        if old != new {
+            warn!(
+                "Value Set: {:?} does not match value on Device: {:?}",
+                &old, &new
+            );
             bail!("Value was not changed on the device!");
         }
         Ok(new_value)
+    }
+
+    fn find_device(location: DeviceLocation) -> Result<(Device<GlobalContext>, DeviceDescriptor)> {
+        // We need to iterate through the devices and find the one at this location
+        if let Ok(devices) = rusb::devices() {
+            for device in devices.iter() {
+                if let Ok(desc) = device.device_descriptor() {
+                    if desc.vendor_id() == VID_BEACN_MIC && desc.product_id() == PID_BEACN_MIC {
+                        if DeviceLocation::from(device.clone()) == location {
+                            return Ok((device, desc));
+                        }
+                    }
+                }
+            }
+        }
+        bail!("Unable to find Device")
     }
 }

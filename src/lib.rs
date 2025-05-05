@@ -1,4 +1,5 @@
 pub mod device;
+pub mod manager;
 pub mod messages;
 pub mod types;
-mod version;
+pub mod version;
