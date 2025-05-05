@@ -106,9 +106,9 @@ pub enum ExpanderMode {
     Simple = 0x00,
     Advanced = 0x01,
 }
-impl Into<u8> for ExpanderMode {
-    fn into(self) -> u8 {
-        self as u8
+impl From<ExpanderMode> for u8 {
+    fn from(value: ExpanderMode) -> Self {
+        value as u8
     }
 }
 
@@ -140,9 +140,9 @@ pub enum ExpanderKeys {
     Attack = 0x01,    // f32 (1..=2000)
     Release = 0x02,   // f32 (1..=2000)
 }
-impl Into<u8> for ExpanderKeys {
-    fn into(self) -> u8 {
-        self as u8
+impl From<ExpanderKeys> for u8 {
+    fn from(value: ExpanderKeys) -> Self {
+        value as u8
     }
 }
 

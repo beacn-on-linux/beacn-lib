@@ -157,9 +157,9 @@ pub enum EQBand {
     Band7 = 0x06,
     Band8 = 0x08,
 }
-impl Into<u8> for EQBand {
-    fn into(self) -> u8 {
-        self as u8
+impl From<EQBand> for u8 {
+    fn from(value: EQBand) -> Self {
+        value as u8
     }
 }
 
@@ -171,9 +171,9 @@ enum EqualiserKeys {
     Q = 0x04,         // f32 (0.1..=10)
     Enabled = 0x05,   // boolean
 }
-impl Into<u8> for EqualiserKeys {
-    fn into(self) -> u8 {
-        self as u8
+impl From<EqualiserKeys> for u8 {
+    fn from(value: EqualiserKeys) -> Self {
+        value as u8
     }
 }
 

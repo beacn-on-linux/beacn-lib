@@ -60,19 +60,19 @@ pub enum HPEQType {
     Mids = 0x01,
     Treble = 0x02,
 }
-impl Into<u8> for HPEQType {
-    fn into(self) -> u8 {
-        self as u8
+impl From<HPEQType> for u8 {
+    fn from(value: HPEQType) -> Self {
+        value as u8
     }
 }
 
 #[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum HPEQKeys {
-    Amount = 0x02,   // f32 (-12..12)
+    Amount = 0x02,  // f32 (-12..12)
     Enabled = 0x05, // bool
 }
-impl Into<u8> for HPEQKeys {
-    fn into(self) -> u8 {
-        self as u8
+impl From<HPEQKeys> for u8 {
+    fn from(value: HPEQKeys) -> Self {
+        value as u8
     }
 }

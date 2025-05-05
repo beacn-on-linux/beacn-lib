@@ -27,7 +27,7 @@ pub fn spawn_mic_hotplug_handler(
     if has_hotplug() {
         thread::spawn(move || hotplug_notify(context, manager, receiver, sender));
     } else {
-        thread::spawn(move || hotplug_poll(context, manager, receiver));
+        thread::spawn(move || hotplug_poll(context, *manager, receiver));
     }
 
     Ok(())
@@ -89,7 +89,7 @@ fn hotplug_notify(
         .vendor_id(VID_BEACN_MIC)
         .product_id(PID_BEACN_MIC)
         .enumerate(true)
-        .register(&context, manager)
+        .register(context, manager)
         .expect("Cannot Register hot plug Handler");
 
     let loop_duration = Some(Duration::from_millis(500));
@@ -107,7 +107,7 @@ fn hotplug_notify(
 
 fn hotplug_poll(
     context: GlobalContext,
-    mut manager: Box<BeacnMicManager>,
+    mut manager: BeacnMicManager,
     receiver: Receiver<HotPlugThreadManagement>,
 ) {
     loop {

@@ -3,7 +3,6 @@ use byteorder::{ByteOrder, LittleEndian};
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 
-
 // Create the base values which everything comes from
 pub type BeacnValue = [u8; 4];
 pub struct MessageValue<T>(pub T);
@@ -374,8 +373,7 @@ where
             T::range()
         );
     }
-    let buffer = U::write_beacn(&inner);
-    buffer
+    U::write_beacn(&inner)
 }
 
 impl From<BeacnValue> for MessageValue<RGB> {
@@ -402,19 +400,19 @@ macro_rules! generate_range {
         #[derive(Debug, Clone, Copy, PartialEq)]
         pub struct $name(pub $type);
 
-        impl crate::types::HasRange<$type> for $name {
+        impl $crate::types::HasRange<$type> for $name {
             fn range() -> std::ops::RangeInclusive<$type> {
                 $range
             }
         }
 
-        impl crate::types::FromInner<$type> for $name {
+        impl $crate::types::FromInner<$type> for $name {
             fn from_inner(value: $type) -> Self {
                 Self(value)
             }
         }
 
-        impl crate::types::ToInner<$type> for $name {
+        impl $crate::types::ToInner<$type> for $name {
             fn to_inner(&self) -> $type {
                 self.0
             }

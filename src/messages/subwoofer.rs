@@ -74,7 +74,7 @@ impl Subwoofer {
             Message::Subwoofer(Subwoofer::Amount(SubwooferAmount(amount as i32))),
             Message::Subwoofer(Subwoofer::Mix(Percent(mix as f32))),
             Message::Subwoofer(Subwoofer::Ratio(SubwooferRatio(ratio as f32))),
-            Message::Subwoofer(Subwoofer::MakeupGain(SubwooferMakeupGain(gain as f32)))
+            Message::Subwoofer(Subwoofer::MakeupGain(SubwooferMakeupGain(gain as f32))),
         ];
 
         messages

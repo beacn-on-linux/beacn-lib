@@ -169,6 +169,7 @@ impl BeacnMic {
         Ok(new_value)
     }
 
+    #[allow(clippy::collapsible_if)]
     fn find_device(location: DeviceLocation) -> Result<(Device<GlobalContext>, DeviceDescriptor)> {
         // We need to iterate through the devices and find the one at this location
         if let Ok(devices) = rusb::devices() {

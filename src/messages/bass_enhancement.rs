@@ -2,7 +2,7 @@ use crate::generate_range;
 use crate::messages::bass_enhancement::BassPreset::{Preset1, Preset2, Preset3, Preset4};
 use crate::messages::{BeacnSubMessage, Message};
 use crate::types::{
-    read_value, write_value, BeacnValue, MakeUpGain, Percent, ReadBeacn, TimeFrame, WriteBeacn,
+    BeacnValue, MakeUpGain, Percent, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
 };
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
@@ -143,7 +143,6 @@ impl BeacnSubMessage for BassEnhancement {
         ]
     }
 }
-
 
 impl BassEnhancement {
     pub fn get_preset(preset: BassPreset) -> Vec<Message> {
