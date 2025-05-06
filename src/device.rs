@@ -1,4 +1,4 @@
-use crate::manager::DeviceLocation;
+use crate::manager::{DeviceLocation, DeviceType, PID_BEACN_MIC, PID_BEACN_STUDIO, VENDOR_BEACN};
 use crate::messages::Message;
 use crate::version::VersionNumber;
 use anyhow::{Result, bail};
@@ -8,10 +8,9 @@ use rusb::{Device, DeviceDescriptor, DeviceHandle, GlobalContext};
 use std::io::{Cursor, Read, Seek};
 use std::time::Duration;
 
-const VID_BEACN_MIC: u16 = 0x33ae;
-const PID_BEACN_MIC: u16 = 0x0001;
-
 pub struct BeacnMic {
+    device_type: DeviceType,
+
     handle: DeviceHandle<GlobalContext>,
     device: Device<GlobalContext>,
     _descriptor: DeviceDescriptor,
@@ -24,6 +23,14 @@ impl BeacnMic {
     pub fn open(location: DeviceLocation) -> Result<Self> {
         // Attempt to Locate a Beacn Mic
         let (device, descriptor) = Self::find_device(location)?;
+
+        let device_type = if descriptor.product_id() == PID_BEACN_MIC {
+            DeviceType::BeacnMic
+        } else if descriptor.product_id() == PID_BEACN_STUDIO {
+            DeviceType::BeacnStudio
+        } else {
+            bail!("Device is not a Mic or Studio");
+        };
 
         let handle = device.open()?;
         handle.claim_interface(3)?;
@@ -76,6 +83,8 @@ impl BeacnMic {
         );
 
         Ok(Self {
+            device_type,
+
             handle,
             device,
             _descriptor: descriptor,
@@ -175,7 +184,7 @@ impl BeacnMic {
         if let Ok(devices) = rusb::devices() {
             for device in devices.iter() {
                 if let Ok(desc) = device.device_descriptor() {
-                    if desc.vendor_id() == VID_BEACN_MIC && desc.product_id() == PID_BEACN_MIC {
+                    if desc.vendor_id() == VENDOR_BEACN {
                         if DeviceLocation::from(device.clone()) == location {
                             return Ok((device, desc));
                         }

@@ -8,8 +8,15 @@ use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
 
-const VID_BEACN_MIC: u16 = 0x33ae;
-const PID_BEACN_MIC: u16 = 0x0001;
+pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
+pub(crate) const PID_BEACN_MIC: u16 = 0x0001;
+pub(crate) const PID_BEACN_STUDIO: u16 = 0x0003;
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum DeviceType {
+    BeacnMic,
+    BeacnStudio,
+}
 
 pub fn spawn_mic_hotplug_handler(
     sender: Sender<HotPlugMessage>,
@@ -50,14 +57,14 @@ impl BeacnMicManager {
         let _ = self.sender.send(HotPlugMessage::ThreadStopped);
     }
 
-    fn device_connected(&mut self, device: DeviceLocation) {
+    fn device_connected(&mut self, device: DeviceLocation, device_type: DeviceType) {
         if self.known_devices.contains(&device) {
             warn!("Received 'Arrived' Message for already present device!");
             return;
         }
         debug!("Device Connected at {}", device);
         self.known_devices.push(device);
-        let _ = self.sender.send(HotPlugMessage::DeviceAttached(device));
+        let _ = self.sender.send(HotPlugMessage::DeviceAttached(device, device_type));
     }
 
     fn device_removed(&mut self, device: DeviceLocation) {
@@ -69,8 +76,19 @@ impl BeacnMicManager {
 
 impl Hotplug<GlobalContext> for BeacnMicManager {
     fn device_arrived(&mut self, device: Device<GlobalContext>) {
-        let device = DeviceLocation::from(device);
-        self.device_connected(device);
+        let location = DeviceLocation::from(device);
+
+        // We need to work out what kind of device this is
+        if let Ok(desc) = device.device_descriptor() {
+            if desc.product_id() == PID_BEACN_MIC {
+                debug!("Found Beacn Mic!");
+                self.device_connected(location, DeviceType::BeacnMic);
+            }
+            if desc.product_id() == PID_BEACN_STUDIO {
+                debug!("Found Beacn Studio!");
+                self.device_connected(location, DeviceType::BeacnStudio);
+            }
+        }
     }
 
     fn device_left(&mut self, device: Device<GlobalContext>) {
@@ -86,8 +104,7 @@ fn hotplug_notify(
     sender: Sender<HotPlugMessage>,
 ) {
     let _handler = HotplugBuilder::new()
-        .vendor_id(VID_BEACN_MIC)
-        .product_id(PID_BEACN_MIC)
+        .vendor_id(VENDOR_BEACN)
         .enumerate(true)
         .register(context, manager)
         .expect("Cannot Register hot plug Handler");
@@ -120,16 +137,22 @@ fn hotplug_poll(
         if let Ok(devices) = context.devices() {
             for dev in devices.iter() {
                 if let Ok(desc) = dev.device_descriptor() {
-                    if desc.vendor_id() == VID_BEACN_MIC && desc.product_id() == PID_BEACN_MIC {
+                    if desc.vendor_id() == VENDOR_BEACN {
                         let device = DeviceLocation::from(dev);
 
-                        // Send this to the manager, it'll handle it if it needs to
-                        if !&manager.known_devices.contains(&device) {
-                            manager.device_connected(device);
+                        if desc.product_id() == PID_BEACN_MIC {
+                            if !&manager.known_devices.contains(&device) {
+                                found_devices.push(device);
+                                manager.device_connected(device, DeviceType::BeacnMic);
+                            }
                         }
 
-                        // Push it into our list
-                        found_devices.push(device);
+                        if desc.product_id() == PID_BEACN_STUDIO {
+                            if !&manager.known_devices.contains(&device) {
+                                found_devices.push(device);
+                                manager.device_connected(device, DeviceType::BeacnStudio);
+                            }
+                        }
                     }
                 }
             }
@@ -165,7 +188,7 @@ fn should_stop(message: Result<HotPlugThreadManagement, TryRecvError>) -> bool {
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum HotPlugMessage {
-    DeviceAttached(DeviceLocation),
+    DeviceAttached(DeviceLocation, DeviceType),
     DeviceRemoved(DeviceLocation),
     ThreadStopped,
 }
@@ -202,11 +225,19 @@ impl<T: UsbContext> From<Device<T>> for DeviceLocation {
 /// This function is useful during prototyping, but shouldn't be used long term, instead
 /// use the regular hot plug thread.
 pub fn get_beacn_mic_devices() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_MIC)
+}
+
+pub fn get_beacn_studio_devices() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_STUDIO)
+}
+
+fn get_beacn_device(pid: u16) -> Vec<DeviceLocation> {
     let mut devices = vec![];
     if let Ok(devs) = rusb::devices() {
         for dev in devs.iter() {
             if let Ok(desc) = dev.device_descriptor() {
-                if desc.vendor_id() == VID_BEACN_MIC && desc.product_id() == PID_BEACN_MIC {
+                if desc.vendor_id() == VENDOR_BEACN && desc.product_id() == pid {
                     devices.push(DeviceLocation::from(dev));
                 }
             }
