@@ -93,7 +93,7 @@ impl BeacnSubMessage for Headphones {
             0x07 => {
                 match device_type {
                     DeviceType::BeacnMic => Self::MicChannelsLinked(bool::read_beacn(&value)),
-                    DeviceType::BeacnStudio => Self::StudioChannelsLinked(bool::read_beacn(&value)),
+                    DeviceType::BeacnStudio => Self::StudioMicMonitor(read_value(&value)),
                 }
             }
             0x08 => Self::StudioChannelsLinked(bool::read_beacn(&value)),
