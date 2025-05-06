@@ -65,7 +65,9 @@ impl BeacnMicManager {
         }
         debug!("Device Connected at {}", device);
         self.known_devices.push(device);
-        let _ = self.sender.send(HotPlugMessage::DeviceAttached(device, device_type));
+        let _ = self
+            .sender
+            .send(HotPlugMessage::DeviceAttached(device, device_type));
     }
 
     fn device_removed(&mut self, device: DeviceLocation) {
@@ -93,8 +95,13 @@ impl Hotplug<GlobalContext> for BeacnMicManager {
     }
 
     fn device_left(&mut self, device: Device<GlobalContext>) {
-        let device = DeviceLocation::from(device);
-        self.device_removed(device);
+        // Only flag a device removal if it's a Mic or Studio
+        if let Ok(desc) = device.device_descriptor() {
+            if desc.product_id() == PID_BEACN_MIC || desc.product_id() == PID_BEACN_STUDIO {
+                let location = DeviceLocation::from(device.clone());
+                self.device_removed(location);
+            }
+        }
     }
 }
 
