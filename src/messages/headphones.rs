@@ -1,12 +1,12 @@
 use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 
 use crate::generate_range;
+use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
-use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Headphones {
@@ -67,7 +67,7 @@ impl BeacnSubMessage for Headphones {
             Headphones::MicOutputGain(_) | Headphones::GetMicOutputGain => [0x10, 0x00],
             Headphones::HeadphoneType(_) | Headphones::GetHeadphoneType => [0x11, 0x00],
             Headphones::FXEnabled(_) | Headphones::GetFXEnabled => [0x12, 0x00],
-            Headphones::StudioDriverless(_) | Headphones::GetStudioDriverless => [0x14, 0x00]
+            Headphones::StudioDriverless(_) | Headphones::GetStudioDriverless => [0x14, 0x00],
         }
     }
 
@@ -86,13 +86,15 @@ impl BeacnSubMessage for Headphones {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType) -> Self {
         match key[0] {
             0x04 => Self::HeadphoneLevel(read_value(&value)),
             0x06 => Self::MicMonitor(read_value(&value)),
             0x07 => {
-                // TODO: This is device dependant
-                Self::MicChannelsLinked(bool::read_beacn(&value))
+                match device_type {
+                    DeviceType::BeacnMic => Self::MicChannelsLinked(bool::read_beacn(&value)),
+                    DeviceType::BeacnStudio => Self::StudioChannelsLinked(bool::read_beacn(&value)),
+                }
             }
             0x08 => Self::StudioChannelsLinked(bool::read_beacn(&value)),
             0x10 => Self::MicOutputGain(read_value(&value)),
@@ -106,9 +108,7 @@ impl BeacnSubMessage for Headphones {
     fn generate_fetch_message(device_type: DeviceType) -> Vec<Message> {
         let mut messages = vec![
             Message::Headphones(Headphones::GetHeadphoneLevel),
-
             Message::Headphones(Headphones::GetMicOutputGain),
-
             Message::Headphones(Headphones::GetHeadphoneType),
             Message::Headphones(Headphones::GetFXEnabled),
         ];

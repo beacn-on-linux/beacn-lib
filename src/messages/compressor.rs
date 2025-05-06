@@ -78,7 +78,7 @@ impl BeacnSubMessage for Compressor {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
         if key == [0, 0] {
             return Self::Mode(CompressorMode::read_beacn(&value));
         }

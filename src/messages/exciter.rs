@@ -39,7 +39,7 @@ impl BeacnSubMessage for Exciter {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
         match key[0] {
             0x01 => Self::Amount(read_value(&value)),
             0x02 => Self::Frequency(read_value(&value)),

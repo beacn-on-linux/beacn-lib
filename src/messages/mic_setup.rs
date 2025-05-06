@@ -37,11 +37,13 @@ impl BeacnSubMessage for MicSetup {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType) -> Self {
         match key[0] {
             0x00 => {
-                // TODO: Need DeviceType
-                Self::MicGain(read_value(&value))
+                match device_type {
+                    DeviceType::BeacnMic => Self::MicGain(read_value(&value)),
+                    DeviceType::BeacnStudio => Self::StudioMicGain(read_value(&value))
+                }
             },
             0x02 => Self::StudioPhantomPower(bool::read_beacn(&value)),
             _ => panic!("Unknown Key")

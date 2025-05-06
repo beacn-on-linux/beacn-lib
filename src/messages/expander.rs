@@ -70,7 +70,7 @@ impl BeacnSubMessage for Expander {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
         if key == [0x00, 0x00] {
             return Self::Mode(ExpanderMode::read_beacn(&value));
         }

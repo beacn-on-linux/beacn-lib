@@ -101,7 +101,7 @@ impl Message {
         }
     }
 
-    pub fn from_beacn_message(bytes: [u8; 8]) -> Self {
+    pub fn from_beacn_message(bytes: [u8; 8], device_type: DeviceType) -> Self {
         // Grab the initial type
         let message = bytes[0];
 
@@ -110,18 +110,18 @@ impl Message {
         let value: BeacnValue = bytes[4..8].try_into().unwrap();
 
         match message {
-            0x00 => Self::Headphones(Headphones::from_beacn(key, value)),
-            0x01 => Self::Lighting(Lighting::from_beacn(key, value)),
-            0x02 => Self::Equaliser(Equaliser::from_beacn(key, value)),
-            0x03 => Self::HeadphoneEQ(HeadphoneEQ::from_beacn(key, value)),
-            0x04 => Self::BassEnhancement(BassEnhancement::from_beacn(key, value)),
-            0x05 => Self::Compressor(Compressor::from_beacn(key, value)),
-            0x06 => Self::DeEsser(DeEsser::from_beacn(key, value)),
-            0x07 => Self::Exciter(Exciter::from_beacn(key, value)),
-            0x08 => Self::Expander(Expander::from_beacn(key, value)),
-            0x09 => Self::Suppressor(Suppressor::from_beacn(key, value)),
-            0x0a => Self::MicSetup(MicSetup::from_beacn(key, value)),
-            0x0b => Self::Subwoofer(Subwoofer::from_beacn(key, value)),
+            0x00 => Self::Headphones(Headphones::from_beacn(key, value, device_type)),
+            0x01 => Self::Lighting(Lighting::from_beacn(key, value, device_type)),
+            0x02 => Self::Equaliser(Equaliser::from_beacn(key, value, device_type)),
+            0x03 => Self::HeadphoneEQ(HeadphoneEQ::from_beacn(key, value, device_type)),
+            0x04 => Self::BassEnhancement(BassEnhancement::from_beacn(key, value, device_type)),
+            0x05 => Self::Compressor(Compressor::from_beacn(key, value, device_type)),
+            0x06 => Self::DeEsser(DeEsser::from_beacn(key, value, device_type)),
+            0x07 => Self::Exciter(Exciter::from_beacn(key, value, device_type)),
+            0x08 => Self::Expander(Expander::from_beacn(key, value, device_type)),
+            0x09 => Self::Suppressor(Suppressor::from_beacn(key, value, device_type)),
+            0x0a => Self::MicSetup(MicSetup::from_beacn(key, value, device_type)),
+            0x0b => Self::Subwoofer(Subwoofer::from_beacn(key, value, device_type)),
             _ => panic!("Not Found!"),
         }
     }
@@ -172,6 +172,6 @@ trait BeacnSubMessage {
     fn to_beacn_key(&self) -> [u8; 2];
     fn to_beacn_value(&self) -> BeacnValue;
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self;
+    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType) -> Self;
     fn generate_fetch_message(device_type: DeviceType) -> Vec<Message>;
 }

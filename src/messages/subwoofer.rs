@@ -48,7 +48,7 @@ impl BeacnSubMessage for Subwoofer {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
         match key[0] {
             0x04 => Self::MakeupGain(read_value(&value)),
             0x05 => Self::Ratio(read_value(&value)),

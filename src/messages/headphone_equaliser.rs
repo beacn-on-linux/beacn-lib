@@ -39,7 +39,7 @@ impl BeacnSubMessage for HeadphoneEQ {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
         let key = PackedEnumKey::from_encoded(key[0]).unwrap();
         let eq_type = key.get_upper();
         match key.get_lower() {

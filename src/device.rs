@@ -129,7 +129,7 @@ impl BeacnMic {
         // Lookup the Parameter on the Mic
         let param = self.param_lookup(key)?;
 
-        Ok(Message::from_beacn_message(param))
+        Ok(Message::from_beacn_message(param, self.device_type))
     }
 
     pub fn set_value(&self, message: Message) -> Result<Message> {
@@ -146,7 +146,7 @@ impl BeacnMic {
 
         // This can generally be ignored, because in most cases it'll be identical to the
         // original request (except fed from the Mic), but passing back anyway just in case.
-        Ok(Message::from_beacn_message(result))
+        Ok(Message::from_beacn_message(result, self.device_type))
     }
 
     fn param_lookup(&self, key: [u8; 3]) -> Result<[u8; 8]> {

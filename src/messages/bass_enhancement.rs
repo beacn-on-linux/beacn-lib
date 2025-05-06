@@ -107,7 +107,7 @@ impl BeacnSubMessage for BassEnhancement {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
         match key[0] {
             0x00 => Self::Attack(read_value(&value)),
             0x01 => Self::Release(read_value(&value)),

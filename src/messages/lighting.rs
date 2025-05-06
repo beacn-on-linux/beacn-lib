@@ -84,7 +84,7 @@ impl BeacnSubMessage for Lighting {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
         match key[0] {
             0x00 => Self::Mode(LightingMode::read_beacn(&value)),
             0x01 => Self::Colour1(RGB::read_beacn(&value)),
