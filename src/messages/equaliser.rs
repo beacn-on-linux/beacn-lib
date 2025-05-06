@@ -6,6 +6,7 @@ use crate::types::sealed::Sealed;
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
+use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Equaliser {
@@ -88,7 +89,7 @@ impl BeacnSubMessage for Equaliser {
         }
     }
 
-    fn generate_fetch_message() -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
         // This one's kinda obnoxious, because we need to handle it both for the modes, and
         // the bands, so lets get started.
         let mut messages = vec![];

@@ -1,3 +1,4 @@
+use crate::manager::DeviceType;
 use crate::messages::bass_enhancement::BassEnhancement;
 use crate::messages::compressor::Compressor;
 use crate::messages::deesser::DeEsser;
@@ -25,7 +26,7 @@ pub mod mic_setup;
 pub mod subwoofer;
 pub mod suppressor;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Message {
     BassEnhancement(BassEnhancement),
     Compressor(Compressor),
@@ -125,20 +126,20 @@ impl Message {
         }
     }
 
-    pub fn generate_fetch_message() -> Vec<Message> {
+    pub fn generate_fetch_message(device_type: DeviceType) -> Vec<Message> {
         let mut messages = Vec::new();
-        messages.append(&mut BassEnhancement::generate_fetch_message());
-        messages.append(&mut Compressor::generate_fetch_message());
-        messages.append(&mut DeEsser::generate_fetch_message());
-        messages.append(&mut Equaliser::generate_fetch_message());
-        messages.append(&mut Exciter::generate_fetch_message());
-        messages.append(&mut Expander::generate_fetch_message());
-        messages.append(&mut HeadphoneEQ::generate_fetch_message());
-        messages.append(&mut Headphones::generate_fetch_message());
-        messages.append(&mut Lighting::generate_fetch_message());
-        messages.append(&mut MicSetup::generate_fetch_message());
-        messages.append(&mut Subwoofer::generate_fetch_message());
-        messages.append(&mut Suppressor::generate_fetch_message());
+        messages.append(&mut BassEnhancement::generate_fetch_message(device_type));
+        messages.append(&mut Compressor::generate_fetch_message(device_type));
+        messages.append(&mut DeEsser::generate_fetch_message(device_type));
+        messages.append(&mut Equaliser::generate_fetch_message(device_type));
+        messages.append(&mut Exciter::generate_fetch_message(device_type));
+        messages.append(&mut Expander::generate_fetch_message(device_type));
+        messages.append(&mut HeadphoneEQ::generate_fetch_message(device_type));
+        messages.append(&mut Headphones::generate_fetch_message(device_type));
+        messages.append(&mut Lighting::generate_fetch_message(device_type));
+        messages.append(&mut MicSetup::generate_fetch_message(device_type));
+        messages.append(&mut Subwoofer::generate_fetch_message(device_type));
+        messages.append(&mut Suppressor::generate_fetch_message(device_type));
 
         messages
     }
@@ -172,5 +173,5 @@ trait BeacnSubMessage {
     fn to_beacn_value(&self) -> BeacnValue;
 
     fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self;
-    fn generate_fetch_message() -> Vec<Message>;
+    fn generate_fetch_message(device_type: DeviceType) -> Vec<Message>;
 }

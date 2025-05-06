@@ -8,6 +8,7 @@ use crate::types::{
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
+use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Compressor {
@@ -95,7 +96,7 @@ impl BeacnSubMessage for Compressor {
         }
     }
 
-    fn generate_fetch_message() -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
         let mut messages = vec![];
         messages.push(Message::Compressor(Compressor::GetMode));
         for mode in CompressorMode::iter() {

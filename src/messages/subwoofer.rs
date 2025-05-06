@@ -1,4 +1,5 @@
 use crate::generate_range;
+use crate::manager::DeviceType;
 use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 
@@ -58,7 +59,7 @@ impl BeacnSubMessage for Subwoofer {
         }
     }
 
-    fn generate_fetch_message() -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
         vec![
             Message::Subwoofer(Subwoofer::GetEnabled),
             Message::Subwoofer(Subwoofer::GetRatio),

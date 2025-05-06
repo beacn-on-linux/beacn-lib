@@ -3,6 +3,7 @@ use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 use enum_map::Enum;
 use strum::EnumIter;
+use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Exciter {
@@ -47,7 +48,7 @@ impl BeacnSubMessage for Exciter {
         }
     }
 
-    fn generate_fetch_message() -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
         vec![
             Message::Exciter(Exciter::GetAmount),
             Message::Exciter(Exciter::GetFrequency),

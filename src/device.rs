@@ -117,11 +117,9 @@ impl BeacnMic {
 
     pub fn fetch_value(&self, message: Message) -> Result<Message> {
         // Before we do anything, we need to make sure this message is valid on our device
-        let device_type = message.get_device_message_type();
-
         if !self.is_command_valid(message) {
             warn!("Command Sent not valid for this device:");
-            warn!("{:?}", message);
+            warn!("{:?}", &message);
             bail!("Command is not valid for this device");
         }
 

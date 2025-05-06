@@ -10,6 +10,7 @@ use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
+use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Suppressor {
@@ -66,7 +67,7 @@ impl BeacnSubMessage for Suppressor {
         }
     }
 
-    fn generate_fetch_message() -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
         vec![
             Message::Suppressor(Suppressor::GetEnabled),
             Message::Suppressor(Suppressor::GetAmount),

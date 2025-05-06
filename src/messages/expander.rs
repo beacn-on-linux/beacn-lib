@@ -8,6 +8,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use std::iter::Iterator;
 use strum::{EnumIter, IntoEnumIterator};
+use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Expander {
@@ -86,7 +87,7 @@ impl BeacnSubMessage for Expander {
         }
     }
 
-    fn generate_fetch_message() -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
         let mut messages = vec![];
         messages.push(Message::Expander(Expander::GetMode));
 

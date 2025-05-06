@@ -6,6 +6,7 @@ use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
+use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Headphones {
@@ -33,7 +34,7 @@ pub enum Headphones {
     GetFXEnabled,
     FXEnabled(bool),
 
-    StudioGetDriverless,
+    GetStudioDriverless,
     StudioDriverless(bool),
 }
 
@@ -48,7 +49,7 @@ impl BeacnSubMessage for Headphones {
             Headphones::MicChannelsLinked(_) => DeviceMessageType::BeacnMic,
             Headphones::GetStudioChannelsLinked => DeviceMessageType::BeacnStudio,
             Headphones::StudioChannelsLinked(_) => DeviceMessageType::BeacnStudio,
-            Headphones::StudioGetDriverless => DeviceMessageType::BeacnStudio,
+            Headphones::GetStudioDriverless => DeviceMessageType::BeacnStudio,
             Headphones::StudioDriverless(_) => DeviceMessageType::BeacnStudio,
             _ => DeviceMessageType::Common,
         }
@@ -66,7 +67,7 @@ impl BeacnSubMessage for Headphones {
             Headphones::MicOutputGain(_) | Headphones::GetMicOutputGain => [0x10, 0x00],
             Headphones::HeadphoneType(_) | Headphones::GetHeadphoneType => [0x11, 0x00],
             Headphones::FXEnabled(_) | Headphones::GetFXEnabled => [0x12, 0x00],
-            Headphones::StudioDriverless(_) | Headphones::StudioGetDriverless => [0x14, 0x00]
+            Headphones::StudioDriverless(_) | Headphones::GetStudioDriverless => [0x14, 0x00]
         }
     }
 
@@ -102,15 +103,28 @@ impl BeacnSubMessage for Headphones {
         }
     }
 
-    fn generate_fetch_message() -> Vec<Message> {
-        vec![
+    fn generate_fetch_message(device_type: DeviceType) -> Vec<Message> {
+        let mut messages = vec![
             Message::Headphones(Headphones::GetHeadphoneLevel),
-            Message::Headphones(Headphones::GetMicMonitor),
+
             Message::Headphones(Headphones::GetMicOutputGain),
-            Message::Headphones(Headphones::GetMicChannelsLinked),
+
             Message::Headphones(Headphones::GetHeadphoneType),
             Message::Headphones(Headphones::GetFXEnabled),
-        ]
+        ];
+        match device_type {
+            DeviceType::BeacnMic => {
+                messages.push(Message::Headphones(Headphones::GetMicMonitor));
+                messages.push(Message::Headphones(Headphones::GetMicChannelsLinked));
+            }
+            DeviceType::BeacnStudio => {
+                messages.push(Message::Headphones(Headphones::GetStudioMicMonitor));
+                messages.push(Message::Headphones(Headphones::GetStudioChannelsLinked));
+                messages.push(Message::Headphones(Headphones::GetStudioDriverless));
+            }
+        }
+
+        messages
     }
 }
 

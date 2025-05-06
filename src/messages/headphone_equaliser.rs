@@ -3,6 +3,7 @@ use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
+use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum HeadphoneEQ {
@@ -47,7 +48,7 @@ impl BeacnSubMessage for HeadphoneEQ {
         }
     }
 
-    fn generate_fetch_message() -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
         let mut messages = vec![];
         for eq_type in HPEQType::iter() {
             messages.push(Message::HeadphoneEQ(HeadphoneEQ::GetEnabled(eq_type)));

@@ -7,6 +7,7 @@ use crate::types::{
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
+use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BassEnhancement {
@@ -127,7 +128,7 @@ impl BeacnSubMessage for BassEnhancement {
         }
     }
 
-    fn generate_fetch_message() -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
         vec![
             Message::BassEnhancement(BassEnhancement::GetDrive),
             Message::BassEnhancement(BassEnhancement::GetMix),

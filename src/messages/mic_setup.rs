@@ -1,6 +1,7 @@
 use crate::generate_range;
+use crate::manager::DeviceType;
 use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
-use crate::types::{BeacnValue, read_value, write_value};
+use crate::types::{BeacnValue, read_value, write_value, WriteBeacn, ReadBeacn};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MicSetup {
@@ -8,7 +9,10 @@ pub enum MicSetup {
     MicGain(MicGain),
 
     GetStudioMicGain,
-    StudioMicGain(StudioMicGain)
+    StudioMicGain(StudioMicGain),
+
+    GetStudioPhantomPower,
+    StudioPhantomPower(bool),
 }
 
 impl BeacnSubMessage for MicSetup {
@@ -20,6 +24,7 @@ impl BeacnSubMessage for MicSetup {
         match self {
             MicSetup::GetMicGain | MicSetup::MicGain(_) => [0x00, 0x00],
             MicSetup::GetStudioMicGain | MicSetup::StudioMicGain(_) => [0x00, 0x00],
+            MicSetup::GetStudioPhantomPower | MicSetup::StudioPhantomPower(_) => [0x02, 0x00],
         }
     }
 
@@ -27,20 +32,32 @@ impl BeacnSubMessage for MicSetup {
         match self {
             MicSetup::MicGain(v) => write_value(v),
             MicSetup::StudioMicGain(v) => write_value(v),
+            MicSetup::StudioPhantomPower(v) => v.write_beacn(),
             _ => panic!("Attempted to Set a Getter"),
         }
     }
 
     fn from_beacn(key: [u8; 2], value: BeacnValue) -> Self {
-        if key == [0x00, 0x00] {
-            // TODO, We need the Device type passed in
-            return Self::MicGain(read_value(&value));
+        match key[0] {
+            0x00 => {
+                // TODO: Need DeviceType
+                Self::MicGain(read_value(&value))
+            },
+            0x02 => Self::StudioPhantomPower(bool::read_beacn(&value)),
+            _ => panic!("Unknown Key")
         }
-        panic!("Unknown Key: {:?}", key)
     }
 
-    fn generate_fetch_message() -> Vec<Message> {
-        vec![Message::MicSetup(MicSetup::GetMicGain)]
+    fn generate_fetch_message(device_type: DeviceType) -> Vec<Message> {
+        match device_type {
+            DeviceType::BeacnMic => vec![
+                Message::MicSetup(MicSetup::GetMicGain)
+            ],
+            DeviceType::BeacnStudio => vec![
+                Message::MicSetup(MicSetup::GetStudioMicGain),
+                Message::MicSetup(MicSetup::GetStudioPhantomPower),
+            ]
+        }
     }
 }
 
