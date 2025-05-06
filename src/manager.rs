@@ -12,8 +12,9 @@ pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
 pub(crate) const PID_BEACN_MIC: u16 = 0x0001;
 pub(crate) const PID_BEACN_STUDIO: u16 = 0x0003;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub enum DeviceType {
+    #[default]
     BeacnMic,
     BeacnStudio,
 }
