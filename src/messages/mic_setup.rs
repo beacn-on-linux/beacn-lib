@@ -17,7 +17,14 @@ pub enum MicSetup {
 
 impl BeacnSubMessage for MicSetup {
     fn get_device_message_type(&self) -> DeviceMessageType {
-        DeviceMessageType::Common
+        match self {
+            MicSetup::GetMicGain => DeviceMessageType::BeacnMic,
+            MicSetup::MicGain(_) => DeviceMessageType::BeacnMic,
+            MicSetup::GetStudioMicGain => DeviceMessageType::BeacnStudio,
+            MicSetup::StudioMicGain(_) => DeviceMessageType::BeacnStudio,
+            MicSetup::GetStudioPhantomPower => DeviceMessageType::BeacnStudio,
+            MicSetup::StudioPhantomPower(_) => DeviceMessageType::BeacnStudio,
+        }
     }
 
     fn to_beacn_key(&self) -> [u8; 2] {
