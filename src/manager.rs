@@ -76,7 +76,7 @@ impl BeacnMicManager {
 
 impl Hotplug<GlobalContext> for BeacnMicManager {
     fn device_arrived(&mut self, device: Device<GlobalContext>) {
-        let location = DeviceLocation::from(device);
+        let location = DeviceLocation::from(device.clone());
 
         // We need to work out what kind of device this is
         if let Ok(desc) = device.device_descriptor() {

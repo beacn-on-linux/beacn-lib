@@ -42,6 +42,23 @@ pub enum Message {
 }
 
 impl Message {
+    pub(crate) fn get_device_message_type(&self) -> DeviceMessageType {
+        match self {
+            Message::BassEnhancement(v) => v.get_device_message_type(),
+            Message::Compressor(v) => v.get_device_message_type(),
+            Message::DeEsser(v) => v.get_device_message_type(),
+            Message::Equaliser(v) => v.get_device_message_type(),
+            Message::Exciter(v) => v.get_device_message_type(),
+            Message::Expander(v) => v.get_device_message_type(),
+            Message::HeadphoneEQ(v) => v.get_device_message_type(),
+            Message::Headphones(v) => v.get_device_message_type(),
+            Message::Lighting(v) => v.get_device_message_type(),
+            Message::MicSetup(v) => v.get_device_message_type(),
+            Message::Subwoofer(v) => v.get_device_message_type(),
+            Message::Suppressor(v) => v.get_device_message_type(),
+        }
+    }
+
     pub fn to_beacn_key(&self) -> [u8; 3] {
         let (top, sub) = match self {
             Message::BassEnhancement(v) => (BeacnMessage::BassEnhancement as u8, v.to_beacn_key()),
@@ -142,7 +159,15 @@ pub enum BeacnMessage {
     Subwoofer = 0x0b,
 }
 
+pub(crate) enum DeviceMessageType {
+    Common,
+    BeacnMic,
+    BeacnStudio
+}
+
 trait BeacnSubMessage {
+    fn get_device_message_type(&self) -> DeviceMessageType;
+
     fn to_beacn_key(&self) -> [u8; 2];
     fn to_beacn_value(&self) -> BeacnValue;
 

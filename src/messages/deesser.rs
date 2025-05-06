@@ -1,4 +1,4 @@
-use crate::messages::{BeacnSubMessage, Message};
+use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -11,6 +11,11 @@ pub enum DeEsser {
 }
 
 impl BeacnSubMessage for DeEsser {
+    fn get_device_message_type(&self) -> DeviceMessageType {
+        DeviceMessageType::Common
+    }
+
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             DeEsser::Amount(_) | DeEsser::GetAmount => [0x03, 0x00],

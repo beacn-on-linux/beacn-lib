@@ -1,5 +1,5 @@
 use crate::generate_range;
-use crate::messages::{BeacnSubMessage, Message};
+use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
@@ -14,6 +14,11 @@ pub enum HeadphoneEQ {
 }
 
 impl BeacnSubMessage for HeadphoneEQ {
+    fn get_device_message_type(&self) -> DeviceMessageType {
+        DeviceMessageType::Common
+    }
+
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             HeadphoneEQ::GetAmount(t) | HeadphoneEQ::Amount(t, _) => {

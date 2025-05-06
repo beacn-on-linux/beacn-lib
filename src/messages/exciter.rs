@@ -1,5 +1,5 @@
 use crate::generate_range;
-use crate::messages::{BeacnSubMessage, Message};
+use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 use enum_map::Enum;
 use strum::EnumIter;
@@ -17,6 +17,10 @@ pub enum Exciter {
 }
 
 impl BeacnSubMessage for Exciter {
+    fn get_device_message_type(&self) -> DeviceMessageType {
+        DeviceMessageType::Common
+    }
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             Exciter::Amount(_) | Exciter::GetAmount => [0x01, 0x00],

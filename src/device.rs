@@ -1,5 +1,5 @@
 use crate::manager::{DeviceLocation, DeviceType, PID_BEACN_MIC, PID_BEACN_STUDIO, VENDOR_BEACN};
-use crate::messages::Message;
+use crate::messages::{DeviceMessageType, Message};
 use crate::version::VersionNumber;
 use anyhow::{Result, bail};
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -106,7 +106,25 @@ impl BeacnMic {
         format!("{}.{}", self.device.bus_number(), self.device.address())
     }
 
+    pub fn is_command_valid(&self, message: Message) -> bool {
+        let device_type = message.get_device_message_type();
+        match device_type {
+            DeviceMessageType::Common => true,
+            DeviceMessageType::BeacnMic => self.device_type == DeviceType::BeacnMic,
+            DeviceMessageType::BeacnStudio => self.device_type == DeviceType::BeacnStudio
+        }
+    }
+
     pub fn fetch_value(&self, message: Message) -> Result<Message> {
+        // Before we do anything, we need to make sure this message is valid on our device
+        let device_type = message.get_device_message_type();
+
+        if !self.is_command_valid(message) {
+            warn!("Command Sent not valid for this device:");
+            warn!("{:?}", message);
+            bail!("Command is not valid for this device");
+        }
+
         // Ok, first we need to deconstruct this message into something more useful
         let key = message.to_beacn_key();
 
@@ -117,6 +135,12 @@ impl BeacnMic {
     }
 
     pub fn set_value(&self, message: Message) -> Result<Message> {
+        if !self.is_command_valid(message) {
+            warn!("Command Sent not valid for this device:");
+            warn!("{:?}", message);
+            bail!("Command is not valid for this device");
+        }
+
         let key = message.to_beacn_key();
         let value = message.to_beacn_value();
 

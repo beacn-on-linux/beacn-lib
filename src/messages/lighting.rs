@@ -1,5 +1,5 @@
 use crate::generate_range;
-use crate::messages::{BeacnSubMessage, Message};
+use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, RGB, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};
@@ -43,6 +43,13 @@ pub enum Lighting {
 }
 
 impl BeacnSubMessage for Lighting {
+    fn get_device_message_type(&self) -> DeviceMessageType {
+        // TODO: The Studio has fewer lighting options
+        // Ideally, we need to check some values to make sure valid data is sent
+        DeviceMessageType::Common
+    }
+
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             Lighting::GetMode | Lighting::Mode(_) => [0x00, 0x00],

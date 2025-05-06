@@ -1,6 +1,6 @@
 use crate::generate_range;
 use crate::messages::bass_enhancement::BassPreset::{Preset1, Preset2, Preset3, Preset4};
-use crate::messages::{BeacnSubMessage, Message};
+use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{
     BeacnValue, MakeUpGain, Percent, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
 };
@@ -61,6 +61,10 @@ pub enum BassEnhancement {
 }
 
 impl BeacnSubMessage for BassEnhancement {
+    fn get_device_message_type(&self) -> DeviceMessageType {
+        DeviceMessageType::Common
+    }
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             BassEnhancement::Attack(_) | BassEnhancement::GetAttack => [0x00, 0x00],

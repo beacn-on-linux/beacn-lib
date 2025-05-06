@@ -1,5 +1,5 @@
 use crate::generate_range;
-use crate::messages::{BeacnSubMessage, Message};
+use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -21,6 +21,11 @@ pub enum Subwoofer {
 }
 
 impl BeacnSubMessage for Subwoofer {
+    fn get_device_message_type(&self) -> DeviceMessageType {
+        DeviceMessageType::Common
+    }
+
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             Subwoofer::GetMakeupGain | Subwoofer::MakeupGain(_) => [0x04, 0x00],

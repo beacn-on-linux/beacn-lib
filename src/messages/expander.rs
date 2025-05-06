@@ -1,5 +1,5 @@
 use crate::generate_range;
-use crate::messages::{BeacnSubMessage, Message};
+use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::sealed::Sealed;
 use crate::types::{
     BeacnValue, PackedEnumKey, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
@@ -31,6 +31,11 @@ pub enum Expander {
 }
 
 impl BeacnSubMessage for Expander {
+    fn get_device_message_type(&self) -> DeviceMessageType {
+        DeviceMessageType::Common
+    }
+
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             Expander::GetMode | Expander::Mode(_) => [0x00, 0x00],

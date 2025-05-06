@@ -1,5 +1,5 @@
 use crate::generate_range;
-use crate::messages::{BeacnSubMessage, Message};
+use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::sealed::Sealed;
 use crate::types::{
     BeacnValue, MakeUpGain, PackedEnumKey, ReadBeacn, TimeFrame, WriteBeacn, read_value,
@@ -34,6 +34,11 @@ pub enum Compressor {
 }
 
 impl BeacnSubMessage for Compressor {
+    fn get_device_message_type(&self) -> DeviceMessageType {
+        DeviceMessageType::Common
+    }
+
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             Compressor::Mode(_) | Compressor::GetMode => [0, 0],

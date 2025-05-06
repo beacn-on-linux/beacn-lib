@@ -1,4 +1,4 @@
-use crate::messages::{BeacnSubMessage, Message};
+use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 
 use crate::generate_range;
 use crate::types::sealed::Sealed;
@@ -15,8 +15,14 @@ pub enum Headphones {
     GetMicMonitor,
     MicMonitor(HPMicMonitorLevel),
 
-    GetChannelsLinked,
-    ChannelsLinked(bool),
+    GetStudioMicMonitor,
+    StudioMicMonitor(HPMicMonitorLevel),
+
+    GetMicChannelsLinked,
+    MicChannelsLinked(bool),
+
+    GetStudioChannelsLinked,
+    StudioChannelsLinked(bool),
 
     GetMicOutputGain,
     MicOutputGain(HPMicOutputGain),
@@ -26,17 +32,41 @@ pub enum Headphones {
 
     GetFXEnabled,
     FXEnabled(bool),
+
+    StudioGetDriverless,
+    StudioDriverless(bool),
 }
 
 impl BeacnSubMessage for Headphones {
+    fn get_device_message_type(&self) -> DeviceMessageType {
+        match self {
+            Headphones::GetMicMonitor => DeviceMessageType::BeacnMic,
+            Headphones::MicMonitor(_) => DeviceMessageType::BeacnMic,
+            Headphones::GetStudioMicMonitor => DeviceMessageType::BeacnStudio,
+            Headphones::StudioMicMonitor(_) => DeviceMessageType::BeacnStudio,
+            Headphones::GetMicChannelsLinked => DeviceMessageType::BeacnMic,
+            Headphones::MicChannelsLinked(_) => DeviceMessageType::BeacnMic,
+            Headphones::GetStudioChannelsLinked => DeviceMessageType::BeacnStudio,
+            Headphones::StudioChannelsLinked(_) => DeviceMessageType::BeacnStudio,
+            Headphones::StudioGetDriverless => DeviceMessageType::BeacnStudio,
+            Headphones::StudioDriverless(_) => DeviceMessageType::BeacnStudio,
+            _ => DeviceMessageType::Common,
+        }
+    }
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             Headphones::HeadphoneLevel(_) | Headphones::GetHeadphoneLevel => [0x04, 0x00],
             Headphones::MicMonitor(_) | Headphones::GetMicMonitor => [0x06, 0x00],
-            Headphones::ChannelsLinked(_) | Headphones::GetChannelsLinked => [0x07, 0x00],
+            Headphones::StudioMicMonitor(_) | Headphones::GetStudioMicMonitor => [0x07, 0x00],
+            Headphones::MicChannelsLinked(_) | Headphones::GetMicChannelsLinked => [0x07, 0x00],
+            Headphones::StudioChannelsLinked(_) | Headphones::GetStudioChannelsLinked => {
+                [0x08, 0x00]
+            }
             Headphones::MicOutputGain(_) | Headphones::GetMicOutputGain => [0x10, 0x00],
             Headphones::HeadphoneType(_) | Headphones::GetHeadphoneType => [0x11, 0x00],
             Headphones::FXEnabled(_) | Headphones::GetFXEnabled => [0x12, 0x00],
+            Headphones::StudioDriverless(_) | Headphones::StudioGetDriverless => [0x14, 0x00]
         }
     }
 
@@ -44,10 +74,13 @@ impl BeacnSubMessage for Headphones {
         match self {
             Headphones::HeadphoneLevel(v) => write_value(v),
             Headphones::MicMonitor(v) => write_value(v),
-            Headphones::ChannelsLinked(v) => v.write_beacn(),
+            Headphones::StudioMicMonitor(v) => write_value(v),
+            Headphones::MicChannelsLinked(v) => v.write_beacn(),
+            Headphones::StudioChannelsLinked(v) => v.write_beacn(),
             Headphones::MicOutputGain(v) => write_value(v),
             Headphones::HeadphoneType(v) => v.write_beacn(),
             Headphones::FXEnabled(v) => v.write_beacn(),
+            Headphones::StudioDriverless(v) => v.write_beacn(),
             _ => panic!("Attempted to get Value on Setter"),
         }
     }
@@ -56,10 +89,15 @@ impl BeacnSubMessage for Headphones {
         match key[0] {
             0x04 => Self::HeadphoneLevel(read_value(&value)),
             0x06 => Self::MicMonitor(read_value(&value)),
-            0x07 => Self::ChannelsLinked(bool::read_beacn(&value)),
+            0x07 => {
+                // TODO: This is device dependant
+                Self::MicChannelsLinked(bool::read_beacn(&value))
+            }
+            0x08 => Self::StudioChannelsLinked(bool::read_beacn(&value)),
             0x10 => Self::MicOutputGain(read_value(&value)),
             0x11 => Self::HeadphoneType(HeadphoneTypes::read_beacn(&value)),
             0x12 => Self::FXEnabled(bool::read_beacn(&value)),
+            0x14 => Self::StudioDriverless(bool::read_beacn(&value)),
             _ => panic!("Unexpected Key: {}", key[0]),
         }
     }
@@ -69,7 +107,7 @@ impl BeacnSubMessage for Headphones {
             Message::Headphones(Headphones::GetHeadphoneLevel),
             Message::Headphones(Headphones::GetMicMonitor),
             Message::Headphones(Headphones::GetMicOutputGain),
-            Message::Headphones(Headphones::GetChannelsLinked),
+            Message::Headphones(Headphones::GetMicChannelsLinked),
             Message::Headphones(Headphones::GetHeadphoneType),
             Message::Headphones(Headphones::GetFXEnabled),
         ]

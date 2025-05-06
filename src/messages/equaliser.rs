@@ -1,4 +1,4 @@
-use crate::messages::{BeacnSubMessage, Message};
+use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 
 use crate::generate_range;
@@ -29,6 +29,10 @@ pub enum Equaliser {
 }
 
 impl BeacnSubMessage for Equaliser {
+    fn get_device_message_type(&self) -> DeviceMessageType {
+        DeviceMessageType::Common
+    }
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             Equaliser::Mode(_) | Equaliser::GetMode => [0x00, 0x00],
