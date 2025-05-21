@@ -109,7 +109,7 @@ impl BeacnSubMessage for Equaliser {
 }
 
 generate_range!(EQGain, f32, -12.0..=12.0);
-generate_range!(EQFrequency, f32, 20.0..=2000.0);
+generate_range!(EQFrequency, f32, 20.0..=20000.0);
 generate_range!(EQQ, f32, -0.1..=10.0);
 
 #[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
