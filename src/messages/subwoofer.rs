@@ -87,7 +87,7 @@ impl Subwoofer {
     }
 }
 
-generate_range!(SubwooferMakeupGain, f32, 2.0..=11.0);
+generate_range!(SubwooferMakeupGain, f32, 2.0..=12.0);
 generate_range!(SubwooferRatio, f32, 0.0..=12.0);
 generate_range!(SubwooferAmount, i32, 0..=10);
 
