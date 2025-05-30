@@ -121,7 +121,7 @@ impl BeacnSubMessage for Lighting {
 generate_range!(LightingSpeed, i32, -10..=10);
 generate_range!(LightingBrightness, i32, 0..=100);
 generate_range!(LightingMeterSensitivty, f32, 0.0..=10.);
-generate_range!(LightingSuspendBrightness, u32, 0..=10);
+generate_range!(LightingSuspendBrightness, u32, 0..=100);
 
 // enum LightingK {
 //     Mode = 0x00,              // LightingMode
