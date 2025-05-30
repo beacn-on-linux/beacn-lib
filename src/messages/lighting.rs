@@ -1,16 +1,19 @@
 use crate::generate_range;
+use crate::manager::DeviceType;
 use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, RGB, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
-use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Lighting {
     GetMode,
     Mode(LightingMode),
+
+    GetStudioMode,
+    StudioMode(StudioLightingMode),
 
     GetColour1,
     Colour1(RGB),
@@ -45,15 +48,17 @@ pub enum Lighting {
 
 impl BeacnSubMessage for Lighting {
     fn get_device_message_type(&self) -> DeviceMessageType {
-        // TODO: The Studio has fewer lighting options
-        // Ideally, we need to check some values to make sure valid data is sent
-        DeviceMessageType::Common
+        match self {
+            Lighting::GetMode | Lighting::Mode(_) => DeviceMessageType::BeacnMic,
+            Lighting::GetStudioMode | Lighting::StudioMode(_) => DeviceMessageType::BeacnStudio,
+            _ => DeviceMessageType::Common
+        }
     }
-
 
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             Lighting::GetMode | Lighting::Mode(_) => [0x00, 0x00],
+            Lighting::GetStudioMode | Lighting::StudioMode(_) => [0x00, 0x00],
             Lighting::GetColour1 | Lighting::Colour1(_) => [0x01, 0x00],
             Lighting::GetColour2 | Lighting::Colour2(_) => [0x02, 0x00],
             Lighting::GetSpeed | Lighting::Speed(_) => [0x04, 0x00],
@@ -70,6 +75,7 @@ impl BeacnSubMessage for Lighting {
     fn to_beacn_value(&self) -> BeacnValue {
         match self {
             Lighting::Mode(v) => v.write_beacn(),
+            Lighting::StudioMode(v) => v.write_beacn(),
             Lighting::Colour1(v) => v.write_beacn(),
             Lighting::Colour2(v) => v.write_beacn(),
             Lighting::Speed(v) => write_value(v),
@@ -84,9 +90,12 @@ impl BeacnSubMessage for Lighting {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType) -> Self {
         match key[0] {
-            0x00 => Self::Mode(LightingMode::read_beacn(&value)),
+            0x00 => match device_type {
+                DeviceType::BeacnMic => Self::Mode(LightingMode::read_beacn(&value)),
+                DeviceType::BeacnStudio => Self::StudioMode(StudioLightingMode::read_beacn(&value)),
+            },
             0x01 => Self::Colour1(RGB::read_beacn(&value)),
             0x02 => Self::Colour2(RGB::read_beacn(&value)),
             0x04 => Self::Speed(read_value(&value)),
@@ -101,9 +110,14 @@ impl BeacnSubMessage for Lighting {
         }
     }
 
-    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(device_type: DeviceType) -> Vec<Message> {
+        let mode = match device_type {
+            DeviceType::BeacnMic => Message::Lighting(Lighting::GetMode),
+            DeviceType::BeacnStudio => Message::Lighting(Lighting::GetStudioMode),
+        };
+
         vec![
-            Message::Lighting(Lighting::GetMode),
+            mode,
             Message::Lighting(Lighting::GetColour1),
             Message::Lighting(Lighting::GetColour2),
             Message::Lighting(Lighting::GetSpeed),
@@ -162,6 +176,33 @@ impl ReadBeacn for LightingMode {
     }
 }
 impl WriteBeacn for LightingMode {
+    fn write_beacn(&self) -> BeacnValue {
+        let mut buf = [0; 4];
+        LittleEndian::write_u32(&mut buf, *self as u8 as u32);
+        buf
+    }
+}
+
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+pub enum StudioLightingMode {
+    #[default]
+    Solid = 0x00,
+    PeakMeter = 0x05,
+    SolidSpectrum = 0x0d,
+}
+impl Sealed for StudioLightingMode {}
+impl ReadBeacn for StudioLightingMode {
+    fn read_beacn(buf: &BeacnValue) -> Self {
+        let value = LittleEndian::read_u32(buf);
+        for mode in Self::iter() {
+            if mode as u32 == value {
+                return mode;
+            }
+        }
+        panic!("Unable to Find Mode")
+    }
+}
+impl WriteBeacn for StudioLightingMode {
     fn write_beacn(&self) -> BeacnValue {
         let mut buf = [0; 4];
         LittleEndian::write_u32(&mut buf, *self as u8 as u32);
