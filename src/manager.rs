@@ -11,12 +11,16 @@ use std::time::Duration;
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
 pub(crate) const PID_BEACN_MIC: u16 = 0x0001;
 pub(crate) const PID_BEACN_STUDIO: u16 = 0x0003;
+pub(crate) const PID_BEACN_MIX: u16 = 0x0004;
+pub(crate) const PID_BEACN_MIX_CREATE: u16 = 0x0007;
 
 #[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub enum DeviceType {
     #[default]
     BeacnMic,
     BeacnStudio,
+    BeacnMix,
+    BeacnMixCreate,
 }
 
 pub fn spawn_mic_hotplug_handler(
@@ -91,13 +95,25 @@ impl Hotplug<GlobalContext> for BeacnMicManager {
                 debug!("Found Beacn Studio!");
                 self.device_connected(location, DeviceType::BeacnStudio);
             }
+            if desc.product_id() == PID_BEACN_MIX {
+                debug!("Found Beacn Mix!");
+                self.device_connected(location, DeviceType::BeacnMix)
+            }
+            if desc.product_id() == PID_BEACN_MIX_CREATE {
+                debug!("Found Beacn Mix Create!");
+                self.device_connected(location, DeviceType::BeacnMixCreate)
+            }
         }
     }
 
     fn device_left(&mut self, device: Device<GlobalContext>) {
         // Only flag a device removal if it's a Mic or Studio
         if let Ok(desc) = device.device_descriptor() {
-            if desc.product_id() == PID_BEACN_MIC || desc.product_id() == PID_BEACN_STUDIO {
+            if desc.product_id() == PID_BEACN_MIC
+                || desc.product_id() == PID_BEACN_STUDIO
+                || desc.product_id() == PID_BEACN_MIX
+                || desc.product_id() == PID_BEACN_MIX_CREATE
+            {
                 let location = DeviceLocation::from(device.clone());
                 self.device_removed(location);
             }
@@ -161,6 +177,22 @@ fn hotplug_poll(
                             if !&manager.known_devices.contains(&device) {
                                 found_devices.push(device);
                                 manager.device_connected(device, DeviceType::BeacnStudio);
+                            }
+                        }
+
+                        #[allow(clippy::collapsible_if)]
+                        if desc.product_id() == PID_BEACN_MIX {
+                            if !&manager.known_devices.contains(&device) {
+                                found_devices.push(device);
+                                manager.device_connected(device, DeviceType::BeacnMix);
+                            }
+                        }
+
+                        #[allow(clippy::collapsible_if)]
+                        if desc.product_id() == PID_BEACN_MIX_CREATE {
+                            if !&manager.known_devices.contains(&device) {
+                                found_devices.push(device);
+                                manager.device_connected(device, DeviceType::BeacnMixCreate);
                             }
                         }
                     }
@@ -240,6 +272,14 @@ pub fn get_beacn_mic_devices() -> Vec<DeviceLocation> {
 
 pub fn get_beacn_studio_devices() -> Vec<DeviceLocation> {
     get_beacn_device(PID_BEACN_STUDIO)
+}
+
+pub fn get_beacn_mix_device() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_MIX)
+}
+
+pub fn get_beacn_mix_create_device() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_MIX_CREATE)
 }
 
 fn get_beacn_device(pid: u16) -> Vec<DeviceLocation> {
