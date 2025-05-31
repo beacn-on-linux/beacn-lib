@@ -148,6 +148,7 @@ fn hotplug_poll(
                     if desc.vendor_id() == VENDOR_BEACN {
                         let device = DeviceLocation::from(dev);
 
+                        #[allow(clippy::collapsible_if)]
                         if desc.product_id() == PID_BEACN_MIC {
                             if !&manager.known_devices.contains(&device) {
                                 found_devices.push(device);
@@ -155,6 +156,7 @@ fn hotplug_poll(
                             }
                         }
 
+                        #[allow(clippy::collapsible_if)]
                         if desc.product_id() == PID_BEACN_STUDIO {
                             if !&manager.known_devices.contains(&device) {
                                 found_devices.push(device);

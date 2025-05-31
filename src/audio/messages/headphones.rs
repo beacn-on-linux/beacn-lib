@@ -1,4 +1,4 @@
-use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 
 use crate::generate_range;
 use crate::manager::DeviceType;

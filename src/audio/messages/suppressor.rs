@@ -4,7 +4,7 @@
 // I did *NOT* during this time check data received, I might need to ask Beacn how this is handled.
 
 use crate::generate_range;
-use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};

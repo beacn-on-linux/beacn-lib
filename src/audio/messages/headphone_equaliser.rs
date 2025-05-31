@@ -1,5 +1,5 @@
 use crate::generate_range;
-use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};

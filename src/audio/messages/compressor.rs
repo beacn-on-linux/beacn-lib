@@ -1,5 +1,5 @@
 use crate::generate_range;
-use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::sealed::Sealed;
 use crate::types::{
     BeacnValue, MakeUpGain, PackedEnumKey, ReadBeacn, TimeFrame, WriteBeacn, read_value,

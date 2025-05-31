@@ -1,6 +1,6 @@
 use crate::generate_range;
 use crate::manager::DeviceType;
-use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, read_value, write_value, WriteBeacn, ReadBeacn};
 
 #[derive(Copy, Clone, Debug, PartialEq)]

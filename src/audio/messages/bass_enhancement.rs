@@ -1,6 +1,6 @@
 use crate::generate_range;
-use crate::messages::bass_enhancement::BassPreset::{Preset1, Preset2, Preset3, Preset4};
-use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::bass_enhancement::BassPreset::{Preset1, Preset2, Preset3, Preset4};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{
     BeacnValue, MakeUpGain, Percent, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
 };

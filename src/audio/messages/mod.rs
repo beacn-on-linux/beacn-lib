@@ -1,16 +1,16 @@
 use crate::manager::DeviceType;
-use crate::messages::bass_enhancement::BassEnhancement;
-use crate::messages::compressor::Compressor;
-use crate::messages::deesser::DeEsser;
-use crate::messages::equaliser::Equaliser;
-use crate::messages::exciter::Exciter;
-use crate::messages::expander::Expander;
-use crate::messages::headphone_equaliser::HeadphoneEQ;
-use crate::messages::headphones::Headphones;
-use crate::messages::lighting::Lighting;
-use crate::messages::mic_setup::MicSetup;
-use crate::messages::subwoofer::Subwoofer;
-use crate::messages::suppressor::Suppressor;
+use crate::audio::messages::bass_enhancement::BassEnhancement;
+use crate::audio::messages::compressor::Compressor;
+use crate::audio::messages::deesser::DeEsser;
+use crate::audio::messages::equaliser::Equaliser;
+use crate::audio::messages::exciter::Exciter;
+use crate::audio::messages::expander::Expander;
+use crate::audio::messages::headphone_equaliser::HeadphoneEQ;
+use crate::audio::messages::headphones::Headphones;
+use crate::audio::messages::lighting::Lighting;
+use crate::audio::messages::mic_setup::MicSetup;
+use crate::audio::messages::subwoofer::Subwoofer;
+use crate::audio::messages::suppressor::Suppressor;
 use crate::types::BeacnValue;
 
 pub mod bass_enhancement;

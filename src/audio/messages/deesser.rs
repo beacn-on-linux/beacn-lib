@@ -1,5 +1,5 @@
 use crate::manager::DeviceType;
-use crate::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
