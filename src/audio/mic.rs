@@ -1,8 +1,9 @@
-use crate::audio::common::{BeacnDeviceHandle, open_beacn};
+use crate::audio::common::open_beacn;
 use crate::audio::{
     BeacnAudioDevice, BeacnAudioDeviceAttach, BeacnAudioMessageExecute, BeacnAudioMessaging,
     DeviceDefinition,
 };
+use crate::common::BeacnDeviceHandle;
 use crate::manager::{DeviceType, PID_BEACN_MIC};
 use anyhow::Result;
 use rusb::{DeviceHandle, GlobalContext};

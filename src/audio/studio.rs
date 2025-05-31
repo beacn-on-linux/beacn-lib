@@ -1,4 +1,4 @@
-use crate::audio::common::{open_beacn, BeacnDeviceHandle};
+use crate::audio::common::open_beacn;
 use crate::audio::{
     BeacnAudioDevice, BeacnAudioDeviceAttach, BeacnAudioMessageExecute, BeacnAudioMessaging,
     DeviceDefinition,
@@ -6,6 +6,7 @@ use crate::audio::{
 use crate::manager::{DeviceType, PID_BEACN_STUDIO};
 use anyhow::Result;
 use rusb::{DeviceHandle, GlobalContext};
+use crate::common::BeacnDeviceHandle;
 
 pub struct BeacnStudio {
     handle: BeacnDeviceHandle,

@@ -3,18 +3,13 @@ pub mod messages;
 mod mic;
 mod studio;
 
-use std::panic::RefUnwindSafe;
 use crate::audio::common::{BeacnAudioDeviceAttach, BeacnAudioMessageExecute, BeacnAudioMessaging};
 use crate::audio::mic::BeacnMic;
 use crate::audio::studio::BeacnStudio;
-use crate::manager::{DeviceLocation, PID_BEACN_MIC, PID_BEACN_STUDIO, VENDOR_BEACN};
-use anyhow::{Result, bail};
-use rusb::{Device, DeviceDescriptor, GlobalContext};
-
-struct DeviceDefinition {
-    device: Device<GlobalContext>,
-    descriptor: DeviceDescriptor,
-}
+use crate::common::{find_device, DeviceDefinition};
+use crate::manager::{DeviceLocation, PID_BEACN_MIC, PID_BEACN_STUDIO};
+use anyhow::{bail, Result};
+use std::panic::RefUnwindSafe;
 
 pub trait BeacnAudioDevice:
     BeacnAudioDeviceAttach + BeacnAudioMessageExecute + BeacnAudioMessaging + RefUnwindSafe
@@ -31,21 +26,4 @@ pub fn open_audio_device(location: DeviceLocation) -> Result<Box<dyn BeacnAudioD
         };
     }
     bail!("Unknown Device")
-}
-
-fn find_device(location: DeviceLocation) -> Option<DeviceDefinition> {
-    // We need to iterate through the devices and find the one at this location
-    if let Ok(devices) = rusb::devices() {
-        for device in devices.iter() {
-            if let Ok(descriptor) = device.device_descriptor() {
-                #[allow(clippy::collapsible_if)]
-                if descriptor.vendor_id() == VENDOR_BEACN {
-                    if DeviceLocation::from(device.clone()) == location {
-                        return Some(DeviceDefinition { device, descriptor });
-                    }
-                }
-            }
-        }
-    }
-    None
 }

@@ -1,27 +1,15 @@
 use crate::audio::messages::{DeviceMessageType, Message};
 use crate::audio::{BeacnAudioDevice, DeviceDefinition};
+use crate::common::{BeacnDeviceHandle, get_device_info};
 use crate::manager::DeviceType;
-use crate::version::VersionNumber;
 use anyhow::{Result, bail};
-use byteorder::{LittleEndian, ReadBytesExt};
 use log::{debug, warn};
-use rusb::{Device, DeviceDescriptor, DeviceHandle, GlobalContext};
-use std::io::{Cursor, Read, Seek};
+use rusb::{DeviceHandle, GlobalContext};
 use std::time::Duration;
-
-#[allow(dead_code)]
-pub struct BeacnDeviceHandle {
-    pub(crate) descriptor: DeviceDescriptor,
-    pub(crate) device: Device<GlobalContext>,
-    pub(crate) handle: DeviceHandle<GlobalContext>,
-    pub(crate) version: VersionNumber,
-    pub(crate) serial: String,
-}
 
 // This defines the code needed for connecting to a Beacn Audio Device, it's currently consistent
 // between the Mic and Studio, so we'll have a common base implementation for open()
 pub trait BeacnAudioDeviceAttach {
-
     // We're specifically allowing the DeviceDefinition to be a private interface, as it's
     // simply used internally for connection up a device, and shouldn't have any visibility
     // from the outside. This also prevents external code from attempting to call connect.
@@ -160,37 +148,14 @@ pub(crate) fn open_beacn(def: DeviceDefinition, product_id: u16) -> Result<Beacn
     let request = [0x00, 0x00, 0x00, 0xa0];
     handle.write_bulk(0x03, &request, setup_timeout)?;
 
+    // Mic and Studio use bulk reads to get this data
     let mut input = [0; 512];
     let request = [0x00, 0x00, 0x00, 0xa1];
     handle.write_bulk(0x03, &request, setup_timeout)?;
     handle.read_bulk(0x83, &mut input, setup_timeout)?;
 
     // So, this is consistent between the Mix Create and the Mic :D
-    let mut cursor = Cursor::new(input);
-    cursor.seek_relative(4)?;
-
-    let version = cursor.read_u32::<LittleEndian>()?;
-
-    // Break it down
-    let major = version >> 0x1c;
-    let minor = (version >> 0x18) & 0xf;
-    let patch = (version >> 0x10) & 0xff;
-    let build = version & 0xffff;
-
-    let version = VersionNumber(major, minor, patch, build);
-
-    // Now grab the Serial...
-    let mut serial_bytes = vec![];
-    for byte in cursor.bytes() {
-        let byte = byte?;
-
-        // Check for Null Termination
-        if byte == 0 {
-            break;
-        }
-        serial_bytes.push(byte);
-    }
-    let serial = String::from_utf8_lossy(&serial_bytes).to_string();
+    let (version, serial) = get_device_info(&input)?;
 
     debug!(
         "Loaded Device, Location: {}.{}, Serial: {}, Version: {}",
