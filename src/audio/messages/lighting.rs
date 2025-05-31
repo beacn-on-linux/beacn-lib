@@ -95,6 +95,7 @@ impl BeacnSubMessage for Lighting {
             0x00 => match device_type {
                 DeviceType::BeacnMic => Self::Mode(LightingMode::read_beacn(&value)),
                 DeviceType::BeacnStudio => Self::StudioMode(StudioLightingMode::read_beacn(&value)),
+                _ => panic!("This isn't an Audio Device!")
             },
             0x01 => Self::Colour1(RGB::read_beacn(&value)),
             0x02 => Self::Colour2(RGB::read_beacn(&value)),
@@ -114,6 +115,7 @@ impl BeacnSubMessage for Lighting {
         let mode = match device_type {
             DeviceType::BeacnMic => Message::Lighting(Lighting::GetMode),
             DeviceType::BeacnStudio => Message::Lighting(Lighting::GetStudioMode),
+            _ => panic!("This isn't an Audio Device!")
         };
 
         vec![

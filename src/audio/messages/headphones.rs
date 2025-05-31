@@ -94,6 +94,7 @@ impl BeacnSubMessage for Headphones {
                 match device_type {
                     DeviceType::BeacnMic => Self::MicChannelsLinked(bool::read_beacn(&value)),
                     DeviceType::BeacnStudio => Self::StudioMicMonitor(read_value(&value)),
+                    _ => panic!("This isn't an Audio Device!")
                 }
             }
             0x08 => Self::StudioChannelsLinked(bool::read_beacn(&value)),
@@ -122,6 +123,7 @@ impl BeacnSubMessage for Headphones {
                 messages.push(Message::Headphones(Headphones::GetStudioChannelsLinked));
                 messages.push(Message::Headphones(Headphones::GetStudioDriverless));
             }
+            _ => panic!("This isn't an Audio Device!")
         }
 
         messages

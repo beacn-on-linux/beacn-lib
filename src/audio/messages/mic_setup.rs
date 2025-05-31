@@ -49,7 +49,8 @@ impl BeacnSubMessage for MicSetup {
             0x00 => {
                 match device_type {
                     DeviceType::BeacnMic => Self::MicGain(read_value(&value)),
-                    DeviceType::BeacnStudio => Self::StudioMicGain(read_value(&value))
+                    DeviceType::BeacnStudio => Self::StudioMicGain(read_value(&value)),
+                    _ => panic!("This isn't an Audio Device!")
                 }
             },
             0x02 => Self::StudioPhantomPower(bool::read_beacn(&value)),
@@ -65,7 +66,8 @@ impl BeacnSubMessage for MicSetup {
             DeviceType::BeacnStudio => vec![
                 Message::MicSetup(MicSetup::GetStudioMicGain),
                 Message::MicSetup(MicSetup::GetStudioPhantomPower),
-            ]
+            ],
+            _ => panic!("This isn't an Audio Device!")
         }
     }
 }
