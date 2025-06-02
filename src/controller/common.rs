@@ -21,7 +21,7 @@ pub trait BeacnControlDeviceAttach {
     #[allow(private_interfaces)]
     fn connect(
         definition: DeviceDefinition,
-        interaction: mpsc::Sender<Interactions>,
+        interaction: Option<mpsc::Sender<Interactions>>,
     ) -> Result<Box<dyn BeacnControlDevice>>
     where
         Self: Sized;

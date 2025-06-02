@@ -19,7 +19,7 @@ pub trait BeacnControlDevice: BeacnControlDeviceAttach + BeacnControlInteraction
 
 pub fn open_control_device(
     location: DeviceLocation,
-    interaction: Sender<Interactions>,
+    interaction: Option<Sender<Interactions>>,
 ) -> Result<Box<dyn BeacnControlDevice>> {
     if let Some(device) = find_device(location) {
         // We need to return the correct type

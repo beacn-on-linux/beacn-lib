@@ -19,7 +19,7 @@ pub struct BeacnMix {
 impl BeacnControlDeviceAttach for BeacnMix {
     fn connect(
         definition: DeviceDefinition,
-        interaction: mpsc::Sender<Interactions>,
+        interaction: Option<mpsc::Sender<Interactions>>,
     ) -> Result<Box<dyn BeacnControlDevice>>
     where
         Self: Sized,
@@ -38,7 +38,10 @@ impl BeacnControlDeviceAttach for BeacnMix {
             sender,
         };
 
-        thread::spawn(|| Self::spawn_event_handler(receiver, handle, interaction));
+        // Only spawn the Thread if the caller is interested in Handling Interactions
+        if let Some(interaction) = interaction {
+            thread::spawn(|| Self::spawn_event_handler(receiver, handle, interaction));
+        }
         Ok(Box::new(control_attach))
     }
 
