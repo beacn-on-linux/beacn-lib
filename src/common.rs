@@ -11,6 +11,7 @@ pub(crate) struct DeviceDefinition {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct BeacnDeviceHandle {
     pub(crate) descriptor: DeviceDescriptor,
     pub(crate) device: Device<GlobalContext>,

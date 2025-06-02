@@ -13,3 +13,6 @@ log = "0.4.26"
 anyhow = "1.0.96"
 
 rusb = "0.9.4"
+
+# Used for Managing Interaction threads
+crossbeam = "0.8.4"
