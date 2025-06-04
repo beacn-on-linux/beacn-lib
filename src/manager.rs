@@ -3,10 +3,10 @@ use log::{debug, error, warn};
 use rusb::{Device, GlobalContext, Hotplug, HotplugBuilder, UsbContext, has_hotplug};
 use std::cmp::PartialEq;
 use std::fmt::{Display, Formatter};
-use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
+use crossbeam::channel::{Receiver, Sender, TryRecvError};
 
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
 pub(crate) const PID_BEACN_MIC: u16 = 0x0001;
@@ -23,7 +23,7 @@ pub enum DeviceType {
     BeacnMixCreate,
 }
 
-pub fn spawn_mic_hotplug_handler(
+pub fn spawn_hotplug_handler(
     sender: Sender<HotPlugMessage>,
     receiver: Receiver<HotPlugThreadManagement>,
 ) -> Result<()> {
