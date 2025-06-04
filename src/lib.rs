@@ -6,4 +6,4 @@ pub mod types;
 pub mod version;
 mod common;
 
-extern pub use crossbeam;
+pub use crossbeam;
