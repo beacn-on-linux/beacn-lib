@@ -240,7 +240,7 @@ pub enum HotPlugThreadManagement {
     Quit,
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Default, Copy, Clone, Hash, PartialEq, Eq)]
 pub struct DeviceLocation {
     pub bus_number: u8,
     pub address: u8,

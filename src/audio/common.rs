@@ -58,7 +58,7 @@ pub trait BeacnAudioMessaging: BeacnAudioMessageExecute {
         Ok(Message::from_beacn_message(param, self.get_device_type()))
     }
 
-    fn set_value(&self, message: Message) -> anyhow::Result<Message> {
+    fn set_value(&self, message: Message) -> Result<Message> {
         if !self.is_command_valid(message) {
             warn!("Command Sent not valid for this device:");
             warn!("{:?}", message);
