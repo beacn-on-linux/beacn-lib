@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 
-#[derive(Copy, Clone, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, Hash, PartialEq, Eq)]
 pub struct VersionNumber(pub u32, pub u32, pub u32, pub u32);
 
 impl PartialOrd for VersionNumber {
