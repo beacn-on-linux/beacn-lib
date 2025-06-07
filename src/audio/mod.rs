@@ -6,9 +6,9 @@ mod studio;
 use crate::audio::common::{BeacnAudioDeviceAttach, BeacnAudioMessageExecute, BeacnAudioMessaging};
 use crate::audio::mic::BeacnMic;
 use crate::audio::studio::BeacnStudio;
-use crate::common::{find_device, DeviceDefinition};
+use crate::common::{DeviceDefinition, find_device};
 use crate::manager::{DeviceLocation, PID_BEACN_MIC, PID_BEACN_STUDIO};
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::panic::RefUnwindSafe;
 
 pub trait BeacnAudioDevice:

@@ -1,5 +1,6 @@
-use crate::generate_range;
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::generate_range;
+use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{
     BeacnValue, MakeUpGain, PackedEnumKey, ReadBeacn, TimeFrame, WriteBeacn, read_value,
@@ -8,7 +9,6 @@ use crate::types::{
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
-use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Compressor {
@@ -39,6 +39,18 @@ impl BeacnSubMessage for Compressor {
         DeviceMessageType::Common
     }
 
+    fn is_device_message_set(&self) -> bool {
+        matches!(
+            self,
+            Compressor::Mode(_)
+                | Compressor::Attack(_, _)
+                | Compressor::Release(_, _)
+                | Compressor::Threshold(_, _)
+                | Compressor::Ratio(_, _)
+                | Compressor::MakeupGain(_, _)
+                | Compressor::Enabled(_, _)
+        )
+    }
 
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {

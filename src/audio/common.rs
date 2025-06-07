@@ -29,7 +29,19 @@ pub trait BeacnAudioMessageExecute {
 }
 
 // Trait for Sending and Receiving Messages
-pub trait BeacnAudioMessaging: BeacnAudioMessageExecute {
+#[allow(private_bounds)]
+pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal {
+    fn handle_message(&self, message: Message) -> Result<Message> {
+        if message.is_device_message_set() {
+            self.set_value(message)
+        } else {
+            self.fetch_value(message)
+        }
+    }
+}
+
+// Stuff that is local to this instance
+pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
     fn is_command_valid(&self, message: Message) -> bool {
         // TODO: We need to somehow cleanly map message_type to device_type
         let message_type = message.get_device_message_type();
@@ -126,6 +138,7 @@ pub trait BeacnAudioMessaging: BeacnAudioMessageExecute {
         Ok(new_value)
     }
 }
+
 
 /// Simple function to Open a libusb connection to a Beacn Audio device, do initial setup and
 /// grab the firmware version from the device.

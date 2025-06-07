@@ -1,6 +1,6 @@
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::generate_range;
 use crate::manager::DeviceType;
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -26,6 +26,16 @@ impl BeacnSubMessage for Subwoofer {
         DeviceMessageType::Common
     }
 
+    fn is_device_message_set(&self) -> bool {
+        matches!(
+            self,
+            Subwoofer::MakeupGain(_)
+                | Subwoofer::Ratio(_)
+                | Subwoofer::Mix(_)
+                | Subwoofer::Enabled(_)
+                | Subwoofer::Amount(_)
+        )
+    }
 
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {

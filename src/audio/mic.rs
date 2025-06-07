@@ -1,4 +1,4 @@
-use crate::audio::common::open_beacn;
+use crate::audio::common::{open_beacn, BeacnAudioMessageLocal};
 use crate::audio::{
     BeacnAudioDevice, BeacnAudioDeviceAttach, BeacnAudioMessageExecute, BeacnAudioMessaging,
     DeviceDefinition,
@@ -42,4 +42,5 @@ impl BeacnAudioMessageExecute for BeacnMic {
 }
 
 impl BeacnAudioMessaging for BeacnMic {}
+impl BeacnAudioMessageLocal for BeacnMic {}
 impl BeacnAudioDevice for BeacnMic {}

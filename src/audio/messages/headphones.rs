@@ -55,6 +55,21 @@ impl BeacnSubMessage for Headphones {
         }
     }
 
+    fn is_device_message_set(&self) -> bool {
+        matches!(
+            self,
+            Headphones::HeadphoneLevel(_)
+                | Headphones::MicMonitor(_)
+                | Headphones::StudioMicMonitor(_)
+                | Headphones::MicChannelsLinked(_)
+                | Headphones::StudioChannelsLinked(_)
+                | Headphones::MicOutputGain(_)
+                | Headphones::HeadphoneType(_)
+                | Headphones::FXEnabled(_)
+                | Headphones::StudioDriverless(_)
+        )
+    }
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             Headphones::HeadphoneLevel(_) | Headphones::GetHeadphoneLevel => [0x04, 0x00],
@@ -90,13 +105,11 @@ impl BeacnSubMessage for Headphones {
         match key[0] {
             0x04 => Self::HeadphoneLevel(read_value(&value)),
             0x06 => Self::MicMonitor(read_value(&value)),
-            0x07 => {
-                match device_type {
-                    DeviceType::BeacnMic => Self::MicChannelsLinked(bool::read_beacn(&value)),
-                    DeviceType::BeacnStudio => Self::StudioMicMonitor(read_value(&value)),
-                    _ => panic!("This isn't an Audio Device!")
-                }
-            }
+            0x07 => match device_type {
+                DeviceType::BeacnMic => Self::MicChannelsLinked(bool::read_beacn(&value)),
+                DeviceType::BeacnStudio => Self::StudioMicMonitor(read_value(&value)),
+                _ => panic!("This isn't an Audio Device!"),
+            },
             0x08 => Self::StudioChannelsLinked(bool::read_beacn(&value)),
             0x10 => Self::MicOutputGain(read_value(&value)),
             0x11 => Self::HeadphoneType(HeadphoneTypes::read_beacn(&value)),
@@ -123,7 +136,7 @@ impl BeacnSubMessage for Headphones {
                 messages.push(Message::Headphones(Headphones::GetStudioChannelsLinked));
                 messages.push(Message::Headphones(Headphones::GetStudioDriverless));
             }
-            _ => panic!("This isn't an Audio Device!")
+            _ => panic!("This isn't an Audio Device!"),
         }
 
         messages

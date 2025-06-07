@@ -3,14 +3,14 @@
 // assuming these values are in milliseconds.
 // I did *NOT* during this time check data received, I might need to ask Beacn how this is handled.
 
-use crate::generate_range;
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::generate_range;
+use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
-use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Suppressor {
@@ -33,6 +33,17 @@ pub enum Suppressor {
 impl BeacnSubMessage for Suppressor {
     fn get_device_message_type(&self) -> DeviceMessageType {
         DeviceMessageType::Common
+    }
+
+    fn is_device_message_set(&self) -> bool {
+        matches!(
+            self,
+            Suppressor::Enabled(_)
+                | Suppressor::Amount(_)
+                | Suppressor::Style(_)
+                | Suppressor::Sensitivity(_)
+                | Suppressor::AdaptTime(_)
+        )
     }
 
     fn to_beacn_key(&self) -> [u8; 2] {

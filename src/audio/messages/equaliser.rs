@@ -2,11 +2,11 @@ use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 
 use crate::generate_range;
+use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
-use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Equaliser {
@@ -32,6 +32,18 @@ pub enum Equaliser {
 impl BeacnSubMessage for Equaliser {
     fn get_device_message_type(&self) -> DeviceMessageType {
         DeviceMessageType::Common
+    }
+
+    fn is_device_message_set(&self) -> bool {
+        matches!(
+            self,
+            Equaliser::Mode(_)
+                | Equaliser::Type(_, _, _)
+                | Equaliser::Gain(_, _, _)
+                | Equaliser::Frequency(_, _, _)
+                | Equaliser::Q(_, _, _)
+                | Equaliser::Enabled(_, _, _)
+        )
     }
 
     fn to_beacn_key(&self) -> [u8; 2] {

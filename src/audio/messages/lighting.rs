@@ -1,6 +1,6 @@
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::generate_range;
 use crate::manager::DeviceType;
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, RGB, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};
@@ -51,8 +51,26 @@ impl BeacnSubMessage for Lighting {
         match self {
             Lighting::GetMode | Lighting::Mode(_) => DeviceMessageType::BeacnMic,
             Lighting::GetStudioMode | Lighting::StudioMode(_) => DeviceMessageType::BeacnStudio,
-            _ => DeviceMessageType::Common
+            _ => DeviceMessageType::Common,
         }
+    }
+
+    fn is_device_message_set(&self) -> bool {
+        matches!(
+            self,
+            Lighting::Mode(_)
+                | Lighting::StudioMode(_)
+                | Lighting::Colour1(_)
+                | Lighting::Colour2(_)
+                | Lighting::Speed(_)
+                | Lighting::Brightness(_)
+                | Lighting::MeterSource(_)
+                | Lighting::MeterSensitivity(_)
+                | Lighting::MuteMode(_)
+                | Lighting::MuteColour(_)
+                | Lighting::SuspendMode(_)
+                | Lighting::SuspendBrightness(_)
+        )
     }
 
     fn to_beacn_key(&self) -> [u8; 2] {
@@ -95,7 +113,7 @@ impl BeacnSubMessage for Lighting {
             0x00 => match device_type {
                 DeviceType::BeacnMic => Self::Mode(LightingMode::read_beacn(&value)),
                 DeviceType::BeacnStudio => Self::StudioMode(StudioLightingMode::read_beacn(&value)),
-                _ => panic!("This isn't an Audio Device!")
+                _ => panic!("This isn't an Audio Device!"),
             },
             0x01 => Self::Colour1(RGB::read_beacn(&value)),
             0x02 => Self::Colour2(RGB::read_beacn(&value)),
@@ -115,7 +133,7 @@ impl BeacnSubMessage for Lighting {
         let mode = match device_type {
             DeviceType::BeacnMic => Message::Lighting(Lighting::GetMode),
             DeviceType::BeacnStudio => Message::Lighting(Lighting::GetStudioMode),
-            _ => panic!("This isn't an Audio Device!")
+            _ => panic!("This isn't an Audio Device!"),
         };
 
         vec![

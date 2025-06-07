@@ -1,13 +1,13 @@
-use crate::generate_range;
 use crate::audio::messages::bass_enhancement::BassPreset::{Preset1, Preset2, Preset3, Preset4};
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::generate_range;
+use crate::manager::DeviceType;
 use crate::types::{
     BeacnValue, MakeUpGain, Percent, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
 };
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
-use crate::manager::DeviceType;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BassEnhancement {
@@ -64,6 +64,27 @@ pub enum BassEnhancement {
 impl BeacnSubMessage for BassEnhancement {
     fn get_device_message_type(&self) -> DeviceMessageType {
         DeviceMessageType::Common
+    }
+
+    fn is_device_message_set(&self) -> bool {
+        matches!(
+            self,
+            BassEnhancement::Drive(_)
+                | BassEnhancement::Mix(_)
+                | BassEnhancement::Enabled(_)
+                | BassEnhancement::Preset(_)
+                | BassEnhancement::Amount(_)
+                | BassEnhancement::Attack(_)
+                | BassEnhancement::Release(_)
+                | BassEnhancement::Threshold(_)
+                | BassEnhancement::Knee(_)
+                | BassEnhancement::MakeupGain(_)
+                | BassEnhancement::Ratio(_)
+                | BassEnhancement::Cutoff(_)
+                | BassEnhancement::Q(_)
+                | BassEnhancement::LowerCutoff(_)
+                | BassEnhancement::LowerQ(_)
+        )
     }
 
     fn to_beacn_key(&self) -> [u8; 2] {

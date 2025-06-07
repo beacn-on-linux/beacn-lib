@@ -43,6 +43,23 @@ pub enum Message {
 }
 
 impl Message {
+    pub(crate) fn is_device_message_set(&self) -> bool {
+        match self {
+            Message::BassEnhancement(v) => v.is_device_message_set(),
+            Message::Compressor(v) => v.is_device_message_set(),
+            Message::DeEsser(v) => v.is_device_message_set(),
+            Message::Equaliser(v) => v.is_device_message_set(),
+            Message::Exciter(v) => v.is_device_message_set(),
+            Message::Expander(v) => v.is_device_message_set(),
+            Message::HeadphoneEQ(v) => v.is_device_message_set(),
+            Message::Headphones(v) => v.is_device_message_set(),
+            Message::Lighting(v) => v.is_device_message_set(),
+            Message::MicSetup(v) => v.is_device_message_set(),
+            Message::Subwoofer(v) => v.is_device_message_set(),
+            Message::Suppressor(v) => v.is_device_message_set()
+        }
+    }
+
     pub(crate) fn get_device_message_type(&self) -> DeviceMessageType {
         match self {
             Message::BassEnhancement(v) => v.get_device_message_type(),
@@ -168,6 +185,7 @@ pub(crate) enum DeviceMessageType {
 
 trait BeacnSubMessage {
     fn get_device_message_type(&self) -> DeviceMessageType;
+    fn is_device_message_set(&self) -> bool;
 
     fn to_beacn_key(&self) -> [u8; 2];
     fn to_beacn_value(&self) -> BeacnValue;
