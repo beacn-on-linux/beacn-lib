@@ -38,7 +38,7 @@ where
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct RGB {
+pub struct RGBA {
     pub red: u8,
     pub green: u8,
     pub blue: u8,
@@ -46,7 +46,7 @@ pub struct RGB {
 }
 
 pub(crate) mod sealed {
-    use crate::types::RGB;
+    use crate::types::RGBA;
 
     pub trait Sealed {}
     impl Sealed for bool {}
@@ -59,7 +59,7 @@ pub(crate) mod sealed {
 
     impl Sealed for f32 {}
 
-    impl Sealed for RGB {}
+    impl Sealed for RGBA {}
 }
 
 pub trait FromInner<U>: Sized {
@@ -254,13 +254,13 @@ impl ToInner<f32> for f32 {
 
 // -----------------------------------------------------------------------------------------------
 
-impl WriteBeacn for RGB {
+impl WriteBeacn for RGBA {
     fn write_beacn(&self) -> BeacnValue {
         [self.blue, self.green, self.red, 0]
     }
 }
 
-impl ReadBeacn for RGB {
+impl ReadBeacn for RGBA {
     fn read_beacn(buf: &BeacnValue) -> Self {
         Self {
             red: buf[2],
@@ -376,9 +376,9 @@ where
     U::write_beacn(&inner)
 }
 
-impl From<BeacnValue> for MessageValue<RGB> {
+impl From<BeacnValue> for MessageValue<RGBA> {
     fn from(value: BeacnValue) -> Self {
-        Self(RGB {
+        Self(RGBA {
             red: value[2],
             green: value[1],
             blue: value[0],
@@ -387,8 +387,8 @@ impl From<BeacnValue> for MessageValue<RGB> {
     }
 }
 
-impl From<MessageValue<RGB>> for BeacnValue {
-    fn from(value: MessageValue<RGB>) -> Self {
+impl From<MessageValue<RGBA>> for BeacnValue {
+    fn from(value: MessageValue<RGBA>) -> Self {
         // The format for this is ARGB, but little endian..
         [value.0.blue, value.0.green, value.0.red, 0]
     }

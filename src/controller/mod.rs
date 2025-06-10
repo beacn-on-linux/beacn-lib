@@ -3,6 +3,7 @@ use crate::controller::common::{BeacnControlDeviceAttach, BeacnControlInteractio
 use crate::controller::mix::BeacnMix;
 use crate::controller::mix_create::BeacnMixCreate;
 use crate::manager::{DeviceLocation, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
+use crate::types::RGBA;
 use anyhow::Result;
 use anyhow::bail;
 use enum_map::Enum;
@@ -13,9 +14,11 @@ use strum::{Display, EnumIter};
 mod common;
 mod mix;
 mod mix_create;
-// BeacnAudioMessageExecute + BeacnAudioMessaging +
 
-pub trait BeacnControlDevice: BeacnControlDeviceAttach + BeacnControlInteraction + RefUnwindSafe {}
+pub trait BeacnControlDevice:
+    BeacnControlDeviceAttach + BeacnControlInteraction + RefUnwindSafe
+{
+}
 
 pub fn open_control_device(
     location: DeviceLocation,
@@ -72,7 +75,7 @@ pub enum Dials {
 }
 
 #[derive(Display, Debug, Copy, Clone, Enum, EnumIter, PartialEq)]
-enum ButtonLighting {
+pub enum ButtonLighting {
     Dial1 = 0,
     Dial2 = 1,
     Dial3 = 2,
@@ -83,6 +86,12 @@ enum ButtonLighting {
     Right = 6,
 }
 
-enum ControlThreadManager {
-    STOP,
+pub enum ControlThreadSender {
+    Stop,
+    KeepAlive,
+    SetImage(u32, u32, Vec<u8>),
+    SetDimTimeout(u64),
+    SetActiveBrightness(u8),
+    SetButtonBrightness(u8),
+    SetButtonColour(u8, RGBA),
 }

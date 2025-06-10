@@ -2,7 +2,7 @@ use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
-use crate::types::{BeacnValue, RGB, ReadBeacn, WriteBeacn, read_value, write_value};
+use crate::types::{BeacnValue, RGBA, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
@@ -16,10 +16,10 @@ pub enum Lighting {
     StudioMode(StudioLightingMode),
 
     GetColour1,
-    Colour1(RGB),
+    Colour1(RGBA),
 
     GetColour2,
-    Colour2(RGB),
+    Colour2(RGBA),
 
     GetSpeed,
     Speed(LightingSpeed),
@@ -37,7 +37,7 @@ pub enum Lighting {
     MuteMode(LightingMuteMode),
 
     GetMuteColour,
-    MuteColour(RGB),
+    MuteColour(RGBA),
 
     GetSuspendMode,
     SuspendMode(LightingSuspendMode),
@@ -115,14 +115,14 @@ impl BeacnSubMessage for Lighting {
                 DeviceType::BeacnStudio => Self::StudioMode(StudioLightingMode::read_beacn(&value)),
                 _ => panic!("This isn't an Audio Device!"),
             },
-            0x01 => Self::Colour1(RGB::read_beacn(&value)),
-            0x02 => Self::Colour2(RGB::read_beacn(&value)),
+            0x01 => Self::Colour1(RGBA::read_beacn(&value)),
+            0x02 => Self::Colour2(RGBA::read_beacn(&value)),
             0x04 => Self::Speed(read_value(&value)),
             0x05 => Self::Brightness(read_value(&value)),
             0x06 => Self::MeterSource(LightingMeterSource::read_beacn(&value)),
             0x07 => Self::MeterSensitivity(read_value(&value)),
             0x08 => Self::MuteMode(LightingMuteMode::read_beacn(&value)),
-            0x09 => Self::MuteColour(RGB::read_beacn(&value)),
+            0x09 => Self::MuteColour(RGBA::read_beacn(&value)),
             0x0b => Self::SuspendMode(LightingSuspendMode::read_beacn(&value)),
             0x0c => Self::SuspendBrightness(read_value(&value)),
             _ => panic!("Unexpected Key: {}", key[0]),

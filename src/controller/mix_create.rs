@@ -1,9 +1,9 @@
 use crate::common::DeviceDefinition;
-use crate::controller::common::{open_beacn, BeacnControlDeviceAttach, BeacnControlInteraction};
-use crate::controller::{BeacnControlDevice, ControlThreadManager, Interactions};
+use crate::controller::common::{BeacnControlDeviceAttach, BeacnControlInteraction, open_beacn};
+use crate::controller::{BeacnControlDevice, ControlThreadSender, Interactions};
 use crate::manager::PID_BEACN_MIX_CREATE;
 use crate::version::VersionNumber;
-use crossbeam::channel::{bounded, Sender};
+use crossbeam::channel::{Sender, bounded};
 use log::debug;
 use std::sync::mpsc;
 use std::thread;
@@ -13,7 +13,7 @@ pub struct BeacnMixCreate {
     serial: String,
     version: VersionNumber,
 
-    sender: Sender<ControlThreadManager>,
+    sender: Sender<ControlThreadSender>,
 }
 
 impl BeacnControlDeviceAttach for BeacnMixCreate {
@@ -57,6 +57,14 @@ impl BeacnControlDeviceAttach for BeacnMixCreate {
     fn get_version(&self) -> String {
         self.version.to_string()
     }
+
+    fn get_sender(&self) -> &Sender<ControlThreadSender> {
+        &self.sender
+    }
+
+    fn get_display_size(&self) -> (u32, u32) {
+        (800, 480)
+    }
 }
 
 impl BeacnControlDevice for BeacnMixCreate {}
@@ -65,6 +73,6 @@ impl BeacnControlInteraction for BeacnMixCreate {}
 impl Drop for BeacnMixCreate {
     fn drop(&mut self) {
         debug!("Dropping BeacnMixCreate");
-        let _ = self.sender.send(ControlThreadManager::STOP);
+        let _ = self.sender.send(ControlThreadSender::Stop);
     }
 }
