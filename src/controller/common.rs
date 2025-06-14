@@ -222,10 +222,10 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     }
                                 }
                                 SetDimTimeout(timeout) => {
-                                    dim_duration = Duration::from_secs(timeout);
+                                    dim_duration = timeout;
                                     if !is_dimmed {
                                         // If we're not already dimmed, reset the timer
-                                        dim_timeout = after(dim_duration);
+                                        dim_timeout = after(timeout);
                                     }
                                 }
                                 SetActiveBrightness(percent) => {
@@ -434,11 +434,12 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         Ok(())
     }
 
-    fn set_dim_timeout(&self, timeout: u16) -> Result<()> {
-        if !(1..=300).contains(&timeout) {
+    fn set_dim_timeout(&self, timeout: Duration) -> Result<()> {
+        if timeout > Duration::from_secs(300) {
             bail!("For display safety, dim timeout must be lower than 5 minutes");
         }
-        self.get_sender().send(SetDimTimeout(timeout as u64))?;
+
+        self.get_sender().send(SetDimTimeout(timeout))?;
         Ok(())
     }
 

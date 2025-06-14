@@ -9,6 +9,7 @@ use anyhow::bail;
 use enum_map::Enum;
 use std::panic::RefUnwindSafe;
 use std::sync::mpsc::Sender;
+use std::time::Duration;
 use strum::{Display, EnumIter};
 
 mod common;
@@ -90,7 +91,7 @@ pub enum ControlThreadSender {
     Stop,
     KeepAlive,
     SetImage(u32, u32, Vec<u8>),
-    SetDimTimeout(u64),
+    SetDimTimeout(Duration),
     SetActiveBrightness(u8),
     SetButtonBrightness(u8),
     SetButtonColour(u8, RGBA),
