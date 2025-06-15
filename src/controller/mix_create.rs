@@ -39,10 +39,7 @@ impl BeacnControlDeviceAttach for BeacnMixCreate {
         };
 
         // Only spawn the thread if the user is interested in Interactions
-        if let Some(interaction) = interaction {
-            thread::spawn(|| Self::spawn_event_handler(receiver, handle, interaction));
-        }
-
+        thread::spawn(|| Self::spawn_event_handler(receiver, handle, interaction));
         Ok(Box::new(control_attach))
     }
 

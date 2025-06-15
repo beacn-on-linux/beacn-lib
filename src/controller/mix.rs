@@ -38,10 +38,7 @@ impl BeacnControlDeviceAttach for BeacnMix {
             sender,
         };
 
-        // Only spawn the Thread if the caller is interested in Handling Interactions
-        if let Some(interaction) = interaction {
-            thread::spawn(|| Self::spawn_event_handler(receiver, handle, interaction));
-        }
+        thread::spawn(|| Self::spawn_event_handler(receiver, handle, interaction));
         Ok(Box::new(control_attach))
     }
 
@@ -71,7 +68,7 @@ impl BeacnControlInteraction for BeacnMix {}
 
 impl Drop for BeacnMix {
     fn drop(&mut self) {
-        debug!("Dropping BeacnMixCreate");
+        debug!("Dropping BeacnMix");
         let _ = self.sender.send(ControlThreadSender::Stop);
     }
 }

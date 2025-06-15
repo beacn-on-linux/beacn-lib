@@ -58,7 +58,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     fn spawn_event_handler(
         rx: Receiver<ControlThreadSender>,
         handler: BeacnDeviceHandle,
-        interaction: mpsc::Sender<Interactions>,
+        interaction: Option<mpsc::Sender<Interactions>>,
     ) where
         Self: Sized,
     {
@@ -337,7 +337,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     fn handle_interaction(
         message: [u8; 64],
         last: u16,
-        tx: &mpsc::Sender<Interactions>,
+        tx: &Option<mpsc::Sender<Interactions>>,
     ) -> (bool, u16)
     where
         Self: Sized,
@@ -348,7 +348,9 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         for dial in Dials::iter() {
             if dials[dial as usize] != 0 {
                 let change = dials[dial as usize] as i8;
-                let _ = tx.send(Interactions::DialChanged(dial, change));
+                if let Some(tx) = tx {
+                    let _ = tx.send(Interactions::DialChanged(dial, change));
+                }
                 debug!("Dial Moved: {} - {}", dial, change);
                 has_interacted = true;
             }
@@ -359,11 +361,15 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             let button_pressed = (buttons >> button as u8) & 1;
             if ((last >> button as u8) & 1) != button_pressed {
                 if (buttons >> button as u8) & 1 == 1 {
-                    let _ = tx.send(Interactions::ButtonPress(button, Press));
+                    if let Some(tx) = tx {
+                        let _ = tx.send(Interactions::ButtonPress(button, Press));
+                    }
                     debug!("Button Pressed: {}", button);
                     has_interacted = true;
                 } else {
-                    let _ = tx.send(Interactions::ButtonPress(button, Release));
+                    if let Some(tx) = tx {
+                        let _ = tx.send(Interactions::ButtonPress(button, Release));
+                    }
                     debug!("Button Released: {}", button);
                     has_interacted = true;
                 }
