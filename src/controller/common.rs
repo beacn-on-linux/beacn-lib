@@ -437,7 +437,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     }
 
     fn set_display_brightness(&self, brightness: u8) -> Result<()> {
-        if !(0..=100).contains(&brightness) {
+        if !(1..=100).contains(&brightness) {
             bail!("Display Brightness must be a percentage");
         }
 
