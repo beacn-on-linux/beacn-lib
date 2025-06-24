@@ -239,9 +239,9 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 SetActiveBrightness(percent) => {
                                     if is_dimmed {
                                         is_dimmed = false;
-                                        active_brightness = percent;
                                         dim_timeout = after(dim_duration);
                                     }
+                                    active_brightness = percent;
                                     if handle.write_interrupt(0x03, &[0, 0, 0, 4, active_brightness, 0, 0, 0], timeout).is_err() {
                                         error!("Failed to Set Brightness");
                                         break;
@@ -437,7 +437,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     }
 
     fn set_display_brightness(&self, brightness: u8) -> Result<()> {
-        if !(0..100).contains(&brightness) {
+        if !(0..=100).contains(&brightness) {
             bail!("Display Brightness must be a percentage");
         }
 
@@ -446,7 +446,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     }
 
     fn set_button_brightness(&self, brightness: u8) -> Result<()> {
-        if !(0..10).contains(&brightness) {
+        if !(0..=10).contains(&brightness) {
             bail!("Button Brightness must be between 0 and 10");
         }
         self.get_sender().send(SetButtonBrightness(brightness))?;
@@ -454,8 +454,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     }
 
     fn set_dim_timeout(&self, timeout: Duration) -> Result<()> {
-        if timeout > Duration::from_secs(300) {
-            bail!("For display safety, dim timeout must be lower than 5 minutes");
+        if timeout > Duration::from_secs(300) || timeout < Duration::from_secs(30) {
+            bail!("For display safety, dim timeout must be lower than 5 minutes, and greater than 30 seconds");
         }
 
         self.get_sender().send(SetDimTimeout(timeout))?;
