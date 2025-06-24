@@ -90,6 +90,7 @@ pub enum ButtonLighting {
 pub enum ControlThreadSender {
     Stop,
     KeepAlive,
+    SetEnabled(bool),
     SetImage(u32, u32, Vec<u8>),
     SetDimTimeout(Duration),
     SetActiveBrightness(u8),

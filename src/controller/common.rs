@@ -1,7 +1,8 @@
 use crate::common::{BeacnDeviceHandle, DeviceDefinition, get_device_info};
 use crate::controller::ButtonState::{Press, Release};
 use crate::controller::ControlThreadSender::{
-    KeepAlive, SetActiveBrightness, SetButtonBrightness, SetButtonColour, SetDimTimeout, SetImage,
+    KeepAlive, SetActiveBrightness, SetButtonBrightness, SetButtonColour, SetDimTimeout,
+    SetEnabled, SetImage,
 };
 use crate::controller::{
     BeacnControlDevice, ButtonLighting, Buttons, ControlThreadSender, Dials, Interactions,
@@ -121,10 +122,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         };
 
         // Force the device into a 'wake' state if it's currently sleeping
-        if handle
-            .write_interrupt(0x03, &[00, 00, 00, 0xf1], timeout)
-            .is_err()
-        {
+        let wake = [00, 00, 00, 0xf1];
+        if handle.write_interrupt(0x03, &wake, timeout).is_err() {
             error!("Unable to Wake Device");
             return;
         }
@@ -180,6 +179,15 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     if handle.write_interrupt(0x03, &[00, 00, 00, 0xf1], timeout).is_err() {
                                         error!("Error Sending Keep-Alive Request");
                                         break;
+                                    }
+                                }
+                                SetEnabled(enabled) => {
+                                    let byte = if enabled { 0 } else { 1 };
+                                    let message = [0, 1, 0, 4, byte, 0, 0, 0];
+
+                                    if handle.write_interrupt(0x03, &message, timeout).is_err() {
+                                        error!("Failed to Send Enabled Message");
+                                        break 'primary;
                                     }
                                 }
                                 SetImage(x, y, img) => {
@@ -275,8 +283,6 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                             break;
                         }
                     }
-
-
                 }
                 recv(input_rx) -> msg => {
                     match msg {
@@ -378,6 +384,11 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         (has_interacted, buttons)
     }
 
+    fn set_enabled(&self, enabled: bool) -> Result<()> {
+        self.get_sender().send(SetEnabled(enabled))?;
+        Ok(())
+    }
+
     fn send_keepalive(&self) -> Result<()> {
         self.get_sender().send(KeepAlive)?;
         Ok(())
@@ -420,6 +431,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             bail!("Unable to Fetch Image Info");
         }
 
+        self.get_sender()
+            .send(SetImage(x, y, Vec::from(jpeg_image)))?;
         Ok(())
     }
 
