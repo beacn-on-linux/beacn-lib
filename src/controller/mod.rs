@@ -87,6 +87,7 @@ pub enum ButtonLighting {
     Right = 6,
 }
 
+#[derive(Display, Debug, Clone, PartialEq)]
 pub enum ControlThreadSender {
     Stop,
     KeepAlive,

@@ -19,6 +19,7 @@ use log::{debug, error, warn};
 use rusb::Error::Timeout;
 use std::sync::{Arc, mpsc};
 use std::thread;
+use std::thread::sleep;
 use std::time::Duration;
 use strum::IntoEnumIterator;
 
@@ -89,7 +90,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
                 let handle = handler_clone;
                 let input_tx = tx_clone;
-                let read = Duration::from_secs(60);
+                let read = Duration::from_millis(60);
                 loop {
                     // Firstly, we need to fire off a message saying we're ready for buttons
                     match handle.read_interrupt(0x83, &mut input, read) {
@@ -121,13 +122,6 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             tick(Duration::from_millis(50))
         };
 
-        // Force the device into a 'wake' state if it's currently sleeping
-        let wake = [00, 00, 00, 0xf1];
-        if handle.write_interrupt(0x03, &wake, timeout).is_err() {
-            error!("Unable to Wake Device");
-            return;
-        }
-
         // This tracks the button states (so we can message on Send / Receive)
         let mut last_button_state = 0;
 
@@ -154,6 +148,13 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         // Set the default button brightness
         if handle.write_interrupt(0x03, &buttons, timeout).is_err() {
             error!("Unable to Set Default Button Brightness");
+            return;
+        }
+
+        // Force the device into a 'wake' state if it's currently sleeping
+        let wake = [00, 00, 00, 0xf1];
+        if handle.write_interrupt(0x03, &wake, timeout).is_err() {
+            error!("Unable to Wake Device");
             return;
         }
 
@@ -191,42 +192,63 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     }
                                 }
                                 SetImage(x, y, img) => {
-                                    // Ok, lets try sending TUX :D
-                                    let mut iter = img.chunks(1020).enumerate().peekable();
-                                    let mut output = [0; 1024];
+                                    for attempt in 0..2 {
+                                        let mut success = true;
+                                        let mut iter = img.chunks(1020).enumerate().peekable();
+                                        let mut output = [0; 1024];
 
-                                    while let Some((index, value)) = iter.next() {
-                                        LittleEndian::write_u24(&mut output[0..3], index as u32);
-                                        output[3] = 0x50;
-
-                                        // Write this chunk to the USB stream
-                                        output[4..value.len() + 4].copy_from_slice(value);
-                                        if handle.write_interrupt(0x03, &output, timeout).is_err() {
-                                            error!("Failed to Write Image");
+                                        if handle.write_interrupt(0x03, &enable, timeout).is_err() {
+                                            error!("Unable to Send Reset");
                                             break 'primary;
                                         }
 
-                                        // Check if we're the last packet...
-                                        if iter.peek().is_none() {
-                                            // Flag the message as complete
-                                            output[0] = 0xff;
-                                            output[1] = 0xff;
-                                            output[2] = 0xff;
+                                        debug!("Drawing {} chunks (attempt {})", iter.clone().count(), attempt + 1);
+                                        while let Some((index, value)) = iter.next() {
+                                            LittleEndian::write_u24(&mut output[0..3], index as u32);
                                             output[3] = 0x50;
 
-                                            // Send the Total size of the image
-                                            LittleEndian::write_u32(&mut output[4..8], img.len() as u32 - 1);
-
-                                            // Set the X and Y coordinates..
-                                            LittleEndian::write_u32(&mut output[8..12], x);
-                                            LittleEndian::write_u32(&mut output[12..16], y);
-
-                                            // Send this out via USB.
+                                            debug!("Drawing Chunk {}", index);
+                                            // Write this chunk to the USB stream
+                                            output[4..value.len() + 4].copy_from_slice(value);
                                             if handle.write_interrupt(0x03, &output, timeout).is_err() {
-                                                error!("Failed to write final message");
-                                                break 'primary;
+                                                error!("Failed to Send Chunk");
+                                                sleep(Duration::from_secs(3));
+                                                success = false;
+                                                break;
+                                            }
+
+                                            // Check if we're the last packet...
+                                            if iter.peek().is_none() {
+                                                // Flag the message as complete
+                                                output[0] = 0xff;
+                                                output[1] = 0xff;
+                                                output[2] = 0xff;
+                                                output[3] = 0x50;
+
+                                                // Send the Total size of the image
+                                                LittleEndian::write_u32(&mut output[4..8], img.len() as u32 - 1);
+
+                                                // Set the X and Y coordinates..
+                                                LittleEndian::write_u32(&mut output[8..12], x);
+                                                LittleEndian::write_u32(&mut output[12..16], y);
+
+                                                // Send this out via USB.
+                                                if handle.write_interrupt(0x03, &output, timeout).is_err() {
+                                                    error!("Failed to write final message");
+                                                    success = false;
+                                                    break;
+                                                }
                                             }
                                         }
+
+                                        if success {
+                                            break;
+                                        } else if attempt == 1 {
+                                            error!("Failed to send image after retrying");
+                                            break 'primary;
+                                        }
+                                        // Small delay before retry
+                                        sleep(Duration::from_millis(100));
                                     }
                                 }
                                 SetDimTimeout(timeout) => {
