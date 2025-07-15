@@ -19,7 +19,6 @@ use log::{debug, error, warn};
 use rusb::Error::Timeout;
 use std::sync::{Arc, mpsc};
 use std::thread;
-use std::thread::sleep;
 use std::time::Duration;
 use strum::IntoEnumIterator;
 
@@ -192,14 +191,17 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     }
                                 }
                                 SetImage(x, y, img) => {
-                                    for attempt in 0..2 {
+                                    let max_attempts = 100;
+                                    let img_timeout = Duration::from_millis(100);
+
+                                    for attempt in 0..=max_attempts {
                                         let mut success = true;
                                         let mut iter = img.chunks(1020).enumerate().peekable();
                                         let mut output = [0; 1024];
 
-                                        if handle.write_interrupt(0x03, &enable, timeout).is_err() {
-                                            error!("Unable to Send Reset");
-                                            break 'primary;
+                                        if handle.write_interrupt(0x03, &enable, img_timeout).is_err() {
+                                            warn!("Reset Failed during attempt {}", attempt + 1);
+                                            continue;
                                         }
 
                                         debug!("Drawing {} chunks (attempt {})", iter.clone().count(), attempt + 1);
@@ -207,12 +209,10 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                             LittleEndian::write_u24(&mut output[0..3], index as u32);
                                             output[3] = 0x50;
 
-                                            debug!("Drawing Chunk {}", index);
                                             // Write this chunk to the USB stream
                                             output[4..value.len() + 4].copy_from_slice(value);
-                                            if handle.write_interrupt(0x03, &output, timeout).is_err() {
-                                                error!("Failed to Send Chunk");
-                                                sleep(Duration::from_secs(3));
+                                            if handle.write_interrupt(0x03, &output, img_timeout).is_err() {
+                                                warn!("Failed to Send Chunk, attempt {}", attempt + 1);
                                                 success = false;
                                                 break;
                                             }
@@ -233,8 +233,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                                 LittleEndian::write_u32(&mut output[12..16], y);
 
                                                 // Send this out via USB.
-                                                if handle.write_interrupt(0x03, &output, timeout).is_err() {
-                                                    error!("Failed to write final message");
+                                                if handle.write_interrupt(0x03, &output, img_timeout).is_err() {
+                                                    error!("Failed to Send Final Chunk, attempt {}", attempt + 1);
                                                     success = false;
                                                     break;
                                                 }
@@ -243,12 +243,10 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
                                         if success {
                                             break;
-                                        } else if attempt == 1 {
-                                            error!("Failed to send image after retrying");
+                                        } else if attempt == max_attempts {
+                                            error!("Failed to send image after {} retries", max_attempts);
                                             break 'primary;
                                         }
-                                        // Small delay before retry
-                                        sleep(Duration::from_millis(100));
                                     }
                                 }
                                 SetDimTimeout(timeout) => {
@@ -477,7 +475,9 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
     fn set_dim_timeout(&self, timeout: Duration) -> Result<()> {
         if timeout > Duration::from_secs(300) || timeout < Duration::from_secs(30) {
-            bail!("For display safety, dim timeout must be lower than 5 minutes, and greater than 30 seconds");
+            bail!(
+                "For display safety, dim timeout must be lower than 5 minutes, and greater than 30 seconds"
+            );
         }
 
         self.get_sender().send(SetDimTimeout(timeout))?;
