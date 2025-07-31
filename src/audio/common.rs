@@ -1,11 +1,12 @@
 use crate::audio::messages::{DeviceMessageType, Message};
-use crate::audio::{BeacnAudioDevice, DeviceDefinition};
+use crate::audio::{BeacnAudioDevice, DeviceDefinition, LinkChannel, LinkedApp};
 use crate::common::{BeacnDeviceHandle, get_device_info};
 use crate::manager::DeviceType;
 use anyhow::{Result, bail};
 use log::{debug, warn};
 use rusb::{DeviceHandle, GlobalContext};
 use std::time::Duration;
+use byteorder::{ByteOrder, LittleEndian};
 
 // This defines the code needed for connecting to a Beacn Audio Device, it's currently consistent
 // between the Mic and Studio, so we'll have a common base implementation for open()
@@ -37,6 +38,13 @@ pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal
         } else {
             self.fetch_value(message)
         }
+    }
+
+    fn get_linked_app_list(&self) -> Result<Option<Vec<LinkedApp>>> {
+        self.get_linked_apps()
+    }
+    fn set_linked_app(&self, app: LinkedApp) -> Result<()> {
+        self.set_app_link(app)
     }
 }
 
@@ -136,6 +144,91 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
             bail!("Value was not changed on the device!");
         }
         Ok(new_value)
+    }
+
+    /// Returns the Apps and their link configuration from PC2
+    fn get_linked_apps(&self) -> Result<Option<Vec<LinkedApp>>> {
+        let mut apps = vec![];
+        
+        if self.get_device_type() != DeviceType::BeacnStudio {
+            bail!("This can only be executed on a Beacn Studio")
+        }
+
+        let timeout = Duration::from_secs(3);
+
+        // Build the request
+        let request = [0x00, 0x00, 0x01, 0xAC];
+        self.get_usb_handle().write_bulk(0x03, &request, timeout)?;
+
+        // TODO: Assuming max length of 1024, it might be higher
+        let mut buf = [0; 1024];
+        self.get_usb_handle().read_bulk(0x83, &mut buf, timeout)?;
+
+        // Extract the header
+        let data_length = LittleEndian::read_u24(&buf[0..3]) as usize;
+        if data_length == 0xFFFFFF {
+            // No PC2 Connection
+            return Ok(None);
+        }
+
+        let data = &buf[4.. 4 + data_length];
+        let mut position = 0;
+        loop {
+            if position >= data.len() {
+                break;
+            }
+
+            let len = data[position] as usize;
+            if len == 0 {
+                break;
+            }
+
+            if position + 2 + len > data.len() {
+                bail!("Truncated Entry, aborting");
+            }
+
+            let channel = data[position + 1];
+            let name = str::from_utf8(&data[position + 2 .. position + 2 + len])?;
+            apps.push(LinkedApp {
+                channel: LinkChannel::from_u8(channel),
+                name: name.to_string(),
+            });
+            position += 2 + len;
+        }
+
+        // Sort alphabetically
+        apps.sort_by_key(|app| app.name.to_lowercase());
+        Ok(Some(apps))
+    }
+
+    fn set_app_link(&self, link: LinkedApp) -> Result<()> {
+        if self.get_device_type() != DeviceType::BeacnStudio {
+            bail!("This can only be executed on a Beacn Studio")
+        }
+
+        // Build the packet
+        let name_bytes = link.name.as_bytes();
+
+        // I'm honestly unsure about this, it seems to appear with every packet when moving
+        // apps between channels, so I'll include it.
+        let extra = [0x00, 0xcd, 0xcd, 0xcd, 0xcd, 0x00];
+        let length: u8 = (name_bytes.len() + extra.len()) as u8;
+
+        let mut packet: Vec<u8> = Vec::with_capacity(2 + name_bytes.len() + 1 + extra.len());
+        packet.push(length);
+        packet.push(link.channel as u8);
+        packet.extend_from_slice(name_bytes);
+        packet.extend_from_slice(&extra);
+
+        let mut message = vec![0x00, 0x00, 0x00, 0xac];
+        LittleEndian::write_u24(&mut message[0..3], packet.len() as u32);
+        message.extend_from_slice(&packet);
+
+        let timeout = Duration::from_secs(3);
+        self.get_usb_handle().write_bulk(0x03, &message, timeout)?;
+        debug!("{message:#02x?}");
+
+        Ok(())
     }
 }
 
