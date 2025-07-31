@@ -226,7 +226,6 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
 
         let timeout = Duration::from_secs(3);
         self.get_usb_handle().write_bulk(0x03, &message, timeout)?;
-        debug!("{message:#02x?}");
 
         Ok(())
     }
