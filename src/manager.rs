@@ -1,4 +1,5 @@
 use anyhow::Result;
+use crossbeam::channel::{Receiver, Sender, TryRecvError};
 use log::{debug, error, warn};
 use rusb::{Device, GlobalContext, Hotplug, HotplugBuilder, UsbContext, has_hotplug};
 use std::cmp::PartialEq;
@@ -6,7 +7,6 @@ use std::fmt::{Display, Formatter};
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
-use crossbeam::channel::{Receiver, Sender, TryRecvError};
 
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
 pub(crate) const PID_BEACN_MIC: u16 = 0x0001;
@@ -106,6 +106,7 @@ impl Hotplug<GlobalContext> for BeacnMicManager {
         }
     }
 
+    #[allow(clippy::collapsible_if)]
     fn device_left(&mut self, device: Device<GlobalContext>) {
         // Only flag a device removal if it's a Mic or Studio
         if let Ok(desc) = device.device_descriptor() {
@@ -160,6 +161,7 @@ fn hotplug_poll(
         let mut found_devices = vec![];
         if let Ok(devices) = context.devices() {
             for dev in devices.iter() {
+                #[allow(clippy::collapsible_if)]
                 if let Ok(desc) = dev.device_descriptor() {
                     if desc.vendor_id() == VENDOR_BEACN {
                         let device = DeviceLocation::from(dev);
@@ -282,6 +284,7 @@ pub fn get_beacn_mix_create_device() -> Vec<DeviceLocation> {
     get_beacn_device(PID_BEACN_MIX_CREATE)
 }
 
+#[allow(clippy::collapsible_if)]
 fn get_beacn_device(pid: u16) -> Vec<DeviceLocation> {
     let mut devices = vec![];
     if let Ok(devs) = rusb::devices() {

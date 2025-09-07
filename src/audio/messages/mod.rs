@@ -1,4 +1,3 @@
-use crate::manager::DeviceType;
 use crate::audio::messages::bass_enhancement::BassEnhancement;
 use crate::audio::messages::compressor::Compressor;
 use crate::audio::messages::deesser::DeEsser;
@@ -11,6 +10,7 @@ use crate::audio::messages::lighting::Lighting;
 use crate::audio::messages::mic_setup::MicSetup;
 use crate::audio::messages::subwoofer::Subwoofer;
 use crate::audio::messages::suppressor::Suppressor;
+use crate::manager::DeviceType;
 use crate::types::BeacnValue;
 
 pub mod bass_enhancement;
@@ -56,7 +56,7 @@ impl Message {
             Message::Lighting(v) => v.is_device_message_set(),
             Message::MicSetup(v) => v.is_device_message_set(),
             Message::Subwoofer(v) => v.is_device_message_set(),
-            Message::Suppressor(v) => v.is_device_message_set()
+            Message::Suppressor(v) => v.is_device_message_set(),
         }
     }
 
@@ -180,7 +180,7 @@ pub enum BeacnMessage {
 pub(crate) enum DeviceMessageType {
     Common,
     BeacnMic,
-    BeacnStudio
+    BeacnStudio,
 }
 
 trait BeacnSubMessage {

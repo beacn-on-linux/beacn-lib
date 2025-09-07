@@ -53,6 +53,7 @@ impl std::fmt::Debug for VersionNumber {
 }
 
 impl From<String> for VersionNumber {
+    #[allow(clippy::collapsible_if)]
     fn from(value: String) -> Self {
         let mut version = VersionNumber::default();
 

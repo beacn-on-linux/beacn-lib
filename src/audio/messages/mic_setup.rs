@@ -1,7 +1,7 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::generate_range;
 use crate::manager::DeviceType;
-use crate::types::{read_value, write_value, BeacnValue, ReadBeacn, WriteBeacn};
+use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MicSetup {

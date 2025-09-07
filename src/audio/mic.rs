@@ -1,11 +1,11 @@
-use crate::audio::common::{open_beacn, BeacnAudioMessageLocal};
+use crate::BResult;
+use crate::audio::common::{BeacnAudioMessageLocal, open_beacn};
 use crate::audio::{
     BeacnAudioDevice, BeacnAudioDeviceAttach, BeacnAudioMessageExecute, BeacnAudioMessaging,
     DeviceDefinition,
 };
 use crate::common::BeacnDeviceHandle;
 use crate::manager::{DeviceType, PID_BEACN_MIC};
-use anyhow::Result;
 use rusb::{DeviceHandle, GlobalContext};
 
 pub struct BeacnMic {
@@ -13,7 +13,7 @@ pub struct BeacnMic {
 }
 
 impl BeacnAudioDeviceAttach for BeacnMic {
-    fn connect(definition: DeviceDefinition) -> Result<Box<dyn BeacnAudioDevice>> {
+    fn connect(definition: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>> {
         let handle = open_beacn(definition, PID_BEACN_MIC)?;
         Ok(Box::new(Self { handle }))
     }

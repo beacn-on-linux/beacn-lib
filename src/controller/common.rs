@@ -9,8 +9,8 @@ use crate::controller::{
 };
 use crate::types::RGBA;
 use crate::version::VersionNumber;
-use anyhow::Result;
-use anyhow::bail;
+use crate::{BResult, beacn_bail};
+use anyhow::Error;
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use crossbeam::channel::{Receiver, Sender, after, bounded, never, tick};
 use crossbeam::select;
@@ -38,7 +38,7 @@ pub trait BeacnControlDeviceAttach {
     fn connect(
         definition: DeviceDefinition,
         interaction: Option<mpsc::Sender<Interactions>>,
-    ) -> Result<Box<dyn BeacnControlDevice>>
+    ) -> BResult<Box<dyn BeacnControlDevice>>
     where
         Self: Sized;
 
@@ -404,24 +404,26 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         (has_interacted, buttons)
     }
 
-    fn set_enabled(&self, enabled: bool) -> Result<()> {
-        self.get_sender().send(SetEnabled(enabled))?;
+    fn set_enabled(&self, enabled: bool) -> BResult<()> {
+        self.get_sender()
+            .send(SetEnabled(enabled))
+            .map_err(Error::from)?;
         Ok(())
     }
 
-    fn send_keepalive(&self) -> Result<()> {
-        self.get_sender().send(KeepAlive)?;
+    fn send_keepalive(&self) -> BResult<()> {
+        self.get_sender().send(KeepAlive).map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_image(&self, x: u32, y: u32, jpeg_image: &[u8]) -> Result<()> {
+    fn set_image(&self, x: u32, y: u32, jpeg_image: &[u8]) -> BResult<()> {
         // TODO: This might be too heavy for a frequent update check (for example, metering)
 
         // All we do here is validate the image and make sure it fits inside the window
         // Firstly, make sure we're rendering to the actual screen
         let display_size = self.get_display_size();
         if x > display_size.0 || y > display_size.1 {
-            bail!(
+            beacn_bail!(
                 "Position should be between 0..{}, 0..{}",
                 display_size.0,
                 display_size.1
@@ -430,72 +432,81 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
         // Load out the image, and get the width + height
         let mut decoder = Decoder::new(jpeg_image);
-        decoder.read_info()?;
+        decoder.read_info().map_err(Error::from)?;
 
         if let Some(info) = decoder.info() {
             if (x + info.width as u32) > display_size.0 {
-                bail!(
+                beacn_bail!(
                     "Image overflows display width, {}>{}",
                     x + info.width as u32,
                     display_size.0
                 );
             }
             if (y + info.height as u32) > display_size.1 {
-                bail!(
+                beacn_bail!(
                     "Image overflows display height, {}>{}",
                     x + info.height as u32,
                     display_size.1
                 );
             }
         } else {
-            bail!("Unable to Fetch Image Info");
+            beacn_bail!("Unable to Fetch Image Info");
         }
 
         self.get_sender()
-            .send(SetImage(x, y, Vec::from(jpeg_image)))?;
+            .send(SetImage(x, y, Vec::from(jpeg_image)))
+            .map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_display_brightness(&self, brightness: u8) -> Result<()> {
+    fn set_display_brightness(&self, brightness: u8) -> BResult<()> {
         if !(1..=100).contains(&brightness) {
-            bail!("Display Brightness must be a percentage");
+            beacn_bail!("Display Brightness must be a percentage");
         }
 
-        self.get_sender().send(SetActiveBrightness(brightness))?;
+        self.get_sender()
+            .send(SetActiveBrightness(brightness))
+            .map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_button_brightness(&self, brightness: u8) -> Result<()> {
+    fn set_button_brightness(&self, brightness: u8) -> BResult<()> {
         if !(0..=10).contains(&brightness) {
-            bail!("Button Brightness must be between 0 and 10");
+            beacn_bail!("Button Brightness must be between 0 and 10");
         }
-        self.get_sender().send(SetButtonBrightness(brightness))?;
+        self.get_sender()
+            .send(SetButtonBrightness(brightness))
+            .map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_dim_timeout(&self, timeout: Duration) -> Result<()> {
+    fn set_dim_timeout(&self, timeout: Duration) -> BResult<()> {
         if timeout > Duration::from_secs(300) || timeout < Duration::from_secs(30) {
-            bail!(
+            beacn_bail!(
                 "For display safety, dim timeout must be lower than 5 minutes, and greater than 30 seconds"
             );
         }
 
-        self.get_sender().send(SetDimTimeout(timeout))?;
+        self.get_sender()
+            .send(SetDimTimeout(timeout))
+            .map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_button_colour(&self, button: ButtonLighting, colour: RGBA) -> Result<()> {
+    fn set_button_colour(&self, button: ButtonLighting, colour: RGBA) -> BResult<()> {
         let button = button as u8;
-        self.get_sender().send(SetButtonColour(button, colour))?;
+        self.get_sender()
+            .send(SetButtonColour(button, colour))
+            .map_err(Error::from)?;
         Ok(())
     }
 }
 
 /// Simple function to Open a libusb connection to a Beacn Audio device, do initial setup and
 /// grab the firmware version from the device.
-pub(crate) fn open_beacn(def: DeviceDefinition, product_id: u16) -> Result<BeacnDeviceHandle> {
+pub(crate) fn open_beacn(def: DeviceDefinition, product_id: u16) -> BResult<BeacnDeviceHandle> {
     if def.descriptor.product_id() != product_id {
-        bail!(
+        beacn_bail!(
             "Expecting PID {} but got {}",
             product_id,
             def.descriptor.product_id()

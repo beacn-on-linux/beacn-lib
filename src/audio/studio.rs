@@ -1,19 +1,19 @@
-use crate::audio::common::{open_beacn, BeacnAudioMessageLocal};
+use crate::BResult;
+use crate::audio::common::{BeacnAudioMessageLocal, open_beacn};
 use crate::audio::{
     BeacnAudioDevice, BeacnAudioDeviceAttach, BeacnAudioMessageExecute, BeacnAudioMessaging,
     DeviceDefinition,
 };
-use crate::manager::{DeviceType, PID_BEACN_STUDIO};
-use anyhow::Result;
-use rusb::{DeviceHandle, GlobalContext};
 use crate::common::BeacnDeviceHandle;
+use crate::manager::{DeviceType, PID_BEACN_STUDIO};
+use rusb::{DeviceHandle, GlobalContext};
 
 pub struct BeacnStudio {
     handle: BeacnDeviceHandle,
 }
 
 impl BeacnAudioDeviceAttach for BeacnStudio {
-    fn connect(definition: DeviceDefinition) -> Result<Box<dyn BeacnAudioDevice>> {
+    fn connect(definition: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>> {
         let handle = open_beacn(definition, PID_BEACN_STUDIO)?;
 
         // TODO: Spawn Thread to manage inputs

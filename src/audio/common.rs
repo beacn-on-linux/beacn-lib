@@ -2,11 +2,11 @@ use crate::audio::messages::{DeviceMessageType, Message};
 use crate::audio::{BeacnAudioDevice, DeviceDefinition, LinkChannel, LinkedApp};
 use crate::common::{BeacnDeviceHandle, get_device_info};
 use crate::manager::DeviceType;
-use anyhow::{Result, bail};
+use crate::{BResult, beacn_bail};
+use byteorder::{ByteOrder, LittleEndian};
 use log::{debug, warn};
 use rusb::{DeviceHandle, GlobalContext};
 use std::time::Duration;
-use byteorder::{ByteOrder, LittleEndian};
 
 // This defines the code needed for connecting to a Beacn Audio Device, it's currently consistent
 // between the Mic and Studio, so we'll have a common base implementation for open()
@@ -15,7 +15,7 @@ pub trait BeacnAudioDeviceAttach {
     // simply used internally for connection up a device, and shouldn't have any visibility
     // from the outside. This also prevents external code from attempting to call connect.
     #[allow(private_interfaces)]
-    fn connect(device: DeviceDefinition) -> Result<Box<dyn BeacnAudioDevice>>
+    fn connect(device: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>>
     where
         Self: Sized;
 
@@ -32,7 +32,7 @@ pub trait BeacnAudioMessageExecute {
 // Trait for Sending and Receiving Messages
 #[allow(private_bounds)]
 pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal {
-    fn handle_message(&self, message: Message) -> Result<Message> {
+    fn handle_message(&self, message: Message) -> BResult<Message> {
         if message.is_device_message_set() {
             self.set_value(message)
         } else {
@@ -40,10 +40,10 @@ pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal
         }
     }
 
-    fn get_linked_app_list(&self) -> Result<Option<Vec<LinkedApp>>> {
+    fn get_linked_app_list(&self) -> BResult<Option<Vec<LinkedApp>>> {
         self.get_linked_apps()
     }
-    fn set_linked_app(&self, app: LinkedApp) -> Result<()> {
+    fn set_linked_app(&self, app: LinkedApp) -> BResult<()> {
         self.set_app_link(app)
     }
 }
@@ -61,12 +61,12 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
         }
     }
 
-    fn fetch_value(&self, message: Message) -> Result<Message> {
+    fn fetch_value(&self, message: Message) -> BResult<Message> {
         // Before we do anything, we need to make sure this message is valid on our device
         if !self.is_command_valid(message) {
             warn!("Command Sent not valid for this device:");
             warn!("{:?}", &message);
-            bail!("Command is not valid for this device");
+            beacn_bail!("Command is not valid for this device");
         }
 
         // Ok, first we need to deconstruct this message into something more useful
@@ -78,11 +78,11 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
         Ok(Message::from_beacn_message(param, self.get_device_type()))
     }
 
-    fn set_value(&self, message: Message) -> Result<Message> {
+    fn set_value(&self, message: Message) -> BResult<Message> {
         if !self.is_command_valid(message) {
             warn!("Command Sent not valid for this device:");
             warn!("{:?}", message);
-            bail!("Command is not valid for this device");
+            beacn_bail!("Command is not valid for this device");
         }
 
         let key = message.to_beacn_key();
@@ -95,7 +95,7 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
         Ok(Message::from_beacn_message(result, self.get_device_type()))
     }
 
-    fn param_lookup(&self, key: [u8; 3]) -> Result<[u8; 8]> {
+    fn param_lookup(&self, key: [u8; 3]) -> BResult<[u8; 8]> {
         let timeout = Duration::from_secs(3);
 
         let mut request = [0; 4];
@@ -111,13 +111,13 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
 
         // Validate the header...
         if buf[0..2] != request[0..2] || buf[3] != 0xa4 {
-            bail!("Invalid Response Received");
+            beacn_bail!("Invalid Response Received");
         }
 
         Ok(buf)
     }
 
-    fn param_set(&self, key: [u8; 3], value: [u8; 4]) -> Result<[u8; 8]> {
+    fn param_set(&self, key: [u8; 3], value: [u8; 4]) -> BResult<[u8; 8]> {
         let timeout = Duration::from_millis(200);
 
         // Build the Set Request
@@ -141,17 +141,17 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
                 "Value Set: {:?} does not match value on Device: {:?}",
                 &old, &new
             );
-            bail!("Value was not changed on the device!");
+            beacn_bail!("Value was not changed on the device!");
         }
         Ok(new_value)
     }
 
     /// Returns the Apps and their link configuration from PC2
-    fn get_linked_apps(&self) -> Result<Option<Vec<LinkedApp>>> {
+    fn get_linked_apps(&self) -> BResult<Option<Vec<LinkedApp>>> {
         let mut apps = vec![];
-        
+
         if self.get_device_type() != DeviceType::BeacnStudio {
-            bail!("This can only be executed on a Beacn Studio")
+            beacn_bail!("This can only be executed on a Beacn Studio")
         }
 
         let timeout = Duration::from_secs(3);
@@ -171,7 +171,7 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
             return Ok(None);
         }
 
-        let data = &buf[4.. 4 + data_length];
+        let data = &buf[4..4 + data_length];
         let mut position = 0;
         loop {
             if position >= data.len() {
@@ -184,11 +184,12 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
             }
 
             if position + 2 + len > data.len() {
-                bail!("Truncated Entry, aborting");
+                beacn_bail!("Truncated Entry, aborting");
             }
 
             let channel = data[position + 1];
-            let name = str::from_utf8(&data[position + 2 .. position + 2 + len])?;
+            let name = str::from_utf8(&data[position + 2..position + 2 + len])
+                .map_err(anyhow::Error::from)?;
             apps.push(LinkedApp {
                 channel: LinkChannel::from_u8(channel),
                 name: name.to_string(),
@@ -201,9 +202,9 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
         Ok(Some(apps))
     }
 
-    fn set_app_link(&self, link: LinkedApp) -> Result<()> {
+    fn set_app_link(&self, link: LinkedApp) -> BResult<()> {
         if self.get_device_type() != DeviceType::BeacnStudio {
-            bail!("This can only be executed on a Beacn Studio")
+            beacn_bail!("This can only be executed on a Beacn Studio")
         }
 
         // Build the packet
@@ -231,12 +232,11 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
     }
 }
 
-
 /// Simple function to Open a libusb connection to a Beacn Audio device, do initial setup and
 /// grab the firmware version from the device.
-pub(crate) fn open_beacn(def: DeviceDefinition, product_id: u16) -> Result<BeacnDeviceHandle> {
+pub(crate) fn open_beacn(def: DeviceDefinition, product_id: u16) -> BResult<BeacnDeviceHandle> {
     if def.descriptor.product_id() != product_id {
-        bail!(
+        beacn_bail!(
             "Expecting PID {} but got {}",
             product_id,
             def.descriptor.product_id()

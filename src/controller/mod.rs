@@ -4,8 +4,7 @@ use crate::controller::mix::BeacnMix;
 use crate::controller::mix_create::BeacnMixCreate;
 use crate::manager::{DeviceLocation, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
 use crate::types::RGBA;
-use anyhow::Result;
-use anyhow::bail;
+use crate::{BResult, beacn_bail};
 use enum_map::Enum;
 use std::panic::RefUnwindSafe;
 use std::sync::mpsc::Sender;
@@ -24,16 +23,16 @@ pub trait BeacnControlDevice:
 pub fn open_control_device(
     location: DeviceLocation,
     interaction: Option<Sender<Interactions>>,
-) -> Result<Box<dyn BeacnControlDevice>> {
+) -> BResult<Box<dyn BeacnControlDevice>> {
     if let Some(device) = find_device(location) {
         // We need to return the correct type
         return match device.descriptor.product_id() {
             PID_BEACN_MIX => BeacnMix::connect(device, interaction),
             PID_BEACN_MIX_CREATE => BeacnMixCreate::connect(device, interaction),
-            _ => bail!("Unknown Device"),
+            _ => beacn_bail!("Unknown Device"),
         };
     }
-    bail!("Unknown Device")
+    beacn_bail!("Unknown Device")
 }
 
 // These are some helper enums, generally used in messaging :)

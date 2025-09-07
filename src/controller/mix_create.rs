@@ -1,3 +1,4 @@
+use crate::BResult;
 use crate::common::DeviceDefinition;
 use crate::controller::common::{BeacnControlDeviceAttach, BeacnControlInteraction, open_beacn};
 use crate::controller::{BeacnControlDevice, ControlThreadSender, Interactions};
@@ -20,7 +21,7 @@ impl BeacnControlDeviceAttach for BeacnMixCreate {
     fn connect(
         definition: DeviceDefinition,
         interaction: Option<mpsc::Sender<Interactions>>,
-    ) -> anyhow::Result<Box<dyn BeacnControlDevice>>
+    ) -> BResult<Box<dyn BeacnControlDevice>>
     where
         Self: Sized,
     {

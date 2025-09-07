@@ -1,13 +1,13 @@
-use std::sync::mpsc;
-use crate::common::{DeviceDefinition};
-use crate::controller::common::{BeacnControlDeviceAttach, open_beacn, BeacnControlInteraction};
+use crate::BResult;
+use crate::common::DeviceDefinition;
+use crate::controller::common::{BeacnControlDeviceAttach, BeacnControlInteraction, open_beacn};
 use crate::controller::{BeacnControlDevice, ControlThreadSender, Interactions};
-use crate::manager::{PID_BEACN_MIX};
-use anyhow::Result;
-use std::thread;
-use crossbeam::channel::{bounded, Sender};
-use log::debug;
+use crate::manager::PID_BEACN_MIX;
 use crate::version::VersionNumber;
+use crossbeam::channel::{Sender, bounded};
+use log::debug;
+use std::sync::mpsc;
+use std::thread;
 
 pub struct BeacnMix {
     serial: String,
@@ -20,7 +20,7 @@ impl BeacnControlDeviceAttach for BeacnMix {
     fn connect(
         definition: DeviceDefinition,
         interaction: Option<mpsc::Sender<Interactions>>,
-    ) -> Result<Box<dyn BeacnControlDevice>>
+    ) -> BResult<Box<dyn BeacnControlDevice>>
     where
         Self: Sized,
     {

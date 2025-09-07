@@ -19,3 +19,6 @@ crossbeam = "0.8.4"
 
 # Used to verify Mix / Mix Create image data
 jpeg-decoder = "0.3.1"
+
+# Easier Error Handling
+thiserror = "2.0.16"

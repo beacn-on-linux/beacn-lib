@@ -1,9 +1,9 @@
-use anyhow::Result;
-use std::io::{Cursor, Read, Seek};
-use byteorder::{LittleEndian, ReadBytesExt};
-use rusb::{Device, DeviceDescriptor, DeviceHandle, GlobalContext};
 use crate::manager::{DeviceLocation, VENDOR_BEACN};
 use crate::version::VersionNumber;
+use anyhow::Result;
+use byteorder::{LittleEndian, ReadBytesExt};
+use rusb::{Device, DeviceDescriptor, DeviceHandle, GlobalContext};
+use std::io::{Cursor, Read, Seek};
 
 pub(crate) struct DeviceDefinition {
     pub(crate) device: Device<GlobalContext>,

@@ -8,9 +8,9 @@ use crate::audio::mic::BeacnMic;
 use crate::audio::studio::BeacnStudio;
 use crate::common::{DeviceDefinition, find_device};
 use crate::manager::{DeviceLocation, PID_BEACN_MIC, PID_BEACN_STUDIO};
-use anyhow::{Result, bail};
-use std::panic::RefUnwindSafe;
+use crate::{BResult, beacn_bail};
 use enum_map::Enum;
+use std::panic::RefUnwindSafe;
 use strum::EnumIter;
 
 pub trait BeacnAudioDevice:
@@ -18,18 +18,17 @@ pub trait BeacnAudioDevice:
 {
 }
 
-pub fn open_audio_device(location: DeviceLocation) -> Result<Box<dyn BeacnAudioDevice>> {
+pub fn open_audio_device(location: DeviceLocation) -> BResult<Box<dyn BeacnAudioDevice>> {
     if let Some(device) = find_device(location) {
         // We need to return the correct type
         return match device.descriptor.product_id() {
             PID_BEACN_MIC => BeacnMic::connect(device),
             PID_BEACN_STUDIO => BeacnStudio::connect(device),
-            _ => bail!("Unknown Device"),
+            _ => beacn_bail!("Unknown Device"),
         };
     }
-    bail!("Unknown Device")
+    beacn_bail!("Unknown Device")
 }
-
 
 #[derive(Debug, Clone)]
 #[allow(unused)]
@@ -44,7 +43,7 @@ pub enum LinkChannel {
     Link1,
     Link2,
     Link3,
-    Link4
+    Link4,
 }
 
 impl LinkChannel {
