@@ -1,6 +1,6 @@
 # Beacn Mic / Studio Protocol
 
-This is a library for communicating with the Beacn Mic, and the Beacn Studio
+This is a library for communicating with Beacn Devices
 
 ***
 ### USE AT YOUR OWN RISK
@@ -15,5 +15,6 @@ which may occur from its use. Please read the LICENSE for more information.
 
 ***
 ### Notes
-This is still a work in progress, hotplug and device detection is present, the testing of the studio is still
-preliminary and may have issues.
+This is still a work in progress, hotplug and device detection is present, it should be possible to send messages
+to the Beacn Mic and Beacn Studio, it should also be possible to connect to, send images to, and read inputs from
+the Beacn Mix and Mix Create
