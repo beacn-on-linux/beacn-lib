@@ -20,7 +20,7 @@ pub struct BeacnMixCreate {
 impl BeacnControlDeviceAttach for BeacnMixCreate {
     fn connect(
         definition: DeviceDefinition,
-        interaction: Option<mpsc::Sender<Interactions>>,
+        interaction: Option<Sender<Interactions>>,
     ) -> BResult<Box<dyn BeacnControlDevice>>
     where
         Self: Sized,

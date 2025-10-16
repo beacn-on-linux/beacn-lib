@@ -6,7 +6,6 @@ use crate::manager::PID_BEACN_MIX;
 use crate::version::VersionNumber;
 use crossbeam::channel::{Sender, bounded};
 use log::debug;
-use std::sync::mpsc;
 use std::thread;
 
 pub struct BeacnMix {
@@ -19,7 +18,7 @@ pub struct BeacnMix {
 impl BeacnControlDeviceAttach for BeacnMix {
     fn connect(
         definition: DeviceDefinition,
-        interaction: Option<mpsc::Sender<Interactions>>,
+        interaction: Option<Sender<Interactions>>,
     ) -> BResult<Box<dyn BeacnControlDevice>>
     where
         Self: Sized,

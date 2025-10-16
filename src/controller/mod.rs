@@ -7,8 +7,8 @@ use crate::types::RGBA;
 use crate::{BResult, beacn_bail};
 use enum_map::Enum;
 use std::panic::RefUnwindSafe;
-use std::sync::mpsc::Sender;
 use std::time::Duration;
+use crossbeam::channel::Sender;
 use strum::{Display, EnumIter};
 
 mod common;

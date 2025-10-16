@@ -37,7 +37,7 @@ pub trait BeacnControlDeviceAttach {
     #[allow(private_interfaces)]
     fn connect(
         definition: DeviceDefinition,
-        interaction: Option<mpsc::Sender<Interactions>>,
+        interaction: Option<Sender<Interactions>>,
     ) -> BResult<Box<dyn BeacnControlDevice>>
     where
         Self: Sized;
@@ -59,7 +59,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     fn spawn_event_handler(
         rx: Receiver<ControlThreadSender>,
         handler: BeacnDeviceHandle,
-        interaction: Option<mpsc::Sender<Interactions>>,
+        interaction: Option<Sender<Interactions>>,
     ) where
         Self: Sized,
     {
@@ -363,7 +363,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     fn handle_interaction(
         message: [u8; 64],
         last: u16,
-        tx: &Option<mpsc::Sender<Interactions>>,
+        tx: &Option<Sender<Interactions>>,
     ) -> (bool, u16)
     where
         Self: Sized,
