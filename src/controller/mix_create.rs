@@ -6,7 +6,6 @@ use crate::manager::PID_BEACN_MIX_CREATE;
 use crate::version::VersionNumber;
 use crossbeam::channel::{Sender, bounded};
 use log::debug;
-use std::sync::mpsc;
 use std::thread;
 
 #[derive(Debug)]

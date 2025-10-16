@@ -5,10 +5,10 @@ use crate::controller::mix_create::BeacnMixCreate;
 use crate::manager::{DeviceLocation, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
 use crate::types::RGBA;
 use crate::{BResult, beacn_bail};
+use crossbeam::channel::Sender;
 use enum_map::Enum;
 use std::panic::RefUnwindSafe;
 use std::time::Duration;
-use crossbeam::channel::Sender;
 use strum::{Display, EnumIter};
 
 mod common;

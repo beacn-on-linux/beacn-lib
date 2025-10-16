@@ -17,7 +17,7 @@ use crossbeam::select;
 use jpeg_decoder::Decoder;
 use log::{debug, error, warn};
 use rusb::Error::Timeout;
-use std::sync::{Arc, mpsc};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use strum::IntoEnumIterator;
