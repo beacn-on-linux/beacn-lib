@@ -36,19 +36,19 @@ pub fn open_control_device(
 }
 
 // These are some helper enums, generally used in messaging :)
-#[derive(Display, Copy, Clone, PartialEq)]
+#[derive(Display, Debug, Copy, Clone, PartialEq)]
 pub enum Interactions {
     ButtonPress(Buttons, ButtonState),
     DialChanged(Dials, i8),
 }
 
-#[derive(Display, Copy, Clone, EnumIter, PartialEq)]
+#[derive(Display, Debug, Copy, Clone, EnumIter, PartialEq)]
 pub enum ButtonState {
     Press,
     Release,
 }
 
-#[derive(Display, Copy, Clone, EnumIter, PartialEq)]
+#[derive(Display, Debug, Copy, Clone, EnumIter, PartialEq)]
 pub enum Buttons {
     AudienceMix = 0,
 
