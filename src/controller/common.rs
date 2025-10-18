@@ -118,7 +118,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             });
             never()
         } else {
-            tick(Duration::from_millis(50))
+            tick(Duration::from_millis(20))
         };
 
         // This tracks the button states (so we can message on Send / Receive)
