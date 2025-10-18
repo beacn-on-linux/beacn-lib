@@ -42,13 +42,13 @@ pub enum Interactions {
     DialChanged(Dials, i8),
 }
 
-#[derive(Display, Debug, Copy, Clone, EnumIter, PartialEq)]
+#[derive(Display, Debug, Copy, Clone, Enum, EnumIter, PartialEq)]
 pub enum ButtonState {
     Press,
     Release,
 }
 
-#[derive(Display, Debug, Copy, Clone, EnumIter, PartialEq)]
+#[derive(Display, Debug, Copy, Clone, Enum, EnumIter, PartialEq)]
 pub enum Buttons {
     AudienceMix = 0,
 
