@@ -62,6 +62,10 @@ pub(crate) fn get_device_info(input: &[u8]) -> Result<(VersionNumber, String)> {
         }
         serial_bytes.push(byte);
     }
-    let serial = String::from_utf8_lossy(&serial_bytes).to_string();
+    let serial = String::from_utf8_lossy(&serial_bytes)
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect();
+
     Ok((version, serial))
 }
