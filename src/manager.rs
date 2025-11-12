@@ -69,6 +69,15 @@ impl BeacnMicManager {
         }
         debug!("Device Connected at {}", device);
         self.known_devices.push(device);
+
+        // We're actually going to sleep on this for a quarter of a second because there appears
+        // to be situations where if we run through this too quickly, the udev rules may not have
+        // finished being setup when we attempt to connect to the device. This results in a
+        // Permission Denied error, even if we have permission!
+        //
+        // Shoutout to Jordahn on Discord for helping diagnose this issue.
+        sleep(Duration::from_millis(250));
+
         let _ = self
             .sender
             .send(HotPlugMessage::DeviceAttached(device, device_type));
