@@ -9,6 +9,8 @@ use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
 
+const MIC_CLASS_COMPLIANT_VERSION: VersionNumber = VersionNumber(1, 2, 0, 188);
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Headphones {
     GetHeadphoneLevel,
@@ -37,6 +39,9 @@ pub enum Headphones {
 
     GetStudioDriverless,
     StudioDriverless(bool),
+
+    GetMicClassCompliant,
+    MicClassCompliant(bool),
 }
 
 impl BeacnSubMessage for Headphones {
@@ -52,12 +57,19 @@ impl BeacnSubMessage for Headphones {
             Headphones::StudioChannelsLinked(_) => DeviceMessageType::BeacnStudio,
             Headphones::GetStudioDriverless => DeviceMessageType::BeacnStudio,
             Headphones::StudioDriverless(_) => DeviceMessageType::BeacnStudio,
+            Headphones::GetMicClassCompliant => DeviceMessageType::BeacnMic,
+            Headphones::MicClassCompliant(_) => DeviceMessageType::BeacnMic,
             _ => DeviceMessageType::Common,
         }
     }
 
     fn get_message_minimum_version(&self) -> VersionNumber {
-        VERSION_ALL
+        match self {
+            Headphones::GetMicClassCompliant | Headphones::MicClassCompliant(_) => {
+                MIC_CLASS_COMPLIANT_VERSION
+            }
+            _ => VERSION_ALL,
+        }
     }
 
     fn is_device_message_set(&self) -> bool {
@@ -72,6 +84,7 @@ impl BeacnSubMessage for Headphones {
                 | Headphones::HeadphoneType(_)
                 | Headphones::FXEnabled(_)
                 | Headphones::StudioDriverless(_)
+                | Headphones::MicClassCompliant(_)
         )
     }
 
@@ -87,7 +100,10 @@ impl BeacnSubMessage for Headphones {
             Headphones::MicOutputGain(_) | Headphones::GetMicOutputGain => [0x10, 0x00],
             Headphones::HeadphoneType(_) | Headphones::GetHeadphoneType => [0x11, 0x00],
             Headphones::FXEnabled(_) | Headphones::GetFXEnabled => [0x12, 0x00],
-            Headphones::StudioDriverless(_) | Headphones::GetStudioDriverless => [0x14, 0x00],
+            Headphones::StudioDriverless(_)
+            | Headphones::GetStudioDriverless
+            | Headphones::MicClassCompliant(_)
+            | Headphones::GetMicClassCompliant => [0x14, 0x00],
         }
     }
 
@@ -101,7 +117,20 @@ impl BeacnSubMessage for Headphones {
             Headphones::MicOutputGain(v) => write_value(v),
             Headphones::HeadphoneType(v) => v.write_beacn(),
             Headphones::FXEnabled(v) => v.write_beacn(),
-            Headphones::StudioDriverless(v) => v.write_beacn(),
+            Headphones::StudioDriverless(v) => {
+                if v == &true {
+                    DeviceMode::Compliancy.write_beacn()
+                } else {
+                    DeviceMode::StudioDefault.write_beacn()
+                }
+            }
+            Headphones::MicClassCompliant(v) => {
+                if v == &true {
+                    DeviceMode::Compliancy.write_beacn()
+                } else {
+                    DeviceMode::MicDefault.write_beacn()
+                }
+            }
             _ => panic!("Attempted to get Value on Setter"),
         }
     }
@@ -119,7 +148,28 @@ impl BeacnSubMessage for Headphones {
             0x10 => Self::MicOutputGain(read_value(&value)),
             0x11 => Self::HeadphoneType(HeadphoneTypes::read_beacn(&value)),
             0x12 => Self::FXEnabled(bool::read_beacn(&value)),
-            0x14 => Self::StudioDriverless(bool::read_beacn(&value)),
+            0x14 => {
+                // The values on this are a little ominous, it's technically an enum, but it's
+                // also a boolean,
+                let mode = DeviceMode::read_beacn(&value);
+                match device_type {
+                    DeviceType::BeacnMic => {
+                        if mode == DeviceMode::MicDefault {
+                            Self::MicClassCompliant(false)
+                        } else {
+                            Self::MicClassCompliant(true)
+                        }
+                    }
+                    DeviceType::BeacnStudio => {
+                        if mode == DeviceMode::StudioDefault {
+                            Self::StudioDriverless(false)
+                        } else {
+                            Self::StudioDriverless(true)
+                        }
+                    }
+                    _ => panic!("This isn't an Audio Device!"),
+                }
+            }
             _ => panic!("Unexpected Key: {}", key[0]),
         }
     }
@@ -135,6 +185,7 @@ impl BeacnSubMessage for Headphones {
             DeviceType::BeacnMic => {
                 messages.push(Message::Headphones(Headphones::GetMicMonitor));
                 messages.push(Message::Headphones(Headphones::GetMicChannelsLinked));
+                messages.push(Message::Headphones(Headphones::GetMicClassCompliant));
             }
             DeviceType::BeacnStudio => {
                 messages.push(Message::Headphones(Headphones::GetStudioMicMonitor));
@@ -171,6 +222,34 @@ impl WriteBeacn for HeadphoneTypes {
 }
 
 impl ReadBeacn for HeadphoneTypes {
+    fn read_beacn(buf: &BeacnValue) -> Self {
+        let value = LittleEndian::read_u32(buf);
+        for var in Self::iter() {
+            if var as u32 == value {
+                return var;
+            }
+        }
+        panic!("Could not Find Value");
+    }
+}
+
+#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+pub enum DeviceMode {
+    #[default]
+    Compliancy = 0x00,
+    StudioDefault = 0x01,
+    MicDefault = 0x02,
+}
+impl Sealed for DeviceMode {}
+impl WriteBeacn for DeviceMode {
+    fn write_beacn(&self) -> BeacnValue {
+        let mut buf = [0; 4];
+        LittleEndian::write_u32(&mut buf, *self as u8 as u32);
+        buf
+    }
+}
+
+impl ReadBeacn for DeviceMode {
     fn read_beacn(buf: &BeacnValue) -> Self {
         let value = LittleEndian::read_u32(buf);
         for var in Self::iter() {
