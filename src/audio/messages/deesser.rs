@@ -20,7 +20,7 @@ impl BeacnSubMessage for DeEsser {
     fn get_message_minimum_version(&self) -> VersionNumber {
         VERSION_ALL
     }
-    
+
     fn is_device_message_set(&self) -> bool {
         matches!(self, DeEsser::Enabled(_) | DeEsser::Amount(_))
     }

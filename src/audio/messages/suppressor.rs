@@ -8,10 +8,10 @@ use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
+use crate::version::VersionNumber;
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
-use crate::version::VersionNumber;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Suppressor {
@@ -50,7 +50,7 @@ impl BeacnSubMessage for Suppressor {
                 | Suppressor::AdaptTime(_)
         )
     }
-    
+
     fn to_beacn_key(&self) -> [u8; 2] {
         match self {
             Suppressor::GetEnabled | Suppressor::Enabled(_) => [0x00, 0x00],

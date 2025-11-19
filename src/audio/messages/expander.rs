@@ -5,11 +5,11 @@ use crate::types::sealed::Sealed;
 use crate::types::{
     BeacnValue, PackedEnumKey, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
 };
+use crate::version::VersionNumber;
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use std::iter::Iterator;
 use strum::{EnumIter, IntoEnumIterator};
-use crate::version::VersionNumber;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Expander {

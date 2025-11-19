@@ -6,8 +6,8 @@ use crate::audio::{
 };
 use crate::common::BeacnDeviceHandle;
 use crate::manager::{DeviceType, PID_BEACN_MIC};
-use rusb::{DeviceHandle, GlobalContext};
 use crate::version::VersionNumber;
+use rusb::{DeviceHandle, GlobalContext};
 
 pub struct BeacnMic {
     handle: BeacnDeviceHandle,

@@ -27,7 +27,7 @@ pub fn open_audio_device(location: DeviceLocation) -> BResult<Box<dyn BeacnAudio
             BeacnStudio::connect(device)
         } else {
             beacn_bail!("Unknown Device")
-        }
+        };
     }
     beacn_bail!("Unknown Device")
 }

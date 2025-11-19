@@ -4,10 +4,10 @@ use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value,
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
+use crate::version::VersionNumber;
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
-use crate::version::VersionNumber;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Equaliser {
@@ -38,7 +38,7 @@ impl BeacnSubMessage for Equaliser {
     fn get_message_minimum_version(&self) -> VersionNumber {
         VERSION_ALL
     }
-    
+
     fn is_device_message_set(&self) -> bool {
         matches!(
             self,

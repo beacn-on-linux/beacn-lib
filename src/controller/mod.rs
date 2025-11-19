@@ -31,7 +31,7 @@ pub fn open_control_device(
             BeacnMixCreate::connect(device, interaction)
         } else {
             beacn_bail!("Unknown Device");
-        }
+        };
     }
     beacn_bail!("Unknown Device")
 }
