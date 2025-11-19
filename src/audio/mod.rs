@@ -21,11 +21,13 @@ pub trait BeacnAudioDevice:
 pub fn open_audio_device(location: DeviceLocation) -> BResult<Box<dyn BeacnAudioDevice>> {
     if let Some(device) = find_device(location) {
         // We need to return the correct type
-        return match device.descriptor.product_id() {
-            PID_BEACN_MIC => BeacnMic::connect(device),
-            PID_BEACN_STUDIO => BeacnStudio::connect(device),
-            _ => beacn_bail!("Unknown Device"),
-        };
+        return if PID_BEACN_MIC.contains(&device.descriptor.product_id()) {
+            BeacnMic::connect(device)
+        } else if PID_BEACN_STUDIO.contains(&device.descriptor.product_id()) {
+            BeacnStudio::connect(device)
+        } else {
+            beacn_bail!("Unknown Device")
+        }
     }
     beacn_bail!("Unknown Device")
 }

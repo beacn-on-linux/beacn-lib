@@ -25,12 +25,13 @@ pub fn open_control_device(
     interaction: Option<Sender<Interactions>>,
 ) -> BResult<Box<dyn BeacnControlDevice>> {
     if let Some(device) = find_device(location) {
-        // We need to return the correct type
-        return match device.descriptor.product_id() {
-            PID_BEACN_MIX => BeacnMix::connect(device, interaction),
-            PID_BEACN_MIX_CREATE => BeacnMixCreate::connect(device, interaction),
-            _ => beacn_bail!("Unknown Device"),
-        };
+        return if PID_BEACN_MIX.contains(&device.descriptor.product_id()) {
+            BeacnMix::connect(device, interaction)
+        } else if PID_BEACN_MIX_CREATE.contains(&device.descriptor.product_id()) {
+            BeacnMixCreate::connect(device, interaction)
+        } else {
+            beacn_bail!("Unknown Device");
+        }
     }
     beacn_bail!("Unknown Device")
 }

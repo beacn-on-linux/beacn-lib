@@ -504,10 +504,10 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
 /// Simple function to Open a libusb connection to a Beacn Audio device, do initial setup and
 /// grab the firmware version from the device.
-pub(crate) fn open_beacn(def: DeviceDefinition, product_id: u16) -> BResult<BeacnDeviceHandle> {
-    if def.descriptor.product_id() != product_id {
+pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<BeacnDeviceHandle> {
+    if !product_id.contains(&def.descriptor.product_id()) {
         beacn_bail!(
-            "Expecting PID {} but got {}",
+            "Expecting PIDs {:?} but got {}",
             product_id,
             def.descriptor.product_id()
         );

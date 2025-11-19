@@ -9,10 +9,10 @@ use std::thread::sleep;
 use std::time::Duration;
 
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
-pub(crate) const PID_BEACN_MIC: u16 = 0x0001;
-pub(crate) const PID_BEACN_STUDIO: u16 = 0x0003;
-pub(crate) const PID_BEACN_MIX: u16 = 0x0004;
-pub(crate) const PID_BEACN_MIX_CREATE: u16 = 0x0007;
+pub(crate) const PID_BEACN_MIC: &[u16] = &[0x0001, 0x8001];
+pub(crate) const PID_BEACN_STUDIO: &[u16] = &[0x0003];
+pub(crate) const PID_BEACN_MIX: &[u16] = &[0x0004];
+pub(crate) const PID_BEACN_MIX_CREATE: &[u16] = &[0x0007];
 
 #[derive(Debug, Default, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DeviceType {
@@ -96,19 +96,19 @@ impl Hotplug<GlobalContext> for BeacnMicManager {
 
         // We need to work out what kind of device this is
         if let Ok(desc) = device.device_descriptor() {
-            if desc.product_id() == PID_BEACN_MIC {
+            if PID_BEACN_MIC.contains(&desc.product_id()) {
                 debug!("Found Beacn Mic!");
                 self.device_connected(location, DeviceType::BeacnMic);
             }
-            if desc.product_id() == PID_BEACN_STUDIO {
+            if PID_BEACN_STUDIO.contains(&desc.product_id()) {
                 debug!("Found Beacn Studio!");
                 self.device_connected(location, DeviceType::BeacnStudio);
             }
-            if desc.product_id() == PID_BEACN_MIX {
+            if PID_BEACN_MIX.contains(&desc.product_id()) {
                 debug!("Found Beacn Mix!");
                 self.device_connected(location, DeviceType::BeacnMix)
             }
-            if desc.product_id() == PID_BEACN_MIX_CREATE {
+            if PID_BEACN_MIX_CREATE.contains(&desc.product_id()) {
                 debug!("Found Beacn Mix Create!");
                 self.device_connected(location, DeviceType::BeacnMixCreate)
             }
@@ -119,10 +119,10 @@ impl Hotplug<GlobalContext> for BeacnMicManager {
     fn device_left(&mut self, device: Device<GlobalContext>) {
         // Only flag a device removal if it's a Mic or Studio
         if let Ok(desc) = device.device_descriptor() {
-            if desc.product_id() == PID_BEACN_MIC
-                || desc.product_id() == PID_BEACN_STUDIO
-                || desc.product_id() == PID_BEACN_MIX
-                || desc.product_id() == PID_BEACN_MIX_CREATE
+            if PID_BEACN_MIC.contains(&desc.product_id())
+                || PID_BEACN_STUDIO.contains(&desc.product_id())
+                || PID_BEACN_MIX.contains(&desc.product_id())
+                || PID_BEACN_MIX_CREATE.contains(&desc.product_id())
             {
                 let location = DeviceLocation::from(device.clone());
                 self.device_removed(location);
@@ -176,7 +176,7 @@ fn hotplug_poll(
                         let device = DeviceLocation::from(dev);
 
                         #[allow(clippy::collapsible_if)]
-                        if desc.product_id() == PID_BEACN_MIC {
+                        if PID_BEACN_MIC.contains(&desc.product_id()) {
                             if !&manager.known_devices.contains(&device) {
                                 found_devices.push(device);
                                 manager.device_connected(device, DeviceType::BeacnMic);
@@ -184,7 +184,7 @@ fn hotplug_poll(
                         }
 
                         #[allow(clippy::collapsible_if)]
-                        if desc.product_id() == PID_BEACN_STUDIO {
+                        if PID_BEACN_STUDIO.contains(&desc.product_id()) {
                             if !&manager.known_devices.contains(&device) {
                                 found_devices.push(device);
                                 manager.device_connected(device, DeviceType::BeacnStudio);
@@ -192,7 +192,7 @@ fn hotplug_poll(
                         }
 
                         #[allow(clippy::collapsible_if)]
-                        if desc.product_id() == PID_BEACN_MIX {
+                        if PID_BEACN_MIX.contains(&desc.product_id()) {
                             if !&manager.known_devices.contains(&device) {
                                 found_devices.push(device);
                                 manager.device_connected(device, DeviceType::BeacnMix);
@@ -200,7 +200,7 @@ fn hotplug_poll(
                         }
 
                         #[allow(clippy::collapsible_if)]
-                        if desc.product_id() == PID_BEACN_MIX_CREATE {
+                        if PID_BEACN_MIX_CREATE.contains(&desc.product_id()) {
                             if !&manager.known_devices.contains(&device) {
                                 found_devices.push(device);
                                 manager.device_connected(device, DeviceType::BeacnMixCreate);
@@ -294,12 +294,12 @@ pub fn get_beacn_mix_create_device() -> Vec<DeviceLocation> {
 }
 
 #[allow(clippy::collapsible_if)]
-fn get_beacn_device(pid: u16) -> Vec<DeviceLocation> {
+fn get_beacn_device(pid: &[u16]) -> Vec<DeviceLocation> {
     let mut devices = vec![];
     if let Ok(devs) = rusb::devices() {
         for dev in devs.iter() {
             if let Ok(desc) = dev.device_descriptor() {
-                if desc.vendor_id() == VENDOR_BEACN && desc.product_id() == pid {
+                if desc.vendor_id() == VENDOR_BEACN && pid.contains(&desc.product_id()) {
                     devices.push(DeviceLocation::from(dev));
                 }
             }

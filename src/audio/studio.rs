@@ -21,7 +21,7 @@ impl BeacnAudioDeviceAttach for BeacnStudio {
     }
 
     fn get_product_id(&self) -> u16 {
-        PID_BEACN_STUDIO
+        self.handle.descriptor.product_id()
     }
 
     fn get_serial(&self) -> String {

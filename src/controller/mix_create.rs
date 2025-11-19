@@ -10,6 +10,7 @@ use std::thread;
 
 #[derive(Debug)]
 pub struct BeacnMixCreate {
+    pid: u16,
     serial: String,
     version: VersionNumber,
 
@@ -29,10 +30,12 @@ impl BeacnControlDeviceAttach for BeacnMixCreate {
         let handle = open_beacn(definition, PID_BEACN_MIX_CREATE)?;
         let serial = handle.serial.clone();
         let version = handle.version;
+        let pid = handle.descriptor.product_id();
 
         let (sender, receiver) = bounded(64);
 
         let control_attach = Self {
+            pid,
             serial,
             version,
             sender,
@@ -44,7 +47,7 @@ impl BeacnControlDeviceAttach for BeacnMixCreate {
     }
 
     fn get_product_id(&self) -> u16 {
-        PID_BEACN_MIX_CREATE
+        self.pid
     }
 
     fn get_serial(&self) -> String {
