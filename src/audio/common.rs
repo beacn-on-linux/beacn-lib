@@ -2,6 +2,7 @@ use crate::audio::messages::{DeviceMessageType, Message};
 use crate::audio::{BeacnAudioDevice, DeviceDefinition, LinkChannel, LinkedApp};
 use crate::common::{BeacnDeviceHandle, get_device_info};
 use crate::manager::DeviceType;
+use crate::version::VersionNumber;
 use crate::{BResult, beacn_bail};
 use byteorder::{ByteOrder, LittleEndian};
 use log::{debug, warn};
@@ -21,7 +22,7 @@ pub trait BeacnAudioDeviceAttach {
 
     fn get_product_id(&self) -> u16;
     fn get_serial(&self) -> String;
-    fn get_version(&self) -> String;
+    fn get_version(&self) -> VersionNumber;
 }
 
 pub trait BeacnAudioMessageExecute {
@@ -49,9 +50,10 @@ pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal
 }
 
 // Stuff that is local to this instance
-pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
-    fn is_command_valid(&self, message: Message) -> bool {
-        // TODO: We need to somehow cleanly map message_type to device_type
+pub(crate) trait BeacnAudioMessageLocal:
+    BeacnAudioMessageExecute + BeacnAudioDeviceAttach
+{
+    fn is_command_valid(&self, message: &Message) -> bool {
         let message_type = message.get_device_message_type();
         let device_type = self.get_device_type();
         match message_type {
@@ -61,12 +63,29 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
         }
     }
 
+    fn is_command_firmware_valid(&self, message: &Message) -> bool {
+        let min_version = message.get_message_minimum_version();
+        let device_version = self.get_version();
+        if device_version < min_version {
+            warn!("Command Sent not valid for this firmware version:");
+            warn!("Device: {:?}, Command: {:?}", device_version, min_version);
+            warn!("{:?}", &message);
+            false
+        } else {
+            true
+        }
+    }
+
     fn fetch_value(&self, message: Message) -> BResult<Message> {
         // Before we do anything, we need to make sure this message is valid on our device
-        if !self.is_command_valid(message) {
+        if !self.is_command_valid(&message) {
             warn!("Command Sent not valid for this device:");
             warn!("{:?}", &message);
             beacn_bail!("Command is not valid for this device");
+        }
+
+        if !self.is_command_firmware_valid(&message) {
+            beacn_bail!("Command is not valid for this firmware version");
         }
 
         // Ok, first we need to deconstruct this message into something more useful
@@ -79,10 +98,14 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute {
     }
 
     fn set_value(&self, message: Message) -> BResult<Message> {
-        if !self.is_command_valid(message) {
+        if !self.is_command_valid(&message) {
             warn!("Command Sent not valid for this device:");
             warn!("{:?}", message);
             beacn_bail!("Command is not valid for this device");
+        }
+
+        if !self.is_command_firmware_valid(&message) {
+            beacn_bail!("Command is not valid for this firmware version");
         }
 
         let key = message.to_beacn_key();

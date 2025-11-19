@@ -1,4 +1,4 @@
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_ALL};
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
@@ -6,6 +6,7 @@ use crate::types::{BeacnValue, RGBA, ReadBeacn, WriteBeacn, read_value, write_va
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
+use crate::version::VersionNumber;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Lighting {
@@ -53,6 +54,10 @@ impl BeacnSubMessage for Lighting {
             Lighting::GetStudioMode | Lighting::StudioMode(_) => DeviceMessageType::BeacnStudio,
             _ => DeviceMessageType::Common,
         }
+    }
+
+    fn get_message_minimum_version(&self) -> VersionNumber {
+        VERSION_ALL
     }
 
     fn is_device_message_set(&self) -> bool {

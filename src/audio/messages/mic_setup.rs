@@ -1,7 +1,8 @@
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_ALL};
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
+use crate::version::VersionNumber;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum MicSetup {
@@ -27,6 +28,10 @@ impl BeacnSubMessage for MicSetup {
         }
     }
 
+    fn get_message_minimum_version(&self) -> VersionNumber {
+        VERSION_ALL
+    }
+    
     fn is_device_message_set(&self) -> bool {
         matches!(
             self,

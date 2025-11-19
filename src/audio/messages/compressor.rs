@@ -1,4 +1,4 @@
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_ALL};
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
@@ -9,6 +9,7 @@ use crate::types::{
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
+use crate::version::VersionNumber;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Compressor {
@@ -37,6 +38,10 @@ pub enum Compressor {
 impl BeacnSubMessage for Compressor {
     fn get_device_message_type(&self) -> DeviceMessageType {
         DeviceMessageType::Common
+    }
+
+    fn get_message_minimum_version(&self) -> VersionNumber {
+        VERSION_ALL
     }
 
     fn is_device_message_set(&self) -> bool {

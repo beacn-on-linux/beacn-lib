@@ -1,9 +1,10 @@
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_ALL};
 
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
+use crate::version::VersionNumber;
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
@@ -53,6 +54,10 @@ impl BeacnSubMessage for Headphones {
             Headphones::StudioDriverless(_) => DeviceMessageType::BeacnStudio,
             _ => DeviceMessageType::Common,
         }
+    }
+
+    fn get_message_minimum_version(&self) -> VersionNumber {
+        VERSION_ALL
     }
 
     fn is_device_message_set(&self) -> bool {

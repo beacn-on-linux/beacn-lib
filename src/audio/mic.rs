@@ -7,6 +7,7 @@ use crate::audio::{
 use crate::common::BeacnDeviceHandle;
 use crate::manager::{DeviceType, PID_BEACN_MIC};
 use rusb::{DeviceHandle, GlobalContext};
+use crate::version::VersionNumber;
 
 pub struct BeacnMic {
     handle: BeacnDeviceHandle,
@@ -26,8 +27,8 @@ impl BeacnAudioDeviceAttach for BeacnMic {
         self.handle.serial.clone()
     }
 
-    fn get_version(&self) -> String {
-        self.handle.version.to_string()
+    fn get_version(&self) -> VersionNumber {
+        self.handle.version
     }
 }
 

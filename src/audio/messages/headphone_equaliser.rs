@@ -1,9 +1,10 @@
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_ALL};
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
+use crate::version::VersionNumber;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum HeadphoneEQ {
@@ -17,6 +18,10 @@ pub enum HeadphoneEQ {
 impl BeacnSubMessage for HeadphoneEQ {
     fn get_device_message_type(&self) -> DeviceMessageType {
         DeviceMessageType::Common
+    }
+
+    fn get_message_minimum_version(&self) -> VersionNumber {
+        VERSION_ALL
     }
 
     fn is_device_message_set(&self) -> bool {
