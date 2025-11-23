@@ -1,4 +1,4 @@
-# Beacn Mic / Studio Protocol
+# Beacn Device Protocol
 
 This is a cross-platform library for communicating with Beacn Devices
 
