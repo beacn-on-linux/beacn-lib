@@ -16,7 +16,6 @@ use crossbeam::channel::{Receiver, Sender, after, bounded, never, tick};
 use crossbeam::select;
 use jpeg_decoder::Decoder;
 use log::{debug, error, warn};
-use rusb::Error::Timeout;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -89,27 +88,50 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
                 let handle = handler_clone;
                 let input_tx = tx_clone;
-                let read = Duration::from_millis(60);
+                let read = Duration::from_millis(100);
+
+                // These are just defensive checks
+                const MAX_NO_DEVICE_RETRIES: u32 = 10;
+                let mut no_device_retries = 0;
+
                 loop {
                     // Firstly, we need to fire off a message saying we're ready for buttons
                     match handle.read_interrupt(0x83, &mut input, read) {
                         Ok(_) => {
+                            no_device_retries = 0;
                             if input_tx.send(input).is_err() {
                                 // Our channel is gone or closed, bail.
                                 warn!("Message Channel Closed, Terminating");
                                 break;
                             }
                         }
-                        Err(usb_error) => {
+                        Err(rusb::Error::NoDevice) => {
+                            no_device_retries += 1;
+                            if no_device_retries > MAX_NO_DEVICE_RETRIES {
+                                warn!(
+                                    "Device not recovering after {} retries, assuming dead",
+                                    MAX_NO_DEVICE_RETRIES
+                                );
+
+                                // TODO: We need to actually fully teardown the device
+                                // If we get here, then the handle is gone, and that's not been detected
+                                // upstream anywhere, which should cause a teardown / reconnect
+                                break;
+                            }
+
+                            // The assumption here is that when waking from sleep, the interrupt
+                            // on the read has been cancelled, and we can safely retry.
+                            thread::sleep(Duration::from_millis(100));
+                        }
+                        Err(rusb::Error::Timeout) => {
                             // Timeout is a completely acceptable error to have, it just means
                             // the user hasn't moved a dial or pressed a button in the last
                             // `read` seconds, and we're good to wait again.
-                            if usb_error != Timeout {
-                                // Other errors means that something's gone horribly wrong, and
-                                // we should straight up abort our efforts.
-                                warn!("USB Error while receiving inputs: {}", usb_error);
-                                break;
-                            }
+                            no_device_retries = 0;
+                        }
+                        Err(usb_error) => {
+                            warn!("USB Error while receiving inputs: {}", usb_error);
+                            break;
                         }
                     }
                 }
