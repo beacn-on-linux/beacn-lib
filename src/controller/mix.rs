@@ -4,7 +4,7 @@ use crate::controller::common::{BeacnControlDeviceAttach, BeacnControlInteractio
 use crate::controller::{BeacnControlDevice, ControlThreadSender, Interactions};
 use crate::manager::PID_BEACN_MIX;
 use crate::version::VersionNumber;
-use crossbeam::channel::{Sender, bounded};
+use flume::{Sender, bounded};
 use log::debug;
 use std::thread;
 

@@ -6,7 +6,7 @@ pub mod manager;
 pub mod types;
 pub mod version;
 
-pub use crossbeam;
+pub use flume;
 pub use rusb::Error as UsbError;
 
 use thiserror::Error;

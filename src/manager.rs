@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crossbeam::channel::{Receiver, Sender, TryRecvError};
+use flume::{Receiver, Sender, TryRecvError};
 use log::{debug, error, warn};
 use rusb::{Device, GlobalContext, Hotplug, HotplugBuilder, UsbContext, has_hotplug};
 use std::cmp::PartialEq;
