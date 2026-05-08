@@ -242,7 +242,9 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
                                 let count = iter.clone().count();
 
-                                debug!("Drawing {count} chunks (attempt {att})",);
+                                if attempt > 1 {
+                                    debug!("Drawing {count} chunks (attempt {att})",);
+                                }
                                 while let Some((index, value)) = iter.next() {
                                     LittleEndian::write_u24(&mut out[0..3], index as u32);
                                     out[3] = 0x50;
