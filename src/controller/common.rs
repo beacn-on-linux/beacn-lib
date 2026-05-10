@@ -7,6 +7,7 @@ use crate::controller::ControlThreadSender::{
 use crate::controller::{
     BeacnControlDevice, ButtonLighting, Buttons, ControlThreadSender, Dials, Interactions,
 };
+use crate::manager::{DeviceType, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
 use crate::types::RGBA;
 use crate::version::VersionNumber;
 use crate::{BResult, beacn_bail};
@@ -217,7 +218,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     device_enabled = enabled;
                                 }
                                 SetImage(x, y, img) => {
-                                    let max_attempts = 30;
+                                    let max_attempts = 100;
                                     let img_timeout = Duration::from_millis(100);
 
                                     for attempt in 0..=max_attempts {
@@ -552,6 +553,15 @@ pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<B
         );
     }
 
+    let device_type = match def.descriptor.product_id() {
+        p if PID_BEACN_MIX.contains(&p) => DeviceType::BeacnMix,
+        p if PID_BEACN_MIX_CREATE.contains(&p) => DeviceType::BeacnMixCreate,
+        _ => beacn_bail!(
+            "Device Not Controller: {:?} - Please report this to the developers",
+            def.descriptor.product_id()
+        ),
+    };
+
     let handle = def.device.open()?;
     handle.claim_interface(0)?;
     handle.set_alternate_setting(0, 1)?;
@@ -575,6 +585,7 @@ pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<B
     );
 
     Ok(BeacnDeviceHandle {
+        device_type,
         descriptor: def.descriptor,
         device: def.device,
         handle,
