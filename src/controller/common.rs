@@ -18,6 +18,7 @@ use jpeg_decoder::Decoder;
 use log::{debug, error, warn};
 use std::sync::Arc;
 use std::thread;
+use std::thread::sleep;
 use std::time::Duration;
 use strum::IntoEnumIterator;
 
@@ -183,6 +184,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
         // Create some timers for processing
         let mut dim_timeout = after(dim_duration);
+        let mut device_enabled = true;
 
         // TODO: I should probably use a Macro or a closure to handle the recv
         // In all cases, if a channel has closed, we should abort.
@@ -211,6 +213,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         error!("Failed to Send Enabled Message");
                                         break 'primary;
                                     }
+
+                                    device_enabled = enabled;
                                 }
                                 SetImage(x, y, img) => {
                                     let max_attempts = 100;
@@ -221,9 +225,19 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         let mut iter = img.chunks(1020).enumerate().peekable();
                                         let mut output = [0; 1024];
 
-                                        if handle.write_interrupt(0x03, &enable, img_timeout).is_err() {
-                                            warn!("Reset Failed during attempt {}", attempt + 1);
-                                            continue;
+                                        if !device_enabled {
+                                            if handle.write_interrupt(0x03, &enable, img_timeout).is_err() {
+                                                if attempt > 5 {
+                                                    warn!("Failed to enable 5 times, attempting to clear halt");
+
+                                                    let _ = handle.clear_halt(0x83);
+                                                    continue;
+                                                }
+
+                                                warn!("Reset Failed during attempt {}", attempt + 1);
+                                                continue;
+                                            }
+                                            device_enabled = true;
                                         }
 
                                         if attempt > 1 {
@@ -266,6 +280,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         }
 
                                         if success {
+                                            sleep(Duration::from_millis(10));
                                             break;
                                         } else if attempt == max_attempts {
                                             error!("Failed to send image after {} retries", max_attempts);
