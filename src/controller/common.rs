@@ -217,7 +217,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     device_enabled = enabled;
                                 }
                                 SetImage(x, y, img) => {
-                                    let max_attempts = 100;
+                                    let max_attempts = 30;
                                     let img_timeout = Duration::from_millis(100);
 
                                     for attempt in 0..=max_attempts {
