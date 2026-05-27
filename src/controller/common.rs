@@ -16,6 +16,7 @@ use crossbeam::channel::{Receiver, Sender, after, bounded, never, tick};
 use crossbeam::select;
 use jpeg_decoder::Decoder;
 use log::{debug, error, warn};
+use rusb::{DeviceHandle, GlobalContext};
 use std::sync::Arc;
 use std::thread;
 use std::thread::sleep;
@@ -100,7 +101,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                     match handle.read_interrupt(0x83, &mut input, read) {
                         Ok(_) => {
                             no_device_retries = 0;
-                            if let Err(e) =  input_tx.send(input) {
+                            if let Err(e) = input_tx.send(input) {
                                 // Our channel is gone or closed, bail.
                                 warn!("Message Channel Closed, Terminating: {}", e);
                                 break;
@@ -156,26 +157,26 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         let buttons = [1, 7, 0, 4, button_brightness, 0, 0, 0];
 
         // Message to instruct the screen to turn on (default to off after a few seconds)
-        if let Err(e) = handle.write_interrupt(0x03, &enable, timeout) {
+        if let Err(e) = Self::send(&handle, &enable) {
             error!("Unable to Turn the Screen on: {}", e);
             return;
         }
 
         // Set the default display brightness
-        if let Err(e) = handle.write_interrupt(0x03, &brightness, timeout) {
+        if let Err(e) = Self::send(&handle, &brightness) {
             error!("Failed to Set Default Brightness: {}", e);
             return;
         }
 
         // Set the default button brightness
-        if let Err(e) = handle.write_interrupt(0x03, &buttons, timeout) {
+        if let Err(e) = Self::send(&handle, &buttons) {
             error!("Unable to Set Default Button Brightness: {}", e);
             return;
         }
 
         // Force the device into a 'wake' state if it's currently sleeping
         let wake = [00, 00, 00, 0xf1];
-        if let Err(e) = handle.write_interrupt(0x03, &wake, timeout) {
+        if let Err(e) = Self::send(&handle, &wake) {
             error!("Unable to Wake Device: {}", e);
             return;
         }
@@ -200,7 +201,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     break;
                                 }
                                 KeepAlive => {
-                                    if let Err(e) = handle.write_interrupt(0x03, &[00, 00, 00, 0xf1], timeout) {
+                                    if let Err(e) = Self::send(&handle, &[00, 00, 00, 0xf1]) {
                                         error!("Error Sending Keep-Alive Request: {}", e);
                                         break;
                                     }
@@ -209,7 +210,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     let byte = if enabled { 0 } else { 1 };
                                     let message = [0, 1, 0, 4, byte, 0, 0, 0];
 
-                                    if let Err(e) = handle.write_interrupt(0x03, &message, timeout) {
+                                    if let Err(e) = Self::send(&handle, &message) {
                                         error!("Failed to Send Enabled Message: {}", e);
                                         break 'primary;
                                     }
@@ -226,7 +227,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         let mut output = [0; 1024];
 
                                         if !device_enabled {
-                                            if let Err(e) = handle.write_interrupt(0x03, &enable, img_timeout) {
+                                            if let Err(e) = Self::send(&handle, &enable) {
                                                 if attempt > 5 {
                                                     warn!("Failed to enable 5 times, attempting to clear halt");
 
@@ -249,7 +250,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
                                             // Write this chunk to the USB stream
                                             output[4..value.len() + 4].copy_from_slice(value);
-                                            if let Err(e) = handle.write_interrupt(0x03, &output, img_timeout) {
+                                            if let Err(e) = Self::send(&handle, &output) {
                                                 warn!("Failed to Send Chunk, attempt {}: {}", attempt + 1, e);
                                                 success = false;
                                                 break;
@@ -271,7 +272,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                                 LittleEndian::write_u32(&mut output[12..16], y);
 
                                                 // Send this out via USB.
-                                                if let Err(e) = handle.write_interrupt(0x03, &output, img_timeout) {
+                                                if let Err(e) = Self::send(&handle, &output) {
                                                     error!("Failed to Send Final Chunk, attempt {}: {}", attempt + 1, e);
                                                     success = false;
                                                     break;
@@ -301,21 +302,21 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         dim_timeout = after(dim_duration);
                                     }
                                     active_brightness = percent;
-                                    if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, active_brightness, 0, 0, 0], timeout) {
+                                    if let Err(e) = Self::send(&handle, &[0, 0, 0, 4, active_brightness, 0, 0, 0]) {
                                         error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }
                                 }
                                 SetButtonBrightness(value) => {
                                     button_brightness = value;
-                                    if let Err(e) = handle.write_interrupt(0x03, &[1, 7, 0, 4, button_brightness, 0, 0, 0], timeout) {
+                                    if let Err(e) = Self::send(&handle, &[1, 7, 0, 4, button_brightness, 0, 0, 0]) {
                                         error!("Failed to Set Button Brightness: {}", e);
                                         break;
                                     }
                                 }
                                 SetButtonColour(button, colour) => {
                                     let message = [1, button, 0, 4, colour.blue, colour.green, colour.red, colour.alpha];
-                                    if let Err(e) = handle.write_interrupt(0x03,&message,timeout) {
+                                    if let Err(e) = Self::send(&handle, &message) {
                                         error!("Failed to Set Button Colour: {}", e);
                                         break;
                                     }
@@ -332,7 +333,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                     match msg {
                         Ok(_) => {
                             is_dimmed = true;
-                            if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, DISPLAY_DEFAULT_DIM_BRIGHTNESS, 0, 0, 0], timeout) {
+                            if let Err(e) = Self::send(&handle, &[0, 0, 0, 4, DISPLAY_DEFAULT_DIM_BRIGHTNESS, 0, 0, 0]) {
                                 error!("Failed to Set DIM brightness: {}", e);
                                 break;
                             }
@@ -353,7 +354,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 if is_dimmed {
                                     // We need to wake up screen
                                     is_dimmed = false;
-                                    if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, active_brightness, 0, 0, 0], timeout) {
+                                    if let Err(e) = Self::send(&handle, &[0, 0, 0, 4, active_brightness, 0, 0, 0]) {
                                         error!("Failed to Set DIM brightness: {}", e);
                                         break;
                                     }
@@ -373,10 +374,11 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                     // Ok, we're at a poll interval, we need to fetch changes to inputs
                     match msg {
                         Ok(_) => {
-                            if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 5], timeout) {
+                            if let Err(e) = Self::send(&handle, &[0, 0, 0, 5]) {
                                 debug!("Error Sending Poll Request: {}", e);
                                 break;
                             }
+
                             if let Err(e) = handle.read_interrupt(0x83, &mut input_buffer, timeout) {
                                 debug!("Error Reading Poll Response: {}", e);
                                 break;
@@ -397,6 +399,46 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         }
 
         debug!("Event Handler Terminated");
+    }
+
+    /// Simple function for sending and validating USB messages
+    fn send(handle: &DeviceHandle<GlobalContext>, msg: &[u8]) -> BResult<()> where Self: Sized {
+        let timeout = Duration::from_millis(2000);
+
+        const MAX_RETRIES: u32 = 5;
+        const RETRY_DELAY: Duration = Duration::from_millis(200);
+
+        for retry in 0..=MAX_RETRIES {
+            match handle.write_interrupt(0x03, msg, timeout) {
+                Ok(_) => {
+                    if retry > 0 {
+                        debug!("Successfully Sent Message after {} retries", retry);
+                    }
+                    return Ok(());
+                }
+                Err(rusb::Error::Io) | Err(rusb::Error::NoDevice) => {
+                    // This might be transient, let's give it a moment and see if it comes back
+                    // to life again.
+                    warn!(
+                        "Message send failed due to Io / NoDevice, retrying ({}/{})...",
+                        retry + 1,
+                        MAX_RETRIES
+                    );
+
+                    if retry == MAX_RETRIES {
+                        break;
+                    }
+
+                    let _ = handle.clear_halt(0x03);
+                    sleep(RETRY_DELAY);
+                    continue;
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+
+        error!("Failed to send message after {} retries", MAX_RETRIES);
+        beacn_bail!("Failed to send message after {} retries", MAX_RETRIES);
     }
 
     fn handle_interaction(
