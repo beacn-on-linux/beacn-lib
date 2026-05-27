@@ -100,9 +100,9 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                     match handle.read_interrupt(0x83, &mut input, read) {
                         Ok(_) => {
                             no_device_retries = 0;
-                            if input_tx.send(input).is_err() {
+                            if let Err(e) =  input_tx.send(input) {
                                 // Our channel is gone or closed, bail.
-                                warn!("Message Channel Closed, Terminating");
+                                warn!("Message Channel Closed, Terminating: {}", e);
                                 break;
                             }
                         }
@@ -156,27 +156,27 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         let buttons = [1, 7, 0, 4, button_brightness, 0, 0, 0];
 
         // Message to instruct the screen to turn on (default to off after a few seconds)
-        if handle.write_interrupt(0x03, &enable, timeout).is_err() {
-            error!("Unable to Turn the Screen on");
+        if let Err(e) = handle.write_interrupt(0x03, &enable, timeout) {
+            error!("Unable to Turn the Screen on: {}", e);
             return;
         }
 
         // Set the default display brightness
-        if handle.write_interrupt(0x03, &brightness, timeout).is_err() {
-            error!("Failed to Set Default Brightness");
+        if let Err(e) = handle.write_interrupt(0x03, &brightness, timeout) {
+            error!("Failed to Set Default Brightness: {}", e);
             return;
         }
 
         // Set the default button brightness
-        if handle.write_interrupt(0x03, &buttons, timeout).is_err() {
-            error!("Unable to Set Default Button Brightness");
+        if let Err(e) = handle.write_interrupt(0x03, &buttons, timeout) {
+            error!("Unable to Set Default Button Brightness: {}", e);
             return;
         }
 
         // Force the device into a 'wake' state if it's currently sleeping
         let wake = [00, 00, 00, 0xf1];
-        if handle.write_interrupt(0x03, &wake, timeout).is_err() {
-            error!("Unable to Wake Device");
+        if let Err(e) = handle.write_interrupt(0x03, &wake, timeout) {
+            error!("Unable to Wake Device: {}", e);
             return;
         }
 
@@ -200,8 +200,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     break;
                                 }
                                 KeepAlive => {
-                                    if handle.write_interrupt(0x03, &[00, 00, 00, 0xf1], timeout).is_err() {
-                                        error!("Error Sending Keep-Alive Request");
+                                    if let Err(e) = handle.write_interrupt(0x03, &[00, 00, 00, 0xf1], timeout) {
+                                        error!("Error Sending Keep-Alive Request: {}", e);
                                         break;
                                     }
                                 }
@@ -209,8 +209,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     let byte = if enabled { 0 } else { 1 };
                                     let message = [0, 1, 0, 4, byte, 0, 0, 0];
 
-                                    if handle.write_interrupt(0x03, &message, timeout).is_err() {
-                                        error!("Failed to Send Enabled Message");
+                                    if let Err(e) = handle.write_interrupt(0x03, &message, timeout) {
+                                        error!("Failed to Send Enabled Message: {}", e);
                                         break 'primary;
                                     }
 
@@ -226,7 +226,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         let mut output = [0; 1024];
 
                                         if !device_enabled {
-                                            if handle.write_interrupt(0x03, &enable, img_timeout).is_err() {
+                                            if let Err(e) = handle.write_interrupt(0x03, &enable, img_timeout) {
                                                 if attempt > 5 {
                                                     warn!("Failed to enable 5 times, attempting to clear halt");
 
@@ -234,7 +234,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                                     continue;
                                                 }
 
-                                                warn!("Reset Failed during attempt {}", attempt + 1);
+                                                warn!("Reset Failed during attempt {}: {}", attempt + 1, e);
                                                 continue;
                                             }
                                             device_enabled = true;
@@ -249,8 +249,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
                                             // Write this chunk to the USB stream
                                             output[4..value.len() + 4].copy_from_slice(value);
-                                            if handle.write_interrupt(0x03, &output, img_timeout).is_err() {
-                                                warn!("Failed to Send Chunk, attempt {}", attempt + 1);
+                                            if let Err(e) = handle.write_interrupt(0x03, &output, img_timeout) {
+                                                warn!("Failed to Send Chunk, attempt {}: {}", attempt + 1, e);
                                                 success = false;
                                                 break;
                                             }
@@ -271,8 +271,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                                 LittleEndian::write_u32(&mut output[12..16], y);
 
                                                 // Send this out via USB.
-                                                if handle.write_interrupt(0x03, &output, img_timeout).is_err() {
-                                                    error!("Failed to Send Final Chunk, attempt {}", attempt + 1);
+                                                if let Err(e) = handle.write_interrupt(0x03, &output, img_timeout) {
+                                                    error!("Failed to Send Final Chunk, attempt {}: {}", attempt + 1, e);
                                                     success = false;
                                                     break;
                                                 }
@@ -301,22 +301,22 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         dim_timeout = after(dim_duration);
                                     }
                                     active_brightness = percent;
-                                    if handle.write_interrupt(0x03, &[0, 0, 0, 4, active_brightness, 0, 0, 0], timeout).is_err() {
-                                        error!("Failed to Set Brightness");
+                                    if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, active_brightness, 0, 0, 0], timeout) {
+                                        error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }
                                 }
                                 SetButtonBrightness(value) => {
                                     button_brightness = value;
-                                    if handle.write_interrupt(0x03, &[1, 7, 0, 4, button_brightness, 0, 0, 0], timeout).is_err() {
-                                        error!("Failed to Set Button Brightness");
+                                    if let Err(e) = handle.write_interrupt(0x03, &[1, 7, 0, 4, button_brightness, 0, 0, 0], timeout) {
+                                        error!("Failed to Set Button Brightness: {}", e);
                                         break;
                                     }
                                 }
                                 SetButtonColour(button, colour) => {
                                     let message = [1, button, 0, 4, colour.blue, colour.green, colour.red, colour.alpha];
-                                    if handle.write_interrupt(0x03,&message,timeout).is_err() {
-                                        error!("Failed to Set Button Colour");
+                                    if let Err(e) = handle.write_interrupt(0x03,&message,timeout) {
+                                        error!("Failed to Set Button Colour: {}", e);
                                         break;
                                     }
                                 }
@@ -332,8 +332,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                     match msg {
                         Ok(_) => {
                             is_dimmed = true;
-                            if handle.write_interrupt(0x03, &[0, 0, 0, 4, DISPLAY_DEFAULT_DIM_BRIGHTNESS, 0, 0, 0], timeout).is_err() {
-                                error!("Failed to Set DIM brightness");
+                            if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, DISPLAY_DEFAULT_DIM_BRIGHTNESS, 0, 0, 0], timeout) {
+                                error!("Failed to Set DIM brightness: {}", e);
                                 break;
                             }
                         }
@@ -353,8 +353,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 if is_dimmed {
                                     // We need to wake up screen
                                     is_dimmed = false;
-                                    if handle.write_interrupt(0x03, &[0, 0, 0, 4, active_brightness, 0, 0, 0], timeout).is_err() {
-                                        error!("Failed to Set DIM brightness");
+                                    if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, active_brightness, 0, 0, 0], timeout) {
+                                        error!("Failed to Set DIM brightness: {}", e);
                                         break;
                                     }
                                 }
@@ -373,18 +373,18 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                     // Ok, we're at a poll interval, we need to fetch changes to inputs
                     match msg {
                         Ok(_) => {
-                            if handle.write_interrupt(0x03, &[0, 0, 0, 5], timeout).is_err() {
-                                debug!("Error Sending Poll Request");
+                            if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 5], timeout) {
+                                debug!("Error Sending Poll Request: {}", e);
                                 break;
                             }
-                            if handle.read_interrupt(0x83, &mut input_buffer, timeout).is_ok() {
-                                if input_tx.send(input_buffer).is_err() {
-                                    debug!("Failed to Send Poll Response Data");
+                            if let Err(e) = handle.read_interrupt(0x83, &mut input_buffer, timeout) {
+                                debug!("Error Reading Poll Response: {}", e);
+                                break;
+                            } else {
+                                if let Err(e) = input_tx.send(input_buffer) {
+                                    debug!("Failed to Send Poll Response Data: {}", e);
                                     break;
                                 };
-                            } else {
-                                debug!("Error Reading Poll Response");
-                                break;
                             }
                         }
                         Err(e) => {
