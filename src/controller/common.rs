@@ -101,7 +101,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                     match handle.read_interrupt(0x83, &mut input, read) {
                         Ok(_) => {
                             no_device_retries = 0;
-                            if let Err(e) =  input_tx.send(input) {
+                            if let Err(e) = input_tx.send(input) {
                                 // Our channel is gone or closed, bail.
                                 warn!("Message Channel Closed, Terminating: {}", e);
                                 break;
@@ -219,7 +219,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 }
                                 SetImage(x, y, img) => {
                                     let max_attempts = 100;
-                                    //let img_timeout = Duration::from_millis(100);
+                                    let img_timeout = Duration::from_millis(100);
 
                                     for attempt in 0..=max_attempts {
                                         let mut success = true;
