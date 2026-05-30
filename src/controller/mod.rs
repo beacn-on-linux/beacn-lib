@@ -23,12 +23,13 @@ pub trait BeacnControlDevice:
 pub fn open_control_device(
     location: DeviceLocation,
     interaction: Option<Sender<Interactions>>,
+    health_tx: Sender<()>,
 ) -> BResult<Box<dyn BeacnControlDevice>> {
     if let Some(device) = find_device(location) {
         return if PID_BEACN_MIX.contains(&device.descriptor.product_id()) {
-            BeacnMix::connect(device, interaction)
+            BeacnMix::connect(device, interaction, health_tx)
         } else if PID_BEACN_MIX_CREATE.contains(&device.descriptor.product_id()) {
-            BeacnMixCreate::connect(device, interaction)
+            BeacnMixCreate::connect(device, interaction, health_tx)
         } else {
             beacn_bail!("Unknown Device");
         };

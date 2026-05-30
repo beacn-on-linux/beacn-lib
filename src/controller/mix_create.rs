@@ -21,6 +21,7 @@ impl BeacnControlDeviceAttach for BeacnMixCreate {
     fn connect(
         definition: DeviceDefinition,
         interaction: Option<Sender<Interactions>>,
+        health_tx: Sender<()>,
     ) -> BResult<Box<dyn BeacnControlDevice>>
     where
         Self: Sized,
@@ -42,7 +43,10 @@ impl BeacnControlDeviceAttach for BeacnMixCreate {
         };
 
         // Only spawn the thread if the user is interested in Interactions
-        thread::spawn(|| Self::spawn_event_handler(receiver, handle, interaction));
+        thread::spawn(move || {
+            Self::spawn_event_handler(receiver, handle, interaction);
+            let _ = health_tx.send(());
+        });
         Ok(Box::new(control_attach))
     }
 

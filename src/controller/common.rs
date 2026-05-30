@@ -39,6 +39,7 @@ pub trait BeacnControlDeviceAttach {
     fn connect(
         definition: DeviceDefinition,
         interaction: Option<Sender<Interactions>>,
+        health_tx: Sender<()>,
     ) -> BResult<Box<dyn BeacnControlDevice>>
     where
         Self: Sized;
@@ -219,7 +220,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 }
                                 SetImage(x, y, img) => {
                                     let max_attempts = 100;
-                                    let img_timeout = Duration::from_millis(100);
+                                    //let img_timeout = Duration::from_millis(100);
 
                                     for attempt in 0..=max_attempts {
                                         let mut success = true;
