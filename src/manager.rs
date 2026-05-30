@@ -119,20 +119,31 @@ impl BeacnMicManagerInner {
     fn check_device_health(&mut self) {
         for known in &mut self.known_devices {
             if known.health_rx.try_recv().is_ok() {
-
                 // We're going to do a rusb iteration to see if the device is still here, this
                 // makes sure that if a device is unplugged but the removal callback hasn't fired
                 // yet, we don't double-up the removal messages.
-                let still_present = rusb::devices().ok()
-                    .map(|devices| devices.iter().any(|d| DeviceLocation::from(d) == known.location))
+                let still_present = rusb::devices()
+                    .ok()
+                    .map(|devices| {
+                        devices
+                            .iter()
+                            .any(|d| DeviceLocation::from(d) == known.location)
+                    })
                     .unwrap_or(false);
 
                 if still_present {
+                    warn!(
+                        "Device {} health failed, but still present, sending faux reconnect",
+                        known.location
+                    );
+
                     // The device is still present, so we'll 'fake' a disconnect / reconnect cycle
                     // so that upstream code can recreate the connection to the device.
                     let (health_tx, health_rx) = bounded(1);
                     known.health_rx = health_rx;
-                    let _ = self.sender.send(HotPlugMessage::DeviceRemoved(known.location));
+                    let _ = self
+                        .sender
+                        .send(HotPlugMessage::DeviceRemoved(known.location));
 
                     // Sleep for a moment, just to give things time to settle
                     sleep(Duration::from_millis(250));
