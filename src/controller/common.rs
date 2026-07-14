@@ -230,6 +230,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                                 Ok(_) => return Ok(()),
                                                 Err(rusb::Error::Timeout) if started.elapsed() < chunk_budget => {
                                                     debug!("Chunk write timed out ({:?} waiting), retrying", started.elapsed());
+                                                    sleep(Duration::from_millis(5));
                                                 }
                                                 Err(e) => return Err(e),
                                             }
