@@ -186,6 +186,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         // Create some timers for processing
         let mut dim_timeout = after(dim_duration);
         let mut device_enabled = true;
+        let mut first_image_attempted = false;
 
         // TODO: I should probably use a Macro or a closure to handle the recv
         // In all cases, if a channel has closed, we should abort.
@@ -219,7 +220,12 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 }
                                 SetImage(x, y, img) => {
                                     let chunk_timeout = Duration::from_millis(100);
-                                    let chunk_budget = Duration::from_secs(3);
+                                    let chunk_budget = if first_image_attempted {
+                                        Duration::from_secs(3)
+                                    } else {
+                                        first_image_attempted = true;
+                                        Duration::from_secs(10)
+                                    };
 
                                     let send_message = |output: &[u8; 1024]| -> Result<(), rusb::Error> {
                                         let started = Instant::now();
