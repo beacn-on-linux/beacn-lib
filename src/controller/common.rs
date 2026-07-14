@@ -218,25 +218,14 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     device_enabled = enabled;
                                 }
                                 SetImage(x, y, img) => {
-                                    // A chunk write timeout is backpressure, not failure: while
-                                    // the firmware decodes the previous frame (~100ms for a full
-                                    // frame) it NAKs the endpoint, and because the device buffers
-                                    // exactly one message this always lands on the second message
-                                    // of the next frame. Chunks are index-addressed, so retrying
-                                    // the same chunk in place is safe. Restarting from chunk 0
-                                    // mid-stream is what jams the firmware's image assembler
-                                    // (until a power cycle), so it is never done — if the device
-                                    // stays busy past the budget, the frame is dropped and the
-                                    // handler stays alive for the next one.
                                     let chunk_timeout = Duration::from_millis(100);
                                     let chunk_budget = Duration::from_secs(3);
 
-                                    // Write one 1024-byte message, retrying in place on timeout.
-                                    // The blocking write already waits out the NAK window, so no
-                                    // pause is needed between attempts.
                                     let send_message = |output: &[u8; 1024]| -> Result<(), rusb::Error> {
                                         let started = Instant::now();
                                         loop {
+                                            // Retrying from chunk 0 on non-stream-decodable formats like JPEG can wedge the device,
+                                            // so retry from the last failed chunk.
                                             match handle.write_interrupt(0x03, output, chunk_timeout) {
                                                 Ok(_) => return Ok(()),
                                                 Err(rusb::Error::Timeout) if started.elapsed() < chunk_budget => {
