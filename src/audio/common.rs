@@ -69,7 +69,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         if device_version < min_version {
             warn!("Command Sent not valid for this firmware version:");
             warn!("Device: {:?}, Command: {:?}", device_version, min_version);
-            warn!("{:?}", &message);
+            warn!("{:?}", message);
             false
         } else {
             true
@@ -80,7 +80,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         // Before we do anything, we need to make sure this message is valid on our device
         if !self.is_command_valid(&message) {
             warn!("Command Sent not valid for this device:");
-            warn!("{:?}", &message);
+            warn!("{:?}", message);
             beacn_bail!("Command is not valid for this device");
         }
 
@@ -162,7 +162,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         if old != new {
             warn!(
                 "Value Set: {:?} does not match value on Device: {:?}",
-                &old, &new
+                old, new
             );
             beacn_bail!("Value was not changed on the device!");
         }
