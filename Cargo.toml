@@ -9,8 +9,8 @@ enum-map = "2.7.3"
 
 byteorder = "1.5.0"
 
-log = "0.4.29"
-anyhow = "1.0.102"
+log = "0.4.33"
+anyhow = "1.0.103"
 
 rusb = "0.9.4"
 
