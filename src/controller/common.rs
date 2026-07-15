@@ -19,7 +19,7 @@ use log::{debug, error, warn};
 use std::sync::Arc;
 use std::thread;
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use strum::IntoEnumIterator;
 
 // Default Display 'Active' and 'Dimmed' brightness, and the default dim time
@@ -186,6 +186,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         // Create some timers for processing
         let mut dim_timeout = after(dim_duration);
         let mut device_enabled = true;
+        let mut first_image_attempted = false;
 
         // TODO: I should probably use a Macro or a closure to handle the recv
         // In all cases, if a channel has closed, we should abort.
@@ -218,42 +219,51 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     device_enabled = enabled;
                                 }
                                 SetImage(x, y, img) => {
-                                    let max_attempts = 100;
-                                    let img_timeout = Duration::from_millis(100);
+                                    let chunk_timeout = Duration::from_millis(100);
+                                    let chunk_budget = if first_image_attempted {
+                                        Duration::from_secs(3)
+                                    } else {
+                                        first_image_attempted = true;
+                                        Duration::from_secs(10)
+                                    };
 
-                                    for attempt in 0..=max_attempts {
-                                        let mut success = true;
-                                        let mut iter = img.chunks(1020).enumerate().peekable();
-                                        let mut output = [0; 1024];
-
-                                        if !device_enabled {
-                                            if let Err(e) = handle.write_interrupt(0x03, &enable, img_timeout) {
-                                                if attempt > 5 {
-                                                    warn!("Failed to enable 5 times, attempting to clear halt");
-
-                                                    let _ = handle.clear_halt(0x83);
-                                                    continue;
+                                    let send_message = |output: &[u8; 1024]| -> Result<(), rusb::Error> {
+                                        let started = Instant::now();
+                                        loop {
+                                            // Retrying from chunk 0 on non-stream-decodable formats like JPEG can wedge the device,
+                                            // so retry from the last failed chunk.
+                                            match handle.write_interrupt(0x03, output, chunk_timeout) {
+                                                Ok(_) => return Ok(()),
+                                                Err(rusb::Error::Timeout) if started.elapsed() < chunk_budget => {
+                                                    debug!("Chunk write timed out ({:?} waiting), retrying", started.elapsed());
+                                                    sleep(Duration::from_millis(5));
                                                 }
+                                                Err(e) => return Err(e),
+                                            }
+                                        }
+                                    };
 
-                                                warn!("Reset Failed during attempt {}: {}", attempt + 1, e);
-                                                continue;
+                                    'image: {
+                                        if !device_enabled {
+                                            if let Err(e) = handle.write_interrupt(0x03, &enable, chunk_timeout) {
+                                                warn!("Failed to Enable Device, dropping frame: {}", e);
+                                                break 'image;
                                             }
                                             device_enabled = true;
                                         }
 
-                                        if attempt > 1 {
-                                            debug!("Drawing {} chunks (attempt {})", iter.clone().count(), attempt + 1);
-                                        }
+                                        let mut iter = img.chunks(1020).enumerate().peekable();
+                                        let mut output = [0; 1024];
+
                                         while let Some((index, value)) = iter.next() {
                                             LittleEndian::write_u24(&mut output[0..3], index as u32);
                                             output[3] = 0x50;
 
                                             // Write this chunk to the USB stream
                                             output[4..value.len() + 4].copy_from_slice(value);
-                                            if let Err(e) = handle.write_interrupt(0x03, &output, img_timeout) {
-                                                warn!("Failed to Send Chunk, attempt {}: {}", attempt + 1, e);
-                                                success = false;
-                                                break;
+                                            if let Err(e) = send_message(&output) {
+                                                error!("Failed to Send Chunk {}, dropping frame: {}", index, e);
+                                                break 'image;
                                             }
 
                                             // Check if we're the last packet...
@@ -272,21 +282,14 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                                 LittleEndian::write_u32(&mut output[12..16], y);
 
                                                 // Send this out via USB.
-                                                if let Err(e) = handle.write_interrupt(0x03, &output, img_timeout) {
-                                                    error!("Failed to Send Final Chunk, attempt {}: {}", attempt + 1, e);
-                                                    success = false;
-                                                    break;
+                                                if let Err(e) = send_message(&output) {
+                                                    error!("Failed to Send Final Chunk, dropping frame: {}", e);
+                                                    break 'image;
                                                 }
                                             }
                                         }
 
-                                        if success {
-                                            sleep(Duration::from_millis(10));
-                                            break;
-                                        } else if attempt == max_attempts {
-                                            error!("Failed to send image after {} retries", max_attempts);
-                                            break 'primary;
-                                        }
+                                        sleep(Duration::from_millis(10));
                                     }
                                 }
                                 SetDimTimeout(timeout) => {
