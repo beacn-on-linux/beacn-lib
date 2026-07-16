@@ -27,7 +27,8 @@ pub mod mic_setup;
 pub mod subwoofer;
 pub mod suppressor;
 
-const VERSION_ALL: VersionNumber = VersionNumber(0, 0, 0, 0);
+const VERSION_MIN_ALL: VersionNumber = VersionNumber(0, 0, 0, 0);
+const VERSION_MAX_ALL: VersionNumber = VersionNumber(u32::MAX, u32::MAX, u32::MAX, u32::MAX);
 
 #[derive(Debug, Copy, Clone)]
 pub enum Message {
@@ -96,6 +97,24 @@ impl Message {
             Message::Suppressor(v) => v.get_message_minimum_version(),
         }
     }
+
+    pub fn get_message_maximum_version(&self) -> VersionNumber {
+        match self {
+            Message::BassEnhancement(v) => v.get_message_maximum_version(),
+            Message::Compressor(v) => v.get_message_maximum_version(),
+            Message::DeEsser(v) => v.get_message_maximum_version(),
+            Message::Equaliser(v) => v.get_message_maximum_version(),
+            Message::Exciter(v) => v.get_message_maximum_version(),
+            Message::Expander(v) => v.get_message_maximum_version(),
+            Message::HeadphoneEQ(v) => v.get_message_maximum_version(),
+            Message::Headphones(v) => v.get_message_maximum_version(),
+            Message::Lighting(v) => v.get_message_maximum_version(),
+            Message::MicSetup(v) => v.get_message_maximum_version(),
+            Message::Subwoofer(v) => v.get_message_maximum_version(),
+            Message::Suppressor(v) => v.get_message_maximum_version(),
+        }
+    }
+
 
     pub fn to_beacn_key(&self) -> [u8; 3] {
         let (top, sub) = match self {
@@ -205,7 +224,12 @@ pub(crate) enum DeviceMessageType {
 
 trait BeacnSubMessage {
     fn get_device_message_type(&self) -> DeviceMessageType;
-    fn get_message_minimum_version(&self) -> VersionNumber;
+    fn get_message_minimum_version(&self) -> VersionNumber {
+        VERSION_MIN_ALL
+    }
+    fn get_message_maximum_version(&self) -> VersionNumber {
+        VERSION_MAX_ALL
+    }
 
     fn is_device_message_set(&self) -> bool;
 

@@ -1,4 +1,4 @@
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_ALL};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_MIN_ALL};
 
 use crate::generate_range;
 use crate::manager::DeviceType;
@@ -68,7 +68,7 @@ impl BeacnSubMessage for Headphones {
             Headphones::GetMicClassCompliant | Headphones::MicClassCompliant(_) => {
                 MIC_CLASS_COMPLIANT_VERSION
             }
-            _ => VERSION_ALL,
+            _ => VERSION_MIN_ALL,
         }
     }
 

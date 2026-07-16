@@ -1,4 +1,4 @@
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_ALL};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_MIN_ALL};
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
@@ -26,10 +26,6 @@ impl BeacnSubMessage for MicSetup {
             MicSetup::GetStudioPhantomPower => DeviceMessageType::BeacnStudio,
             MicSetup::StudioPhantomPower(_) => DeviceMessageType::BeacnStudio,
         }
-    }
-
-    fn get_message_minimum_version(&self) -> VersionNumber {
-        VERSION_ALL
     }
 
     fn is_device_message_set(&self) -> bool {

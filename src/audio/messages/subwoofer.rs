@@ -1,4 +1,4 @@
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_ALL};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_MIN_ALL};
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
@@ -25,10 +25,6 @@ pub enum Subwoofer {
 impl BeacnSubMessage for Subwoofer {
     fn get_device_message_type(&self) -> DeviceMessageType {
         DeviceMessageType::Common
-    }
-
-    fn get_message_minimum_version(&self) -> VersionNumber {
-        VERSION_ALL
     }
 
     fn is_device_message_set(&self) -> bool {

@@ -1,4 +1,4 @@
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_ALL};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_MIN_ALL};
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 
 use crate::generate_range;
@@ -33,10 +33,6 @@ pub enum Equaliser {
 impl BeacnSubMessage for Equaliser {
     fn get_device_message_type(&self) -> DeviceMessageType {
         DeviceMessageType::Common
-    }
-
-    fn get_message_minimum_version(&self) -> VersionNumber {
-        VERSION_ALL
     }
 
     fn is_device_message_set(&self) -> bool {

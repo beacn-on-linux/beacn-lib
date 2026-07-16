@@ -1,4 +1,4 @@
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_ALL};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_MIN_ALL};
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
@@ -54,10 +54,6 @@ impl BeacnSubMessage for Lighting {
             Lighting::GetStudioMode | Lighting::StudioMode(_) => DeviceMessageType::BeacnStudio,
             _ => DeviceMessageType::Common,
         }
-    }
-
-    fn get_message_minimum_version(&self) -> VersionNumber {
-        VERSION_ALL
     }
 
     fn is_device_message_set(&self) -> bool {
