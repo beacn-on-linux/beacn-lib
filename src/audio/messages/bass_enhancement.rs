@@ -1,11 +1,10 @@
 use crate::audio::messages::bass_enhancement::BassPreset::{Preset1, Preset2, Preset3, Preset4};
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_MIN_ALL};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::{
     BeacnValue, MakeUpGain, Percent, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
 };
-use crate::version::VersionNumber;
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};

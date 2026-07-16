@@ -1,7 +1,6 @@
-use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_MIN_ALL};
+use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
-use crate::version::VersionNumber;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum DeEsser {
