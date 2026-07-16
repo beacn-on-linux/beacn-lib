@@ -65,10 +65,16 @@ pub(crate) trait BeacnAudioMessageLocal:
 
     fn is_command_firmware_valid(&self, message: &Message) -> bool {
         let min_version = message.get_message_minimum_version();
+        let max_version = message.get_message_maximum_version();
         let device_version = self.get_version();
         if device_version < min_version {
             warn!("Command Sent not valid for this firmware version:");
-            warn!("Device: {:?}, Command: {:?}", device_version, min_version);
+            warn!("Device: {:?} < {:?}", device_version, min_version);
+            warn!("{:?}", message);
+            false
+        } else if device_version > max_version {
+            warn!("Command Sent not valid for this firmware version:");
+            warn!("Device: {:?} > {:?}", device_version, min_version);
             warn!("{:?}", message);
             false
         } else {
