@@ -10,6 +10,11 @@ pub use crossbeam;
 pub use rusb::Error as UsbError;
 
 use thiserror::Error;
+use crate::version::VersionNumber;
+
+// These are some helper versions, which can be used to determine feature availability
+const MIC_CLASS_COMPLIANT_VERSION: VersionNumber = VersionNumber(1, 2, 0, 188);
+
 
 pub type BResult<T> = Result<T, BeacnError>;
 

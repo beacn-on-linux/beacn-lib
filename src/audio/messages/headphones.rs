@@ -1,6 +1,6 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_MIN_ALL};
 
-use crate::generate_range;
+use crate::{generate_range, MIC_CLASS_COMPLIANT_VERSION};
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
@@ -8,8 +8,6 @@ use crate::version::VersionNumber;
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
-
-const MIC_CLASS_COMPLIANT_VERSION: VersionNumber = VersionNumber(1, 2, 0, 188);
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Headphones {
