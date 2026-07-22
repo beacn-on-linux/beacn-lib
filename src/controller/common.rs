@@ -256,6 +256,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                             }
                                         }
 
+                                        // We need a momentary sleep, just so the device can fully wake
+                                        sleep(Duration::from_millis(100));
                                         device_enabled = true;
                                     }
 
