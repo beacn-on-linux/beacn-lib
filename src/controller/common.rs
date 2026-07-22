@@ -243,15 +243,23 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         }
                                     };
 
-                                    'image: {
-                                        if !device_enabled {
-                                            if let Err(e) = handle.write_interrupt(0x03, &enable, chunk_timeout) {
-                                                warn!("Failed to Enable Device, dropping frame: {}", e);
-                                                break 'image;
+                                    if !device_enabled {
+                                        if let Err(e) = handle.write_interrupt(0x03, &enable, chunk_timeout) {
+                                            warn!("Failed to enable device, attempting to clear halt: {e}");
+
+                                            let retry = handle.clear_halt(0x03).is_ok()
+                                                && handle.write_interrupt(0x03, &enable, chunk_timeout).is_ok();
+
+                                            if !retry {
+                                                warn!("Failed to enable device, dropping frame");
+                                                continue 'primary;
                                             }
-                                            device_enabled = true;
                                         }
 
+                                        device_enabled = true;
+                                    }
+
+                                    'image: {
                                         let mut iter = img.chunks(1020).enumerate().peekable();
                                         let mut output = [0; 1024];
 
