@@ -12,8 +12,7 @@ use crate::version::VersionNumber;
 use crate::{BResult, beacn_bail};
 use anyhow::Error;
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use crossbeam::channel::{Receiver, Sender, after, bounded, never, tick};
-use crossbeam::select;
+use flume::{Receiver, Sender, bounded};
 use jpeg_decoder::Decoder;
 use log::{debug, error, warn};
 use std::sync::Arc;
@@ -193,8 +192,15 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         // In all cases, if a channel has closed, we should abort.
         debug!("Spawning Event Handler for {}", handler.serial);
         'primary: loop {
-            select! {
-                recv(rx) -> msg => {
+            let event = flume::Selector::new()
+                .recv(&rx, Event::Command)
+                .recv(&dim_timeout, |_| Event::DimTimeout)
+                .recv(&input_rx, Event::Input)
+                .recv(&poll, |_| Event::Poll)
+                .wait();
+
+            match event {
+                Event::Command(msg) => {
                     match msg {
                         Ok(msg) => {
                             match msg {
@@ -203,16 +209,17 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     break;
                                 }
                                 KeepAlive => {
-                                    if let Err(e) = handle.write_interrupt(0x03, &[00, 00, 00, 0xf1], timeout) {
+                                    let msg = &[00, 00, 00, 0xf1];
+                                    if let Err(e) = handle.write_interrupt(0x03, msg, timeout) {
                                         error!("Error Sending Keep-Alive Request: {}", e);
                                         break;
                                     }
                                 }
                                 SetEnabled(enabled) => {
                                     let byte = if enabled { 0 } else { 1 };
-                                    let message = [0, 1, 0, 4, byte, 0, 0, 0];
+                                    let msg = [0, 1, 0, 4, byte, 0, 0, 0];
 
-                                    if let Err(e) = handle.write_interrupt(0x03, &message, timeout) {
+                                    if let Err(e) = handle.write_interrupt(0x03, &msg, timeout) {
                                         error!("Failed to Send Enabled Message: {}", e);
                                         break 'primary;
                                     }
@@ -220,16 +227,22 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     device_enabled = enabled;
                                 }
                                 SetImage(x, y, img) => {
-                                    let chunk_timeout = Duration::from_millis(100);
-                                    let chunk_retry_budget = Duration::from_millis(300);
+                                    let timeout = Duration::from_millis(100);
+                                    let chunk_retry = Duration::from_millis(300);
                                     let overall_budget = Duration::from_secs(10);
 
                                     if !device_enabled {
-                                        if let Err(e) = handle.write_interrupt(0x03, &enable, chunk_timeout) {
-                                            warn!("Failed to enable device, attempting to clear halt: {e}");
+                                        if let Err(e) =
+                                            handle.write_interrupt(0x03, &enable, timeout)
+                                        {
+                                            warn!(
+                                                "Failed to enable device, attempting to clear halt: {e}"
+                                            );
 
                                             let retry = handle.clear_halt(0x83).is_ok()
-                                                && handle.write_interrupt(0x03, &enable, chunk_timeout).is_ok();
+                                                && handle
+                                                    .write_interrupt(0x03, &enable, timeout)
+                                                    .is_ok();
 
                                             if !retry {
                                                 warn!("Failed to enable device, dropping frame");
@@ -241,22 +254,30 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         device_enabled = true;
                                     }
 
-                                    let send_chunk = |output: &[u8; 1024]| -> Result<(), rusb::Error> {
-                                        let started = Instant::now();
-                                        let mut retry_count = 0;
-                                        loop {
-                                            match handle.write_interrupt(0x03, output, chunk_timeout) {
-                                                Ok(_) => return Ok(()),
-                                                Err(rusb::Error::Timeout) if started.elapsed() < chunk_retry_budget => {
-                                                    retry_count += 1;
-                                                    debug!("Chunk write timed out ({:?} waiting, retry {}), retrying", started.elapsed(), retry_count);
-                                                    sleep(Duration::from_millis(20));
-                                                }
+                                    let send_chunk =
+                                        |output: &[u8; 1024]| -> Result<(), rusb::Error> {
+                                            let started = Instant::now();
+                                            let mut retry_count = 0;
+                                            loop {
+                                                match handle.write_interrupt(0x03, output, timeout)
+                                                {
+                                                    Ok(_) => return Ok(()),
+                                                    Err(rusb::Error::Timeout)
+                                                        if started.elapsed() < chunk_retry =>
+                                                    {
+                                                        retry_count += 1;
+                                                        debug!(
+                                                            "Chunk write timed out ({:?} waiting, retry {}), retrying",
+                                                            started.elapsed(),
+                                                            retry_count
+                                                        );
+                                                        sleep(Duration::from_millis(20));
+                                                    }
 
-                                                Err(e) => return Err(e),
+                                                    Err(e) => return Err(e),
+                                                }
                                             }
-                                        }
-                                    };
+                                        };
 
                                     'image: {
                                         let overall_started = Instant::now();
@@ -270,19 +291,29 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                             let mut attempt_ok = true;
 
                                             while let Some((index, value)) = iter.next() {
-                                                LittleEndian::write_u24(&mut output[0..3], index as u32);
+                                                let buf = &mut output[0..3];
+                                                LittleEndian::write_u24(buf, index as u32);
+
                                                 output[3] = 0x50;
                                                 output[4..value.len() + 4].copy_from_slice(value);
 
                                                 match send_chunk(&output) {
                                                     Ok(_) => {}
                                                     Err(rusb::Error::Timeout) => {
-                                                        warn!("Chunk {} failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0", index, attempt, overall_started.elapsed());
+                                                        warn!(
+                                                            "Chunk {} failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0",
+                                                            index,
+                                                            attempt,
+                                                            overall_started.elapsed()
+                                                        );
                                                         attempt_ok = false;
                                                         break;
                                                     }
                                                     Err(e) => {
-                                                        warn!("Unknown Error Received: {:?}, bailing..", e);
+                                                        warn!(
+                                                            "Unknown Error Received: {:?}, bailing..",
+                                                            e
+                                                        );
                                                         continue 'primary;
                                                     }
                                                 }
@@ -292,23 +323,32 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                                     output[1] = 0xff;
                                                     output[2] = 0xff;
                                                     output[3] = 0x50;
-                                                    LittleEndian::write_u32(&mut output[4..8], img.len() as u32 - 1);
+
+                                                    let buf = &mut output[4..8];
+                                                    let n = img.len() as u32 - 1;
+                                                    LittleEndian::write_u32(buf, n);
                                                     LittleEndian::write_u32(&mut output[8..12], x);
                                                     LittleEndian::write_u32(&mut output[12..16], y);
 
                                                     match send_chunk(&output) {
                                                         Ok(_) => {}
                                                         Err(rusb::Error::Timeout) => {
-                                                            warn!("Final chunk failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0", attempt, overall_started.elapsed());
+                                                            warn!(
+                                                                "Final chunk failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0",
+                                                                attempt,
+                                                                overall_started.elapsed()
+                                                            );
                                                             attempt_ok = false;
                                                             break;
                                                         }
                                                         Err(e) => {
-                                                            warn!("Unknown Error Received: {:?}, bailing..", e);
+                                                            warn!(
+                                                                "Unknown Error Received: {:?}, bailing..",
+                                                                e
+                                                            );
                                                             continue 'primary;
                                                         }
                                                     }
-
                                                 }
                                             }
 
@@ -319,7 +359,11 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         }
 
                                         if !success {
-                                            error!("Failed to send image after {} attempts over {:?}, dropping frame", attempt, overall_started.elapsed());
+                                            error!(
+                                                "Failed to send image after {} attempts over {:?}, dropping frame",
+                                                attempt,
+                                                overall_started.elapsed()
+                                            );
                                             break 'image;
                                         }
 
@@ -339,21 +383,25 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         dim_timeout = after(dim_duration);
                                     }
                                     active_brightness = percent;
-                                    if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, active_brightness, 0, 0, 0], timeout) {
+
+                                    let msg = &[0, 0, 0, 4, active_brightness, 0, 0, 0];
+                                    if let Err(e) = handle.write_interrupt(0x03, msg, timeout) {
                                         error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }
                                 }
                                 SetButtonBrightness(value) => {
                                     button_brightness = value;
-                                    if let Err(e) = handle.write_interrupt(0x03, &[1, 7, 0, 4, button_brightness, 0, 0, 0], timeout) {
+
+                                    let msg = &[1, 7, 0, 4, button_brightness, 0, 0, 0];
+                                    if let Err(e) = handle.write_interrupt(0x03, msg, timeout) {
                                         error!("Failed to Set Button Brightness: {}", e);
                                         break;
                                     }
                                 }
-                                SetButtonColour(button, colour) => {
-                                    let message = [1, button, 0, 4, colour.blue, colour.green, colour.red, colour.alpha];
-                                    if let Err(e) = handle.write_interrupt(0x03,&message,timeout) {
+                                SetButtonColour(b, c) => {
+                                    let msg = [1, b, 0, 4, c.blue, c.green, c.red, c.alpha];
+                                    if let Err(e) = handle.write_interrupt(0x03, &msg, timeout) {
                                         error!("Failed to Set Button Colour: {}", e);
                                         break;
                                     }
@@ -366,32 +414,27 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                         }
                     }
                 }
-                recv(dim_timeout) -> msg => {
-                    match msg {
-                        Ok(_) => {
-                            is_dimmed = true;
-                            if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, DISPLAY_DEFAULT_DIM_BRIGHTNESS, 0, 0, 0], timeout) {
-                                error!("Failed to Set DIM brightness: {}", e);
-                                break;
-                            }
-                        }
-                        Err(e) => {
-                            error!("DIM Timeout Receiver broken {}", e);
-                            break;
-                        }
+                Event::DimTimeout => {
+                    is_dimmed = true;
+                    let msg = &[0, 0, 0, 4, DISPLAY_DEFAULT_DIM_BRIGHTNESS, 0, 0, 0];
+                    if let Err(e) = handle.write_interrupt(0x03, msg, timeout) {
+                        error!("Failed to Set DIM brightness: {}", e);
+                        break;
                     }
                 }
-                recv(input_rx) -> msg => {
+                Event::Input(msg) => {
                     match msg {
                         Ok(input) => {
-                            let (changed, button_state) = Self::handle_interaction(input, last_button_state, &interaction);
+                            let (changed, button_state) =
+                                Self::handle_interaction(input, last_button_state, &interaction);
                             last_button_state = button_state;
 
                             if changed {
                                 if is_dimmed {
                                     // We need to wake up screen
                                     is_dimmed = false;
-                                    if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, active_brightness, 0, 0, 0], timeout) {
+                                    let msg = &[0, 0, 0, 4, active_brightness, 0, 0, 0];
+                                    if let Err(e) = handle.write_interrupt(0x03, msg, timeout) {
                                         error!("Failed to Set DIM brightness: {}", e);
                                         break;
                                     }
@@ -400,35 +443,27 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 // Set a new Dim timeout
                                 dim_timeout = after(dim_duration);
                             }
-                        },
+                        }
                         Err(e) => {
                             error!("Input Receiver Terminated: {:?}", e);
                             break;
                         }
                     }
                 }
-                recv(poll) -> msg => {
+                Event::Poll => {
                     // Ok, we're at a poll interval, we need to fetch changes to inputs
-                    match msg {
-                        Ok(_) => {
-                            if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 5], timeout) {
-                                debug!("Error Sending Poll Request: {}", e);
-                                break;
-                            }
-                            if let Err(e) = handle.read_interrupt(0x83, &mut input_buffer, timeout) {
-                                debug!("Error Reading Poll Response: {}", e);
-                                break;
-                            } else {
-                                if let Err(e) = input_tx.send(input_buffer) {
-                                    debug!("Failed to Send Poll Response Data: {}", e);
-                                    break;
-                                };
-                            }
-                        }
-                        Err(e) => {
-                            error!("Poll Receiver Terminated: {:?}", e);
+                    if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 5], timeout) {
+                        debug!("Error Sending Poll Request: {}", e);
+                        break;
+                    }
+                    if let Err(e) = handle.read_interrupt(0x83, &mut input_buffer, timeout) {
+                        debug!("Error Reading Poll Response: {}", e);
+                        break;
+                    } else {
+                        if let Err(e) = input_tx.send(input_buffer) {
+                            debug!("Failed to Send Poll Response Data: {}", e);
                             break;
-                        }
+                        };
                     }
                 }
             }
@@ -619,4 +654,43 @@ pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<B
         version,
         serial,
     })
+}
+
+enum Event {
+    Command(Result<ControlThreadSender, flume::RecvError>),
+    DimTimeout,
+    Input(Result<[u8; 64], flume::RecvError>),
+    Poll,
+}
+
+// Replacement for crossbeam::channel::after
+pub fn after(duration: Duration) -> Receiver<()> {
+    let (tx, rx) = flume::bounded(1);
+
+    thread::spawn(move || {
+        sleep(duration);
+        let _ = tx.send(());
+    });
+
+    rx
+}
+
+pub fn tick(duration: Duration) -> Receiver<()> {
+    let (tx, rx) = flume::unbounded();
+
+    thread::spawn(move || {
+        loop {
+            sleep(duration);
+            if tx.send(()).is_err() {
+                break;
+            }
+        }
+    });
+
+    rx
+}
+
+pub fn never<T>() -> Receiver<T> {
+    let (_tx, rx) = flume::bounded(0);
+    rx
 }
