@@ -7,6 +7,8 @@ use crate::version::VersionNumber;
 use crossbeam::channel::{Sender, bounded};
 use log::debug;
 use std::thread;
+use std::thread::sleep;
+use std::time::Duration;
 
 pub struct BeacnMix {
     pid: u16,
@@ -44,6 +46,7 @@ impl BeacnControlDeviceAttach for BeacnMix {
 
         thread::spawn(move || {
             Self::spawn_event_handler(receiver, handle, interaction);
+            sleep(Duration::from_millis(500));
             let _ = health_tx.send(());
         });
         Ok(Box::new(control_attach))
