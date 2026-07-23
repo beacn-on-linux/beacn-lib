@@ -181,12 +181,13 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             return;
         }
 
+        sleep(Duration::from_millis(250));
+
         let mut dim_duration = Duration::from_secs(DISPLAY_DEFAULT_DIM_TIME);
 
         // Create some timers for processing
         let mut dim_timeout = after(dim_duration);
         let mut device_enabled = true;
-        let mut first_image_attempted = false;
 
         // TODO: I should probably use a Macro or a closure to handle the recv
         // In all cases, if a channel has closed, we should abort.
@@ -220,34 +221,14 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 }
                                 SetImage(x, y, img) => {
                                     let chunk_timeout = Duration::from_millis(100);
-                                    let chunk_budget = if first_image_attempted {
-                                        Duration::from_secs(3)
-                                    } else {
-                                        first_image_attempted = true;
-                                        Duration::from_secs(10)
-                                    };
-
-                                    let send_message = |output: &[u8; 1024]| -> Result<(), rusb::Error> {
-                                        let started = Instant::now();
-                                        loop {
-                                            // Retrying from chunk 0 on non-stream-decodable formats like JPEG can wedge the device,
-                                            // so retry from the last failed chunk.
-                                            match handle.write_interrupt(0x03, output, chunk_timeout) {
-                                                Ok(_) => return Ok(()),
-                                                Err(rusb::Error::Timeout) if started.elapsed() < chunk_budget => {
-                                                    debug!("Chunk write timed out ({:?} waiting), retrying", started.elapsed());
-                                                    sleep(Duration::from_millis(5));
-                                                }
-                                                Err(e) => return Err(e),
-                                            }
-                                        }
-                                    };
+                                    let chunk_retry_budget = Duration::from_millis(300);
+                                    let overall_budget = Duration::from_secs(10);
 
                                     if !device_enabled {
                                         if let Err(e) = handle.write_interrupt(0x03, &enable, chunk_timeout) {
                                             warn!("Failed to enable device, attempting to clear halt: {e}");
 
-                                            let retry = handle.clear_halt(0x03).is_ok()
+                                            let retry = handle.clear_halt(0x83).is_ok()
                                                 && handle.write_interrupt(0x03, &enable, chunk_timeout).is_ok();
 
                                             if !retry {
@@ -256,47 +237,79 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                             }
                                         }
 
-                                        // We need a momentary sleep, just so the device can fully wake
                                         sleep(Duration::from_millis(100));
                                         device_enabled = true;
                                     }
 
-                                    'image: {
-                                        let mut iter = img.chunks(1020).enumerate().peekable();
-                                        let mut output = [0; 1024];
-
-                                        while let Some((index, value)) = iter.next() {
-                                            LittleEndian::write_u24(&mut output[0..3], index as u32);
-                                            output[3] = 0x50;
-
-                                            // Write this chunk to the USB stream
-                                            output[4..value.len() + 4].copy_from_slice(value);
-                                            if let Err(e) = send_message(&output) {
-                                                error!("Failed to Send Chunk {}, dropping frame: {}", index, e);
-                                                break 'image;
-                                            }
-
-                                            // Check if we're the last packet...
-                                            if iter.peek().is_none() {
-                                                // Flag the message as complete
-                                                output[0] = 0xff;
-                                                output[1] = 0xff;
-                                                output[2] = 0xff;
-                                                output[3] = 0x50;
-
-                                                // Send the Total size of the image
-                                                LittleEndian::write_u32(&mut output[4..8], img.len() as u32 - 1);
-
-                                                // Set the X and Y coordinates..
-                                                LittleEndian::write_u32(&mut output[8..12], x);
-                                                LittleEndian::write_u32(&mut output[12..16], y);
-
-                                                // Send this out via USB.
-                                                if let Err(e) = send_message(&output) {
-                                                    error!("Failed to Send Final Chunk, dropping frame: {}", e);
-                                                    break 'image;
+                                    let send_chunk = |output: &[u8; 1024]| -> bool {
+                                        let started = Instant::now();
+                                        let mut retry_count = 0;
+                                        loop {
+                                            match handle.write_interrupt(0x03, output, chunk_timeout) {
+                                                Ok(_) => return true,
+                                                Err(rusb::Error::Timeout) if started.elapsed() < chunk_retry_budget => {
+                                                    retry_count += 1;
+                                                    debug!("Chunk write timed out ({:?} waiting, retry {}), retrying", started.elapsed(), retry_count);
+                                                    sleep(Duration::from_millis(20));
+                                                }
+                                                Err(e) => {
+                                                    debug!("Chunk write failed after {} retries ({:?}): {}", retry_count, started.elapsed(), e);
+                                                    return false;
                                                 }
                                             }
+                                        }
+                                    };
+
+                                    'image: {
+                                        let overall_started = Instant::now();
+                                        let mut success = false;
+                                        let mut attempt = 0;
+
+                                        while overall_started.elapsed() < overall_budget {
+                                            attempt += 1;
+                                            let mut iter = img.chunks(1020).enumerate().peekable();
+                                            let mut output = [0; 1024];
+                                            let mut attempt_ok = true;
+
+                                            while let Some((index, value)) = iter.next() {
+                                                LittleEndian::write_u24(&mut output[0..3], index as u32);
+                                                output[3] = 0x50;
+                                                output[4..value.len() + 4].copy_from_slice(value);
+
+                                                if !send_chunk(&output) {
+                                                    warn!("Chunk {} failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0",
+                                                        index, attempt, overall_started.elapsed());
+                                                    attempt_ok = false;
+                                                    break;
+                                                }
+
+                                                if iter.peek().is_none() {
+                                                    output[0] = 0xff;
+                                                    output[1] = 0xff;
+                                                    output[2] = 0xff;
+                                                    output[3] = 0x50;
+                                                    LittleEndian::write_u32(&mut output[4..8], img.len() as u32 - 1);
+                                                    LittleEndian::write_u32(&mut output[8..12], x);
+                                                    LittleEndian::write_u32(&mut output[12..16], y);
+
+                                                    if !send_chunk(&output) {
+                                                        warn!("Final chunk failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0",
+                                                            attempt, overall_started.elapsed());
+                                                        attempt_ok = false;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if attempt_ok {
+                                                success = true;
+                                                break;
+                                            }
+                                        }
+
+                                        if !success {
+                                            error!("Failed to send image after {} attempts over {:?}, dropping frame", attempt, overall_started.elapsed());
+                                            break 'image;
                                         }
 
                                         sleep(Duration::from_millis(10));
