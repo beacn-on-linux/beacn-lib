@@ -241,21 +241,19 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         device_enabled = true;
                                     }
 
-                                    let send_chunk = |output: &[u8; 1024]| -> bool {
+                                    let send_chunk = |output: &[u8; 1024]| -> Result<(), rusb::Error> {
                                         let started = Instant::now();
                                         let mut retry_count = 0;
                                         loop {
                                             match handle.write_interrupt(0x03, output, chunk_timeout) {
-                                                Ok(_) => return true,
+                                                Ok(_) => return Ok(()),
                                                 Err(rusb::Error::Timeout) if started.elapsed() < chunk_retry_budget => {
                                                     retry_count += 1;
                                                     debug!("Chunk write timed out ({:?} waiting, retry {}), retrying", started.elapsed(), retry_count);
                                                     sleep(Duration::from_millis(20));
                                                 }
-                                                Err(e) => {
-                                                    debug!("Chunk write failed after {} retries ({:?}): {}", retry_count, started.elapsed(), e);
-                                                    return false;
-                                                }
+
+                                                Err(e) => return Err(e),
                                             }
                                         }
                                     };
@@ -276,11 +274,17 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                                 output[3] = 0x50;
                                                 output[4..value.len() + 4].copy_from_slice(value);
 
-                                                if !send_chunk(&output) {
-                                                    warn!("Chunk {} failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0",
-                                                        index, attempt, overall_started.elapsed());
-                                                    attempt_ok = false;
-                                                    break;
+                                                match send_chunk(&output) {
+                                                    Ok(_) => {}
+                                                    Err(rusb::Error::Timeout) => {
+                                                        warn!("Chunk {} failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0", index, attempt, overall_started.elapsed());
+                                                        attempt_ok = false;
+                                                        break;
+                                                    }
+                                                    Err(e) => {
+                                                        warn!("Unknown Error Received: {:?}, bailing..", e);
+                                                        continue 'primary;
+                                                    }
                                                 }
 
                                                 if iter.peek().is_none() {
@@ -292,12 +296,19 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                                     LittleEndian::write_u32(&mut output[8..12], x);
                                                     LittleEndian::write_u32(&mut output[12..16], y);
 
-                                                    if !send_chunk(&output) {
-                                                        warn!("Final chunk failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0",
-                                                            attempt, overall_started.elapsed());
-                                                        attempt_ok = false;
-                                                        break;
+                                                    match send_chunk(&output) {
+                                                        Ok(_) => {}
+                                                        Err(rusb::Error::Timeout) => {
+                                                            warn!("Final chunk failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0", attempt, overall_started.elapsed());
+                                                            attempt_ok = false;
+                                                            break;
+                                                        }
+                                                        Err(e) => {
+                                                            warn!("Unknown Error Received: {:?}, bailing..", e);
+                                                            continue 'primary;
+                                                        }
                                                     }
+
                                                 }
                                             }
 
