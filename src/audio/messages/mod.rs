@@ -115,7 +115,6 @@ impl Message {
         }
     }
 
-
     pub fn to_beacn_key(&self) -> [u8; 3] {
         let (top, sub) = match self {
             Message::BassEnhancement(v) => (BeacnMessage::BassEnhancement as u8, v.to_beacn_key()),

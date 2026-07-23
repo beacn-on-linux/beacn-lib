@@ -1,10 +1,10 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message, VERSION_MIN_ALL};
 
-use crate::{generate_range, MIC_CLASS_COMPLIANT_VERSION};
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
 use crate::version::VersionNumber;
+use crate::{MIC_CLASS_COMPLIANT_VERSION, generate_range};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use strum::{EnumIter, IntoEnumIterator};
