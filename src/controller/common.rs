@@ -4,6 +4,7 @@ use crate::controller::ControlThreadSender::{
     KeepAlive, SetActiveBrightness, SetButtonBrightness, SetButtonColour, SetDimTimeout,
     SetEnabled, SetImage,
 };
+use crate::controller::device::messenger::Messenger;
 use crate::controller::{
     BeacnControlDevice, ButtonLighting, Buttons, ControlThreadSender, Dials, Interactions,
 };
@@ -11,7 +12,7 @@ use crate::types::RGBA;
 use crate::version::VersionNumber;
 use crate::{BResult, beacn_bail};
 use anyhow::Error;
-use byteorder::{BigEndian, ByteOrder, LittleEndian};
+use byteorder::{BigEndian, ByteOrder};
 use flume::{Receiver, Sender, bounded};
 use jpeg_decoder::Decoder;
 use log::{debug, error, warn};
@@ -19,13 +20,13 @@ use nusb::MaybeFuture;
 use nusb::transfer::{Buffer, In, Interrupt, Out, TransferError};
 use std::thread;
 use std::thread::sleep;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use strum::IntoEnumIterator;
 
 // Default Display 'Active' and 'Dimmed' brightness, and the default dim time
 static DISPLAY_DEFAULT_FULL_BRIGHTNESS: u8 = 40;
-static DISPLAY_DEFAULT_DIM_BRIGHTNESS: u8 = 1;
-static DISPLAY_DEFAULT_DIM_TIME: u64 = 180;
+static DISPLAY_DIM_BRIGHTNESS: u8 = 1;
+static DISPLAY_DIM_TIME: u64 = 180;
 
 // Default button brightness
 static BUTTONS_DEFAULT_BRIGHTNESS: u8 = 8;
@@ -96,6 +97,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             }
         };
 
+        let mut messenger = Messenger::new(&mut out_ep, timeout);
         let mut polled_in_ep: Option<nusb::Endpoint<Interrupt, In>> = None;
 
         let poll = if is_notify {
@@ -167,54 +169,34 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         let mut last_button_state = 0;
 
         let mut is_dimmed = false;
-        let mut active_brightness = DISPLAY_DEFAULT_FULL_BRIGHTNESS;
-        let mut button_brightness = BUTTONS_DEFAULT_BRIGHTNESS;
+        let mut brightness = DISPLAY_DEFAULT_FULL_BRIGHTNESS;
 
-        let enable = [0, 1, 0, 4, 0, 0, 0, 0];
-        let brightness = [0, 0, 0, 4, active_brightness, 0, 0, 0];
-        let buttons = [1, 7, 0, 4, button_brightness, 0, 0, 0];
-
-        // Message to instruct the screen to turn on (default to off after a few seconds)
-        if let Err(e) = out_ep
-            .transfer_blocking(enable.into(), timeout)
-            .into_result()
-        {
-            error!("Unable to Turn the Screen on: {}", e);
+        if let Err(e) = messenger.ensure_enabled() {
+            error!("Failed to Enable Device: {}", e);
             return;
         }
 
-        // Set the default display brightness
-        if let Err(e) = out_ep
-            .transfer_blocking(brightness.into(), timeout)
-            .into_result()
-        {
+        if let Err(e) = messenger.set_screen_brightness(brightness) {
             error!("Failed to Set Default Brightness: {}", e);
             return;
         }
 
-        // Set the default button brightness
-        if let Err(e) = out_ep
-            .transfer_blocking(buttons.into(), timeout)
-            .into_result()
-        {
-            error!("Unable to Set Default Button Brightness: {}", e);
+        if let Err(e) = messenger.set_button_brightness(BUTTONS_DEFAULT_BRIGHTNESS) {
+            error!("Failed to Set Default Button Brightness: {}", e);
             return;
         }
 
-        // Force the device into a 'wake' state if it's currently sleeping
-        let wake = [00, 00, 00, 0xf1];
-        if let Err(e) = out_ep.transfer_blocking(wake.into(), timeout).into_result() {
-            error!("Unable to Wake Device: {}", e);
+        if let Err(e) = messenger.ping() {
+            error!("Failed to Wake Device: {}", e);
             return;
         }
 
         sleep(Duration::from_millis(250));
 
-        let mut dim_duration = Duration::from_secs(DISPLAY_DEFAULT_DIM_TIME);
+        let mut dim_duration = Duration::from_secs(DISPLAY_DIM_TIME);
 
         // Create some timers for processing
         let mut dim_timeout = after(dim_duration);
-        let mut device_enabled = true;
 
         // TODO: I should probably use a Macro or a closure to handle the recv
         // In all cases, if a channel has closed, we should abort.
@@ -237,174 +219,26 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     break;
                                 }
                                 KeepAlive => {
-                                    let msg = [00, 00, 00, 0xf1];
-                                    if let Err(e) =
-                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
-                                    {
-                                        error!("Error Sending Keep-Alive Request: {}", e);
+                                    if let Err(e) = messenger.ping() {
+                                        error!("Failed to Send Keep-Alive Request: {}", e);
                                         break;
                                     }
                                 }
                                 SetEnabled(enabled) => {
-                                    let byte = if enabled { 0 } else { 1 };
-                                    let msg = [0, 1, 0, 4, byte, 0, 0, 0];
-
-                                    if let Err(e) =
-                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
-                                    {
-                                        error!("Failed to Send Enabled Message: {}", e);
-                                        break 'primary;
+                                    if let Err(e) = messenger.enable(enabled) {
+                                        error!("Failed to Enable Device: {}", e);
+                                        break;
                                     }
-
-                                    device_enabled = enabled;
                                 }
                                 SetImage(x, y, img) => {
-                                    let timeout = Duration::from_millis(100);
-                                    let chunk_retry = Duration::from_millis(300);
-                                    let overall_budget = Duration::from_secs(10);
-
-                                    if !device_enabled {
-                                        if out_ep
-                                            .transfer_blocking(enable.into(), timeout)
-                                            .into_result()
-                                            .is_err()
-                                        {
-                                            warn!(
-                                                "Failed to enable device, attempting to clear halt"
-                                            );
-
-                                            let retry = out_ep.clear_halt().wait().is_ok()
-                                                && out_ep
-                                                    .transfer_blocking(enable.into(), timeout)
-                                                    .into_result()
-                                                    .is_ok();
-
-                                            if !retry {
-                                                warn!("Failed to enable device, dropping frame");
-                                                continue 'primary;
-                                            }
-                                        }
-
-                                        sleep(Duration::from_millis(100));
-                                        device_enabled = true;
+                                    if let Err(e) = messenger.ensure_enabled() {
+                                        error!("Failed to Enable Device, dropping Frame: {}", e);
+                                        continue 'primary;
                                     }
 
-                                    let mut send_chunk =
-                                        |output: &[u8; 1024]| -> Result<(), TransferError> {
-                                            let started = Instant::now();
-                                            let mut retry_count = 0;
-                                            loop {
-                                                match out_ep
-                                                    .transfer_blocking((*output).into(), timeout)
-                                                    .into_result()
-                                                {
-                                                    Ok(_) => return Ok(()),
-                                                    Err(TransferError::Cancelled)
-                                                        if started.elapsed() < chunk_retry =>
-                                                    {
-                                                        retry_count += 1;
-                                                        debug!(
-                                                            "Chunk write timed out ({:?} waiting, retry {}), retrying",
-                                                            started.elapsed(),
-                                                            retry_count
-                                                        );
-                                                        sleep(Duration::from_millis(20));
-                                                    }
-
-                                                    Err(e) => return Err(e),
-                                                }
-                                            }
-                                        };
-
-                                    'image: {
-                                        let overall_started = Instant::now();
-                                        let mut success = false;
-                                        let mut attempt = 0;
-
-                                        while overall_started.elapsed() < overall_budget {
-                                            attempt += 1;
-                                            let mut iter = img.chunks(1020).enumerate().peekable();
-                                            let mut output = [0; 1024];
-                                            let mut attempt_ok = true;
-
-                                            while let Some((index, value)) = iter.next() {
-                                                let buf = &mut output[0..3];
-                                                LittleEndian::write_u24(buf, index as u32);
-
-                                                output[3] = 0x50;
-                                                output[4..value.len() + 4].copy_from_slice(value);
-
-                                                match send_chunk(&output) {
-                                                    Ok(_) => {}
-                                                    Err(TransferError::Cancelled) => {
-                                                        warn!(
-                                                            "Chunk {} failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0",
-                                                            index,
-                                                            attempt,
-                                                            overall_started.elapsed()
-                                                        );
-                                                        attempt_ok = false;
-                                                        break;
-                                                    }
-                                                    Err(e) => {
-                                                        warn!(
-                                                            "Unknown Error Received: {:?}, bailing..",
-                                                            e
-                                                        );
-                                                        continue 'primary;
-                                                    }
-                                                }
-
-                                                if iter.peek().is_none() {
-                                                    output[0] = 0xff;
-                                                    output[1] = 0xff;
-                                                    output[2] = 0xff;
-                                                    output[3] = 0x50;
-
-                                                    let buf = &mut output[4..8];
-                                                    let n = img.len() as u32 - 1;
-                                                    LittleEndian::write_u32(buf, n);
-                                                    LittleEndian::write_u32(&mut output[8..12], x);
-                                                    LittleEndian::write_u32(&mut output[12..16], y);
-
-                                                    match send_chunk(&output) {
-                                                        Ok(_) => {}
-                                                        Err(TransferError::Cancelled) => {
-                                                            warn!(
-                                                                "Final chunk failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0",
-                                                                attempt,
-                                                                overall_started.elapsed()
-                                                            );
-                                                            attempt_ok = false;
-                                                            break;
-                                                        }
-                                                        Err(e) => {
-                                                            warn!(
-                                                                "Unknown Error Received: {:?}, bailing..",
-                                                                e
-                                                            );
-                                                            continue 'primary;
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            if attempt_ok {
-                                                success = true;
-                                                break;
-                                            }
-                                        }
-
-                                        if !success {
-                                            error!(
-                                                "Failed to send image after {} attempts over {:?}, dropping frame",
-                                                attempt,
-                                                overall_started.elapsed()
-                                            );
-                                            break 'image;
-                                        }
-
-                                        sleep(Duration::from_millis(10));
+                                    if let Err(e) = messenger.send_image(x, y, &img) {
+                                        error!("Failed to Send Image, dropping Frame: {}", e);
+                                        continue 'primary;
                                     }
                                 }
                                 SetDimTimeout(timeout) => {
@@ -419,32 +253,20 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         is_dimmed = false;
                                         dim_timeout = after(dim_duration);
                                     }
-                                    active_brightness = percent;
-
-                                    let msg = [0, 0, 0, 4, active_brightness, 0, 0, 0];
-                                    if let Err(e) =
-                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
-                                    {
+                                    brightness = percent;
+                                    if let Err(e) = messenger.set_screen_brightness(brightness) {
                                         error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }
                                 }
                                 SetButtonBrightness(value) => {
-                                    button_brightness = value;
-
-                                    let msg = [1, 7, 0, 4, button_brightness, 0, 0, 0];
-                                    if let Err(e) =
-                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
-                                    {
+                                    if let Err(e) = messenger.set_button_brightness(value) {
                                         error!("Failed to Set Button Brightness: {}", e);
                                         break;
                                     }
                                 }
                                 SetButtonColour(b, c) => {
-                                    let msg = [1, b, 0, 4, c.blue, c.green, c.red, c.alpha];
-                                    if let Err(e) =
-                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
-                                    {
+                                    if let Err(e) = messenger.set_button_colour(b, c) {
                                         error!("Failed to Set Button Colour: {}", e);
                                         break;
                                     }
@@ -459,8 +281,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                 }
                 Event::DimTimeout => {
                     is_dimmed = true;
-                    let msg = [0, 0, 0, 4, DISPLAY_DEFAULT_DIM_BRIGHTNESS, 0, 0, 0];
-                    if let Err(e) = out_ep.transfer_blocking(msg.into(), timeout).into_result() {
+                    if let Err(e) = messenger.set_screen_brightness(DISPLAY_DIM_BRIGHTNESS) {
                         error!("Failed to Set DIM brightness: {}", e);
                         break;
                     }
@@ -476,11 +297,9 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 if is_dimmed {
                                     // We need to wake up screen
                                     is_dimmed = false;
-                                    let msg = [0, 0, 0, 4, active_brightness, 0, 0, 0];
-                                    if let Err(e) =
-                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
-                                    {
-                                        error!("Failed to Set DIM brightness: {}", e);
+
+                                    if let Err(e) = messenger.set_screen_brightness(brightness) {
+                                        error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }
                                 }
@@ -497,11 +316,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                 }
                 Event::Poll => {
                     // Ok, we're at a poll interval, we need to fetch changes to inputs
-                    if let Err(e) = out_ep
-                        .transfer_blocking([0, 0, 0, 5].into(), timeout)
-                        .into_result()
-                    {
-                        debug!("Error Sending Poll Request: {}", e);
+                    if let Err(e) = messenger.poll_inputs() {
+                        error!("Failed to Poll Inputs: {}", e);
                         break;
                     }
 
@@ -735,7 +551,7 @@ enum Event {
 
 // Replacement for crossbeam::channel::after
 pub fn after(duration: Duration) -> Receiver<()> {
-    let (tx, rx) = flume::bounded(1);
+    let (tx, rx) = bounded(1);
 
     thread::spawn(move || {
         sleep(duration);

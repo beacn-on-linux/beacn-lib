@@ -14,6 +14,7 @@ use strum::{Display, EnumIter};
 mod common;
 mod mix;
 mod mix_create;
+pub mod device;
 
 pub trait BeacnControlDevice:
     BeacnControlDeviceAttach + BeacnControlInteraction + RefUnwindSafe
