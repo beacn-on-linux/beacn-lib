@@ -1,3 +1,4 @@
+use crate::MaybeFuture as BeacnMaybeFuture;
 use crate::common::{BeacnDeviceHandle, DeviceDefinition, get_device_info};
 use crate::controller::ButtonState::{Press, Release};
 use crate::controller::ControlThreadSender::{
@@ -172,22 +173,25 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         let mut is_dimmed = false;
         let mut brightness = DISPLAY_DEFAULT_FULL_BRIGHTNESS;
 
-        if let Err(e) = messenger.ensure_enabled() {
+        if let Err(e) = messenger.ensure_enabled().wait() {
             error!("Failed to Enable Device: {}", e);
             return;
         }
 
-        if let Err(e) = messenger.set_screen_brightness(brightness) {
+        if let Err(e) = messenger.set_screen_brightness(brightness).wait() {
             error!("Failed to Set Default Brightness: {}", e);
             return;
         }
 
-        if let Err(e) = messenger.set_button_brightness(BUTTONS_DEFAULT_BRIGHTNESS) {
+        if let Err(e) = messenger
+            .set_button_brightness(BUTTONS_DEFAULT_BRIGHTNESS)
+            .wait()
+        {
             error!("Failed to Set Default Button Brightness: {}", e);
             return;
         }
 
-        if let Err(e) = messenger.ping() {
+        if let Err(e) = messenger.ping().wait() {
             error!("Failed to Wake Device: {}", e);
             return;
         }
@@ -220,24 +224,24 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     break;
                                 }
                                 KeepAlive => {
-                                    if let Err(e) = messenger.ping() {
+                                    if let Err(e) = messenger.ping().wait() {
                                         error!("Failed to Send Keep-Alive Request: {}", e);
                                         break;
                                     }
                                 }
                                 SetEnabled(enabled) => {
-                                    if let Err(e) = messenger.enable(enabled) {
+                                    if let Err(e) = messenger.enable(enabled).wait() {
                                         error!("Failed to Enable Device: {}", e);
                                         break;
                                     }
                                 }
                                 SetImage(x, y, img) => {
-                                    if let Err(e) = messenger.ensure_enabled() {
+                                    if let Err(e) = messenger.ensure_enabled().wait() {
                                         error!("Failed to Enable Device, dropping Frame: {}", e);
                                         continue 'primary;
                                     }
 
-                                    if let Err(e) = messenger.send_image(x, y, &img) {
+                                    if let Err(e) = messenger.send_image(x, y, &img).wait() {
                                         error!("Failed to Send Image, dropping Frame: {}", e);
                                         continue 'primary;
                                     }
@@ -255,19 +259,21 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         dim_timeout.reset(dim_duration);
                                     }
                                     brightness = percent;
-                                    if let Err(e) = messenger.set_screen_brightness(brightness) {
+                                    if let Err(e) =
+                                        messenger.set_screen_brightness(brightness).wait()
+                                    {
                                         error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }
                                 }
                                 SetButtonBrightness(value) => {
-                                    if let Err(e) = messenger.set_button_brightness(value) {
+                                    if let Err(e) = messenger.set_button_brightness(value).wait() {
                                         error!("Failed to Set Button Brightness: {}", e);
                                         break;
                                     }
                                 }
                                 SetButtonColour(b, c) => {
-                                    if let Err(e) = messenger.set_button_colour(b, c) {
+                                    if let Err(e) = messenger.set_button_colour(b, c).wait() {
                                         error!("Failed to Set Button Colour: {}", e);
                                         break;
                                     }
@@ -282,7 +288,10 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                 }
                 Event::DimTimeout => {
                     is_dimmed = true;
-                    if let Err(e) = messenger.set_screen_brightness(DISPLAY_DIM_BRIGHTNESS) {
+                    if let Err(e) = messenger
+                        .set_screen_brightness(DISPLAY_DIM_BRIGHTNESS)
+                        .wait()
+                    {
                         error!("Failed to Set DIM brightness: {}", e);
                         break;
                     }
@@ -299,7 +308,9 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     // We need to wake up screen
                                     is_dimmed = false;
 
-                                    if let Err(e) = messenger.set_screen_brightness(brightness) {
+                                    if let Err(e) =
+                                        messenger.set_screen_brightness(brightness).wait()
+                                    {
                                         error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }
@@ -317,7 +328,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                 }
                 Event::Poll => {
                     // Ok, we're at a poll interval, we need to fetch changes to inputs
-                    if let Err(e) = messenger.poll_inputs() {
+                    if let Err(e) = messenger.poll_inputs().wait() {
                         error!("Failed to Poll Inputs: {}", e);
                         break;
                     }

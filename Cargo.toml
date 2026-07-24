@@ -23,6 +23,9 @@ anyhow = "1.0.103"
 nusb = "0.2.5"
 
 async-trait = "0.1.91"
+async-io = "2.6.0"
+async-lock = "3.4.2"
+
 futures-lite = "2.6.1"
 
 # Used for Managing Interaction threads

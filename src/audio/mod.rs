@@ -14,7 +14,12 @@ use std::panic::RefUnwindSafe;
 use strum::EnumIter;
 
 pub trait BeacnAudioDevice:
-    BeacnAudioDeviceAttach + BeacnAudioMessageExecute + BeacnAudioMessaging + RefUnwindSafe
+    BeacnAudioDeviceAttach
+    + BeacnAudioMessageExecute
+    + BeacnAudioMessaging
+    + RefUnwindSafe
+    + Send
+    + Sync
 {
 }
 

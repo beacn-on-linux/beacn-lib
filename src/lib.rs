@@ -3,6 +3,8 @@ pub mod audio;
 mod common;
 pub mod controller;
 pub mod manager;
+mod sync;
+mod transfer;
 pub mod types;
 pub mod version;
 
@@ -12,7 +14,19 @@ pub use nusb::ErrorKind as UsbError;
 pub use nusb::transfer::TransferError as UsbTransferError;
 
 use crate::version::VersionNumber;
+use std::future::Future;
 use thiserror::Error;
+
+/// We try to support async everywhere, but for blocking environments this trait uses futures-lite
+/// to allow calling .wait() instead of .await as a blocking call inside a non-async context.
+pub trait MaybeFuture: Future + Sized {
+    /// Block the current thread until this operation completes.
+    fn wait(self) -> Self::Output {
+        futures_lite::future::block_on(self)
+    }
+}
+
+impl<F: Future> MaybeFuture for F {}
 
 // These are some helper versions, which can be used to determine feature availability
 const MIC_CLASS_COMPLIANT_VERSION: VersionNumber = VersionNumber(1, 2, 0, 188);

@@ -1,9 +1,9 @@
 use crate::controller::device::writer::UsbWriter;
 use crate::types::RGBA;
+use async_io::Timer;
 use byteorder::{ByteOrder, LittleEndian};
 use log::error;
 use nusb::transfer::{Interrupt, Out, TransferError};
-use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 pub struct Messenger<'a> {
@@ -19,32 +19,36 @@ impl<'a> Messenger<'a> {
         }
     }
 
-    pub fn send(&mut self, data: &[u8]) -> Result<(), TransferError> {
-        self.usb.send(data)
+    pub async fn send(&mut self, data: &[u8]) -> Result<(), TransferError> {
+        self.usb.send(data).await
     }
 
-    pub fn enable(&mut self, enabled: bool) -> Result<(), TransferError> {
+    pub async fn enable(&mut self, enabled: bool) -> Result<(), TransferError> {
         let value = if enabled { 0 } else { 1 };
 
-        self.send(&[0, 1, 0, 4, value, 0, 0, 0])?;
+        self.send(&[0, 1, 0, 4, value, 0, 0, 0]).await?;
         self.enabled = enabled;
 
         Ok(())
     }
 
-    pub fn ping(&mut self) -> Result<(), TransferError> {
-        self.send(&[0, 0, 0, 0xf1])
+    pub async fn ping(&mut self) -> Result<(), TransferError> {
+        self.send(&[0, 0, 0, 0xf1]).await
     }
 
-    pub fn set_screen_brightness(&mut self, brightness: u8) -> Result<(), TransferError> {
-        self.send(&[0, 0, 0, 4, brightness, 0, 0, 0])
+    pub async fn set_screen_brightness(&mut self, brightness: u8) -> Result<(), TransferError> {
+        self.send(&[0, 0, 0, 4, brightness, 0, 0, 0]).await
     }
 
-    pub fn set_button_brightness(&mut self, brightness: u8) -> Result<(), TransferError> {
-        self.send(&[1, 7, 0, 4, brightness, 0, 0, 0])
+    pub async fn set_button_brightness(&mut self, brightness: u8) -> Result<(), TransferError> {
+        self.send(&[1, 7, 0, 4, brightness, 0, 0, 0]).await
     }
 
-    pub fn set_button_colour(&mut self, button: u8, colour: RGBA) -> Result<(), TransferError> {
+    pub async fn set_button_colour(
+        &mut self,
+        button: u8,
+        colour: RGBA,
+    ) -> Result<(), TransferError> {
         self.send(&[
             1,
             button,
@@ -55,33 +59,34 @@ impl<'a> Messenger<'a> {
             colour.red,
             colour.alpha,
         ])
+        .await
     }
 
-    pub fn poll_inputs(&mut self) -> Result<(), TransferError> {
-        self.send(&[0, 0, 0, 5])
+    pub async fn poll_inputs(&mut self) -> Result<(), TransferError> {
+        self.send(&[0, 0, 0, 5]).await
     }
 
-    pub fn ensure_enabled(&mut self) -> Result<(), TransferError> {
+    pub async fn ensure_enabled(&mut self) -> Result<(), TransferError> {
         if !self.enabled {
-            self.enable(true)?;
-            sleep(Duration::from_millis(100));
+            self.enable(true).await?;
+            Timer::after(Duration::from_millis(100)).await;
         }
         Ok(())
     }
 
-    pub fn send_image(&mut self, x: u32, y: u32, img: &[u8]) -> Result<(), TransferError> {
+    pub async fn send_image(&mut self, x: u32, y: u32, img: &[u8]) -> Result<(), TransferError> {
         let overall_budget = Duration::from_secs(10);
         let overall_started = Instant::now();
 
         while overall_started.elapsed() < overall_budget {
-            match self.send_image_attempt(x, y, img) {
+            match self.send_image_attempt(x, y, img).await {
                 Ok(()) => {
-                    sleep(Duration::from_millis(10));
+                    Timer::after(Duration::from_millis(10)).await;
                     return Ok(());
                 }
 
                 Err(TransferError::Cancelled) => {
-                    sleep(Duration::from_millis(10));
+                    Timer::after(Duration::from_millis(10)).await;
                 }
                 Err(e) => return Err(e),
             }
@@ -95,7 +100,12 @@ impl<'a> Messenger<'a> {
         Err(TransferError::Cancelled)
     }
 
-    fn send_image_attempt(&mut self, x: u32, y: u32, img: &[u8]) -> Result<(), TransferError> {
+    async fn send_image_attempt(
+        &mut self,
+        x: u32,
+        y: u32,
+        img: &[u8],
+    ) -> Result<(), TransferError> {
         let chunk_retry = Duration::from_millis(300);
 
         let mut output = [0u8; 1024];
@@ -108,7 +118,7 @@ impl<'a> Messenger<'a> {
             output[3] = 0x50;
             output[4..4 + value.len()].copy_from_slice(value);
 
-            self.send_chunk(&output, chunk_retry)?;
+            self.send_chunk(&output, chunk_retry).await?;
 
             if iter.peek().is_none() {
                 output.fill(0);
@@ -122,20 +132,24 @@ impl<'a> Messenger<'a> {
                 LittleEndian::write_u32(&mut output[8..12], x);
                 LittleEndian::write_u32(&mut output[12..16], y);
 
-                self.send_chunk(&output, chunk_retry)?;
+                self.send_chunk(&output, chunk_retry).await?;
             }
         }
 
         Ok(())
     }
 
-    fn send_chunk(&mut self, chunk: &[u8; 1024], retry: Duration) -> Result<(), TransferError> {
+    async fn send_chunk(
+        &mut self,
+        chunk: &[u8; 1024],
+        retry: Duration,
+    ) -> Result<(), TransferError> {
         let started = Instant::now();
         loop {
-            match self.send(chunk) {
+            match self.send(chunk).await {
                 Ok(()) => return Ok(()),
                 Err(TransferError::Cancelled) if started.elapsed() < retry => {
-                    sleep(Duration::from_millis(20));
+                    Timer::after(Duration::from_millis(20)).await;
                 }
                 Err(e) => return Err(e),
             }
