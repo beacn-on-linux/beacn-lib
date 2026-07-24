@@ -668,7 +668,17 @@ pub fn after(duration: Duration) -> Receiver<()> {
     let (tx, rx) = flume::bounded(1);
 
     thread::spawn(move || {
-        sleep(duration);
+        if tx.is_disconnected() {
+            return;
+        }
+
+        let start = Instant::now();
+        while start.elapsed() < duration {
+            if tx.is_disconnected() {
+                return;
+            }
+            sleep(Duration::from_millis(50));
+        }
         let _ = tx.send(());
     });
 
