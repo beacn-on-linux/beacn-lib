@@ -12,6 +12,7 @@ use crate::version::VersionNumber;
 use crate::{BResult, beacn_bail};
 use anyhow::Error;
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
+use flume::select::SelectError;
 use flume::{Receiver, Sender, bounded};
 use jpeg_decoder::Decoder;
 use log::{debug, error, warn};
@@ -374,13 +375,13 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     dim_duration = timeout;
                                     if !is_dimmed {
                                         // If we're not already dimmed, reset the timer
-                                        dim_timeout.reset(timeout);
+                                        dim_timeout.reset(dim_duration);
                                     }
                                 }
                                 SetActiveBrightness(percent) => {
                                     if is_dimmed {
                                         is_dimmed = false;
-                                        dim_timeout.reset(timeout);
+                                        dim_timeout.reset(dim_duration);
                                     }
                                     active_brightness = percent;
 
@@ -441,7 +442,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 }
 
                                 // Set a new Dim timeout
-                                dim_timeout.reset(timeout);
+                                dim_timeout.reset(dim_duration);
                             }
                         }
                         Err(e) => {
@@ -701,15 +702,15 @@ impl Timer {
             loop {
                 // We're going to receive a reset, or a timeout, behaviour will depend on which
                 let event = flume::Selector::new()
-                    .recv(&reset_rx, |duration| duration.ok())
+                    .recv(&reset_rx, |duration| duration)
                     .wait_timeout(duration);
 
                 match event {
                     // Got a reset, let's set the new duration and restart the loop.
-                    Ok(Some(new_duration)) => duration = new_duration,
+                    Ok(Ok(new_duration)) => duration = new_duration,
+                    Ok(Err(_)) => break,
 
-                    // No value means wait_timeout has been hit
-                    Ok(None) => {
+                    Err(SelectError::Timeout) => {
                         let _ = tx.send(());
 
                         // We shouldn't trigger again until we've been reset
@@ -718,9 +719,6 @@ impl Timer {
                             Err(_) => break,
                         }
                     }
-
-                    // An error means we've been dropped, break out of the loop
-                    Err(_) => break,
                 }
             }
         });
