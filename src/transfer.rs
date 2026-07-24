@@ -40,6 +40,7 @@ where
 /// Same as transfer_with_timeout, but returns a Result<Buffer, TransferError> instead of a
 /// Completion. This is useful for when you want to handle the error case separately from the
 /// success case, and you don't want to have to deal with the Completion type.
+#[allow(unused)]
 pub(crate) async fn transfer<EpType, Dir>(
     endpoint: &mut Endpoint<EpType, Dir>,
     buf: Buffer,
