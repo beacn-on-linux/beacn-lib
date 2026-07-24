@@ -22,6 +22,7 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use strum::IntoEnumIterator;
+use crate::controller::device::timer::Timer;
 
 // Default Display 'Active' and 'Dimmed' brightness, and the default dim time
 static DISPLAY_DEFAULT_FULL_BRIGHTNESS: u8 = 40;
@@ -245,13 +246,13 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     dim_duration = timeout;
                                     if !is_dimmed {
                                         // If we're not already dimmed, reset the timer
-                                        dim_timeout.reset(timeout);
+                                        dim_timeout.reset(dim_duration);
                                     }
                                 }
                                 SetActiveBrightness(percent) => {
                                     if is_dimmed {
                                         is_dimmed = false;
-                                        dim_timeout.reset(timeout);
+                                        dim_timeout.reset(dim_duration);
                                     }
                                     brightness = percent;
                                     if let Err(e) = messenger.set_screen_brightness(brightness) {
@@ -305,7 +306,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 }
 
                                 // Set a new Dim timeout
-                                dim_timeout.reset(timeout);
+                                dim_timeout.reset(dim_duration);
                             }
                         }
                         Err(e) => {
@@ -344,8 +345,6 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                 }
             }
         }
-
-        dim_timeout.cancel();
 
         debug!("Event Handler Terminated");
     }
@@ -569,51 +568,4 @@ pub fn tick(duration: Duration) -> Receiver<()> {
 pub fn never<T>() -> Receiver<T> {
     let (_tx, rx) = flume::bounded(0);
     rx
-}
-
-// Replacement for crossbeam::channel::after
-pub struct Timer {
-    cancel: Sender<()>,
-    rx: Receiver<()>,
-}
-
-impl Timer {
-    pub fn new(duration: Duration) -> Self {
-        let (cancel_tx, cancel_rx) = bounded(1);
-        let (tx, rx) = bounded(1);
-
-        thread::spawn(move || {
-            loop {
-                let event = flume::Selector::new()
-                    .recv(&cancel_rx, |_| false)
-                    .wait_timeout(duration);
-
-                match event {
-                    Ok(false) => break,
-                    Ok(true) => {
-                        let _ = tx.send(());
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
-
-        Self {
-            cancel: cancel_tx,
-            rx,
-        }
-    }
-
-    pub fn cancel(&self) {
-        let _ = self.cancel.send(());
-    }
-
-    pub fn reset(&mut self, duration: Duration) {
-        let _ = self.cancel.send(());
-        *self = Self::new(duration);
-    }
-
-    pub fn receiver(&self) -> &Receiver<()> {
-        &self.rx
-    }
 }
