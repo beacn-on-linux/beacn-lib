@@ -5,6 +5,7 @@ use crate::controller::ControlThreadSender::{
     SetEnabled, SetImage,
 };
 use crate::controller::device::messenger::Messenger;
+use crate::controller::device::timer::Timer;
 use crate::controller::{
     BeacnControlDevice, ButtonLighting, Buttons, ControlThreadSender, Dials, Interactions,
 };
@@ -20,9 +21,8 @@ use nusb::MaybeFuture;
 use nusb::transfer::{Buffer, In, Interrupt, Out, TransferError};
 use std::thread;
 use std::thread::sleep;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use strum::IntoEnumIterator;
-use crate::controller::device::timer::Timer;
 
 // Default Display 'Active' and 'Dimmed' brightness, and the default dim time
 static DISPLAY_DEFAULT_FULL_BRIGHTNESS: u8 = 40;

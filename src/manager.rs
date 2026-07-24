@@ -187,7 +187,6 @@ fn hotplug_watch(
 ) {
     let inner = manager.inner.clone();
 
-
     // Create the nusb watcher, and start looking for device events..
     let watch = match nusb::watch_devices() {
         Ok(watch) => watch,

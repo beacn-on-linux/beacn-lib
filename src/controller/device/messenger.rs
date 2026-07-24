@@ -1,7 +1,7 @@
 use crate::controller::device::writer::UsbWriter;
 use crate::types::RGBA;
 use byteorder::{ByteOrder, LittleEndian};
-use log::{debug, error, warn};
+use log::error;
 use nusb::transfer::{Interrupt, Out, TransferError};
 use std::thread::sleep;
 use std::time::{Duration, Instant};

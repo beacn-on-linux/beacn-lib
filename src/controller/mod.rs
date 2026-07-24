@@ -12,9 +12,9 @@ use std::time::Duration;
 use strum::{Display, EnumIter};
 
 mod common;
+pub mod device;
 mod mix;
 mod mix_create;
-pub mod device;
 
 pub trait BeacnControlDevice:
     BeacnControlDeviceAttach + BeacnControlInteraction + RefUnwindSafe

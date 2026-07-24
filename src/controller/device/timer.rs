@@ -1,6 +1,6 @@
+use flume::{Receiver, Sender, bounded};
 use std::thread;
 use std::time::Duration;
-use flume::{bounded, Receiver, Sender};
 
 // Replacement for crossbeam::channel::after
 pub struct Timer {

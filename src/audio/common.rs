@@ -362,11 +362,5 @@ pub(crate) fn open_beacn(
         serial,
     };
 
-    Ok((
-        handle,
-        AudioEndpoints {
-            out_ep: out_ep,
-            in_ep,
-        },
-    ))
+    Ok((handle, AudioEndpoints { out_ep, in_ep }))
 }
