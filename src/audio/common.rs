@@ -64,9 +64,7 @@ pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal
 
 // Stuff that is local to this instance
 #[async_trait]
-pub(crate) trait BeacnAudioMessageLocal:
-    BeacnAudioMessageExecute + BeacnAudioDeviceAttach
-{
+pub trait BeacnAudioMessageLocal: BeacnAudioMessageExecute + BeacnAudioDeviceAttach {
     fn is_command_valid(&self, message: &Message) -> bool {
         let message_type = message.get_device_message_type();
         let device_type = self.get_device_type();

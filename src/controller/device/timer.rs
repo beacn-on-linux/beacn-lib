@@ -1,7 +1,7 @@
+use flume::select::SelectError;
+use flume::{Receiver, Sender, bounded};
 use std::thread;
 use std::time::Duration;
-use flume::{bounded, Receiver, Sender};
-use flume::select::SelectError;
 
 pub struct Timer {
     reset: Sender<Duration>,

@@ -6,8 +6,8 @@ use crate::audio::{
 };
 use crate::common::BeacnDeviceHandle;
 use crate::manager::{DeviceType, PID_BEACN_STUDIO};
-use crate::version::VersionNumber;
 use crate::sync::AsyncMutex as Mutex;
+use crate::version::VersionNumber;
 
 pub struct BeacnStudio {
     handle: BeacnDeviceHandle,
