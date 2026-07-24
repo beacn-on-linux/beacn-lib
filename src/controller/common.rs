@@ -469,8 +469,6 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             }
         }
 
-        dim_timeout.cancel();
-
         debug!("Event Handler Terminated");
     }
 
@@ -687,44 +685,54 @@ pub fn never<T>() -> Receiver<T> {
 
 // Replacement for crossbeam::channel::after
 pub struct Timer {
-    cancel: Sender<()>,
+    reset: Sender<Duration>,
     rx: Receiver<()>,
 }
 
 impl Timer {
     pub fn new(duration: Duration) -> Self {
-        let (cancel_tx, cancel_rx) = bounded(1);
+        let (reset_tx, reset_rx) = bounded(1);
         let (tx, rx) = bounded(1);
 
         thread::spawn(move || {
+            // How long this current duration is
+            let mut duration = duration;
+
             loop {
+                // We're going to receive a reset, or a timeout, behaviour will depend on which
                 let event = flume::Selector::new()
-                    .recv(&cancel_rx, |_| false)
+                    .recv(&reset_rx, |duration| duration.ok())
                     .wait_timeout(duration);
 
                 match event {
-                    Ok(false) => break,
-                    Ok(true) => {
+                    // Got a reset, let's set the new duration and restart the loop.
+                    Ok(Some(new_duration)) => duration = new_duration,
+
+                    // No value means wait_timeout has been hit
+                    Ok(None) => {
                         let _ = tx.send(());
+
+                        // We shouldn't trigger again until we've been reset
+                        match reset_rx.recv() {
+                            Ok(new_duration) => duration = new_duration,
+                            Err(_) => break,
+                        }
                     }
+
+                    // An error means we've been dropped, break out of the loop
                     Err(_) => break,
                 }
             }
         });
 
         Self {
-            cancel: cancel_tx,
+            reset: reset_tx,
             rx,
         }
     }
 
-    pub fn cancel(&self) {
-        let _ = self.cancel.send(());
-    }
-
     pub fn reset(&mut self, duration: Duration) {
-        let _ = self.cancel.send(());
-        *self = Self::new(duration);
+        let _ = self.reset.send(duration);
     }
 
     pub fn receiver(&self) -> &Receiver<()> {
