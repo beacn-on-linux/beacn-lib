@@ -2,35 +2,29 @@ use crate::manager::{DeviceLocation, VENDOR_BEACN};
 use crate::version::VersionNumber;
 use anyhow::Result;
 use byteorder::{LittleEndian, ReadBytesExt};
-use rusb::{Device, DeviceDescriptor, DeviceHandle, GlobalContext};
+use nusb::{Device, DeviceInfo, Interface, MaybeFuture};
 use std::io::{Cursor, Read, Seek};
 
 pub(crate) struct DeviceDefinition {
-    pub(crate) device: Device<GlobalContext>,
-    pub(crate) descriptor: DeviceDescriptor,
+    pub(crate) descriptor: DeviceInfo,
 }
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct BeacnDeviceHandle {
-    pub(crate) descriptor: DeviceDescriptor,
-    pub(crate) device: Device<GlobalContext>,
-    pub(crate) handle: DeviceHandle<GlobalContext>,
+    pub(crate) descriptor: DeviceInfo,
+    pub(crate) device: Device,
+    pub(crate) interface: Interface,
     pub(crate) version: VersionNumber,
     pub(crate) serial: String,
 }
 
 pub(crate) fn find_device(location: DeviceLocation) -> Option<DeviceDefinition> {
     // We need to iterate through the devices and find the one at this location
-    if let Ok(devices) = rusb::devices() {
-        for device in devices.iter() {
-            if let Ok(descriptor) = device.device_descriptor() {
-                #[allow(clippy::collapsible_if)]
-                if descriptor.vendor_id() == VENDOR_BEACN {
-                    if DeviceLocation::from(device.clone()) == location {
-                        return Some(DeviceDefinition { device, descriptor });
-                    }
-                }
+    if let Ok(devices) = nusb::list_devices().wait() {
+        for info in devices {
+            if info.vendor_id() == VENDOR_BEACN && DeviceLocation::from(&info) == location {
+                return Some(DeviceDefinition { descriptor: info });
             }
         }
     }

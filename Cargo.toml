@@ -12,7 +12,9 @@ byteorder = "1.5.0"
 log = "0.4.33"
 anyhow = "1.0.103"
 
-rusb = "0.9.4"
+#rusb = "0.9.4"
+nusb = "0.2.5"
+futures-lite = "2.6.1"
 
 # Used for Managing Interaction threads
 flume = "0.12.0"

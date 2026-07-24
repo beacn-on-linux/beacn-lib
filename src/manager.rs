@@ -1,8 +1,11 @@
 use anyhow::Result;
-use flume::{Receiver, Sender, TryRecvError, bounded};
+use flume::{Receiver, RecvTimeoutError, Sender, TryRecvError, bounded};
+use futures_lite::stream::block_on;
 use log::{debug, error, warn};
-use rusb::{Device, GlobalContext, Hotplug, HotplugBuilder, UsbContext, has_hotplug};
+use nusb::hotplug::HotplugEvent;
+use nusb::{DeviceId, DeviceInfo, MaybeFuture};
 use std::cmp::PartialEq;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -39,15 +42,10 @@ pub fn spawn_hotplug_handler(
     // Create the object for managing devices
     let manager = BeacnMicManager::new(sender.clone());
 
-    // Create a libusb context
-    let context = GlobalContext::default();
-
-    // Work out which type of hot plug handler we need to create
-    if has_hotplug() {
-        thread::spawn(move || hotplug_notify(context, manager, receiver, sender));
-    } else {
-        thread::spawn(move || hotplug_poll(context, manager, receiver));
-    }
+    // nusb's watch_devices() is a single cross-platform (Linux / macOS / Windows) hotplug
+    // API, so unlike the old rusb-based implementation we no longer need a separate
+    // libusb-hotplug-callback path and a polling fallback for platforms without it.
+    thread::spawn(move || hotplug_watch(manager, receiver, sender));
 
     Ok(())
 }
@@ -57,7 +55,7 @@ struct BeacnMicManager {
 }
 
 struct BeacnMicManagerInner {
-    known_devices: Vec<KnownDevice>,
+    known_devices: HashMap<DeviceId, KnownDevice>,
     sender: Sender<HotPlugMessage>,
 }
 
@@ -66,7 +64,7 @@ impl BeacnMicManager {
         Self {
             inner: Arc::new(Mutex::new(BeacnMicManagerInner {
                 sender,
-                known_devices: vec![],
+                known_devices: HashMap::new(),
             })),
         }
     }
@@ -77,23 +75,25 @@ impl BeacnMicManagerInner {
         let _ = self.sender.send(HotPlugMessage::ThreadStopped);
     }
 
-    fn device_connected(&mut self, device: DeviceLocation, device_type: DeviceType) {
-        //let mut inner = self.inner.lock().unwrap();
-
-        if self.known_devices.iter().any(|k| k.location == device) {
+    fn device_connected(&mut self, device: &DeviceInfo, device_type: DeviceType) {
+        let location = DeviceLocation::from(device);
+        if self.known_devices.values().any(|k| k.location == location) {
             warn!("Received 'Arrived' Message for already present device!");
             return;
         }
 
-        debug!("Device Connected at {}", device);
+        debug!("Device Connected at {}", location);
 
         // Create a health channel, this will be triggered if something goes wrong
         let (health_tx, health_rx) = bounded(1);
-        self.known_devices.push(KnownDevice {
-            location: device,
-            device_type,
-            health_rx,
-        });
+        self.known_devices.insert(
+            device.id(),
+            KnownDevice {
+                location: location.clone(),
+                device_type,
+                health_rx,
+            },
+        );
 
         // We're actually going to sleep on this for a quarter of a second because there appears
         // to be situations where if we run through this too quickly, the udev rules may not have
@@ -104,30 +104,34 @@ impl BeacnMicManagerInner {
         sleep(Duration::from_millis(250));
 
         let _ = self.sender.send(HotPlugMessage::DeviceAttached(
-            device,
+            location,
             device_type,
             health_tx,
         ));
     }
 
-    fn device_removed(&mut self, device: DeviceLocation) {
-        debug!("Device Removed from {}", device);
-        self.known_devices.retain(|e| e.location != device);
-        let _ = self.sender.send(HotPlugMessage::DeviceRemoved(device));
+    fn device_removed(&mut self, id: DeviceId) {
+        if let Some(dev) = self.known_devices.remove(&id) {
+            debug!("Device Removed from {}", dev.location);
+            let _ = self
+                .sender
+                .send(HotPlugMessage::DeviceRemoved(dev.location));
+        }
     }
 
     fn check_device_health(&mut self) {
-        for known in &mut self.known_devices {
+        for known in &mut self.known_devices.values_mut() {
             if known.health_rx.try_recv().is_ok() {
-                // We're going to do a rusb iteration to see if the device is still here, this
-                // makes sure that if a device is unplugged but the removal callback hasn't fired
-                // yet, we don't double-up the removal messages.
-                let still_present = rusb::devices()
+                // We're going to do a fresh enumeration to see if the device is still here,
+                // this makes sure that if a device is unplugged but the removal callback
+                // hasn't fired yet, we don't double-up the removal messages.
+                let still_present = nusb::list_devices()
+                    .wait()
                     .ok()
                     .map(|devices| {
                         devices
-                            .iter()
-                            .any(|d| DeviceLocation::from(d) == known.location)
+                            .into_iter()
+                            .any(|d| DeviceLocation::from(&d) == known.location)
                     })
                     .unwrap_or(false);
 
@@ -143,12 +147,12 @@ impl BeacnMicManagerInner {
                     known.health_rx = health_rx;
                     let _ = self
                         .sender
-                        .send(HotPlugMessage::DeviceRemoved(known.location));
+                        .send(HotPlugMessage::DeviceRemoved(known.location.clone()));
 
                     // Sleep for a moment, just to give things time to settle
                     sleep(Duration::from_millis(250));
                     let _ = self.sender.send(HotPlugMessage::DeviceAttached(
-                        known.location,
+                        known.location.clone(),
                         known.device_type,
                         health_tx,
                     ));
@@ -158,149 +162,91 @@ impl BeacnMicManagerInner {
     }
 }
 
-impl Hotplug<GlobalContext> for BeacnMicManager {
-    fn device_arrived(&mut self, device: Device<GlobalContext>) {
-        let location = DeviceLocation::from(device.clone());
-
-        let mut inner = self.inner.lock().unwrap();
-
-        // We need to work out what kind of device this is
-        if let Ok(desc) = device.device_descriptor() {
-            if PID_BEACN_MIC.contains(&desc.product_id()) {
-                debug!("Found Beacn Mic!");
-                inner.device_connected(location, DeviceType::BeacnMic);
-            }
-            if PID_BEACN_STUDIO.contains(&desc.product_id()) {
-                debug!("Found Beacn Studio!");
-                inner.device_connected(location, DeviceType::BeacnStudio);
-            }
-            if PID_BEACN_MIX.contains(&desc.product_id()) {
-                debug!("Found Beacn Mix!");
-                inner.device_connected(location, DeviceType::BeacnMix)
-            }
-            if PID_BEACN_MIX_CREATE.contains(&desc.product_id()) {
-                debug!("Found Beacn Mix Create!");
-                inner.device_connected(location, DeviceType::BeacnMixCreate)
-            }
-        }
+/// Work out if a device is a Beacn device we care about, and if so what type it is.
+fn identify_beacn_device(info: &DeviceInfo) -> Option<DeviceType> {
+    if info.vendor_id() != VENDOR_BEACN {
+        return None;
     }
-
-    #[allow(clippy::collapsible_if)]
-    fn device_left(&mut self, device: Device<GlobalContext>) {
-        // Only flag a device removal if it's a Mic or Studio
-        if let Ok(desc) = device.device_descriptor() {
-            if PID_BEACN_MIC.contains(&desc.product_id())
-                || PID_BEACN_STUDIO.contains(&desc.product_id())
-                || PID_BEACN_MIX.contains(&desc.product_id())
-                || PID_BEACN_MIX_CREATE.contains(&desc.product_id())
-            {
-                let location = DeviceLocation::from(device.clone());
-                self.inner.lock().unwrap().device_removed(location);
-            }
-        }
+    if PID_BEACN_MIC.contains(&info.product_id()) {
+        Some(DeviceType::BeacnMic)
+    } else if PID_BEACN_STUDIO.contains(&info.product_id()) {
+        Some(DeviceType::BeacnStudio)
+    } else if PID_BEACN_MIX.contains(&info.product_id()) {
+        Some(DeviceType::BeacnMix)
+    } else if PID_BEACN_MIX_CREATE.contains(&info.product_id()) {
+        Some(DeviceType::BeacnMixCreate)
+    } else {
+        None
     }
 }
 
-fn hotplug_notify(
-    context: GlobalContext,
+fn hotplug_watch(
     manager: BeacnMicManager,
     receiver: Receiver<HotPlugThreadManagement>,
     sender: Sender<HotPlugMessage>,
 ) {
     let inner = manager.inner.clone();
 
-    let _handler = HotplugBuilder::new()
-        .vendor_id(VENDOR_BEACN)
-        .enumerate(true)
-        .register(context, Box::new(manager))
-        .expect("Cannot Register hot plug Handler");
 
-    let loop_duration = Some(Duration::from_millis(100));
+    // Create the nusb watcher, and start looking for device events..
+    let watch = match nusb::watch_devices() {
+        Ok(watch) => watch,
+        Err(e) => {
+            error!("Unable to start USB hotplug watch: {}", e);
+            let _ = sender.send(HotPlugMessage::ThreadStopped);
+            return;
+        }
+    };
+
+    // watch_devices says to populate from list_devices after it's called, so we can
+    // grab and handle devices which already exist.
+    if let Ok(devices) = nusb::list_devices().wait() {
+        for info in devices {
+            if let Some(device_type) = identify_beacn_device(&info) {
+                inner.lock().unwrap().device_connected(&info, device_type);
+            }
+        }
+    }
+
+    // watch_devices() gives us a stream, given that we're blocking, we need a thread which can
+    // pull out events and send them up to our general handler.
+    let (event_tx, event_rx) = bounded(16);
+    thread::spawn(move || {
+        for event in block_on(watch) {
+            if event_tx.send(event).is_err() {
+                warn!("Hotplug Watcher: Channel Closed, stopping");
+                break;
+            }
+        }
+    });
+
     loop {
         let message = receiver.try_recv();
         if should_stop(message) {
             break;
+        }
+
+        match event_rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(HotplugEvent::Connected(info)) => {
+                if let Some(device_type) = identify_beacn_device(&info) {
+                    debug!("Found Beacn Device (type {:?})", device_type);
+                    inner.lock().unwrap().device_connected(&info, device_type);
+                }
+            }
+            Ok(HotplugEvent::Disconnected(info)) => {
+                inner.lock().unwrap().device_removed(info);
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                error!("Hotplug watch thread has gone away, terminating hot plug Thread");
+                break;
+            }
         }
 
         inner.lock().unwrap().check_device_health();
-        context.handle_events(loop_duration).unwrap();
     }
 
-    // We need to send this ourselves, manager has been moved into the handler
-    let _ = sender.send(HotPlugMessage::ThreadStopped);
-}
-
-fn hotplug_poll(
-    context: GlobalContext,
-    manager: BeacnMicManager,
-    receiver: Receiver<HotPlugThreadManagement>,
-) {
-    loop {
-        let message = receiver.try_recv();
-        if should_stop(message) {
-            break;
-        }
-
-        let mut inner = manager.inner.lock().unwrap();
-
-        let mut found_devices = vec![];
-        if let Ok(devices) = context.devices() {
-            for dev in devices.iter() {
-                #[allow(clippy::collapsible_if)]
-                if let Ok(desc) = dev.device_descriptor() {
-                    if desc.vendor_id() == VENDOR_BEACN {
-                        let device = DeviceLocation::from(dev);
-
-                        #[allow(clippy::collapsible_if)]
-                        if PID_BEACN_MIC.contains(&desc.product_id()) {
-                            if !inner.known_devices.iter().any(|k| k.location == device) {
-                                found_devices.push(device);
-                                inner.device_connected(device, DeviceType::BeacnMic);
-                            }
-                        }
-
-                        #[allow(clippy::collapsible_if)]
-                        if PID_BEACN_STUDIO.contains(&desc.product_id()) {
-                            if !inner.known_devices.iter().any(|k| k.location == device) {
-                                found_devices.push(device);
-                                inner.device_connected(device, DeviceType::BeacnStudio);
-                            }
-                        }
-
-                        #[allow(clippy::collapsible_if)]
-                        if PID_BEACN_MIX.contains(&desc.product_id()) {
-                            if !inner.known_devices.iter().any(|k| k.location == device) {
-                                found_devices.push(device);
-                                inner.device_connected(device, DeviceType::BeacnMix);
-                            }
-                        }
-
-                        #[allow(clippy::collapsible_if)]
-                        if PID_BEACN_MIX_CREATE.contains(&desc.product_id()) {
-                            if !inner.known_devices.iter().any(|k| k.location == device) {
-                                found_devices.push(device);
-                                inner.device_connected(device, DeviceType::BeacnMixCreate);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        let known_locations: Vec<DeviceLocation> =
-            inner.known_devices.iter().map(|k| k.location).collect();
-        for location in known_locations {
-            if !found_devices.contains(&location) {
-                inner.device_removed(location);
-            }
-        }
-
-        // We're done, sleep for now
-        inner.check_device_health();
-        sleep(Duration::from_millis(100));
-    }
-
-    let inner = manager.inner.lock().unwrap();
+    let inner = inner.lock().unwrap();
     inner.thread_stopped();
 }
 
@@ -331,23 +277,23 @@ pub enum HotPlugThreadManagement {
     Quit,
 }
 
-#[derive(Debug, Default, Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
 pub struct DeviceLocation {
-    pub bus_number: u8,
-    pub address: u8,
+    pub bus_id: String,
+    pub device_address: u8,
 }
 
 impl Display for DeviceLocation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{}", self.bus_number, self.address)
+        write!(f, "{}.{}", self.bus_id, self.device_address)
     }
 }
 
-impl<T: UsbContext> From<Device<T>> for DeviceLocation {
-    fn from(value: Device<T>) -> Self {
+impl From<&DeviceInfo> for DeviceLocation {
+    fn from(value: &DeviceInfo) -> Self {
         Self {
-            bus_number: value.bus_number(),
-            address: value.address(),
+            bus_id: value.bus_id().to_string(),
+            device_address: value.device_address(),
         }
     }
 }
@@ -373,15 +319,12 @@ pub fn get_beacn_mix_create_device() -> Vec<DeviceLocation> {
     get_beacn_device(PID_BEACN_MIX_CREATE)
 }
 
-#[allow(clippy::collapsible_if)]
 fn get_beacn_device(pid: &[u16]) -> Vec<DeviceLocation> {
     let mut devices = vec![];
-    if let Ok(devs) = rusb::devices() {
-        for dev in devs.iter() {
-            if let Ok(desc) = dev.device_descriptor() {
-                if desc.vendor_id() == VENDOR_BEACN && pid.contains(&desc.product_id()) {
-                    devices.push(DeviceLocation::from(dev));
-                }
+    if let Ok(devs) = nusb::list_devices().wait() {
+        for info in devs {
+            if info.vendor_id() == VENDOR_BEACN && pid.contains(&info.product_id()) {
+                devices.push(DeviceLocation::from(&info));
             }
         }
     }

@@ -6,7 +6,9 @@ use crate::version::VersionNumber;
 use crate::{BResult, beacn_bail};
 use byteorder::{ByteOrder, LittleEndian};
 use log::{debug, warn};
-use rusb::{DeviceHandle, GlobalContext};
+use nusb::MaybeFuture;
+use nusb::transfer::{Buffer, Bulk, In, Out};
+use std::sync::Mutex;
 use std::time::Duration;
 
 // This defines the code needed for connecting to a Beacn Audio Device, it's currently consistent
@@ -25,9 +27,18 @@ pub trait BeacnAudioDeviceAttach {
     fn get_version(&self) -> VersionNumber;
 }
 
+/// This is a bulk endpoint pair. These are mutexed together to prevent
+/// the potential of different threads attempting to interact with the
+/// devices at the same time, and access is treated once at a time.
+pub(crate) struct AudioEndpoints {
+    pub(crate) out_ep: nusb::Endpoint<Bulk, Out>,
+    pub(crate) in_ep: nusb::Endpoint<Bulk, In>,
+}
+
+#[allow(private_interfaces)]
 pub trait BeacnAudioMessageExecute {
     fn get_device_type(&self) -> DeviceType;
-    fn get_usb_handle(&self) -> &DeviceHandle<GlobalContext>;
+    fn get_endpoints(&self) -> &Mutex<AudioEndpoints>;
 }
 
 // Trait for Sending and Receiving Messages
@@ -131,12 +142,21 @@ pub(crate) trait BeacnAudioMessageLocal:
         request[0..3].copy_from_slice(&key);
         request[3] = 0xa3;
 
+        let mut ep = self.get_endpoints().lock().unwrap();
+
         // Write out the command request
-        self.get_usb_handle().write_bulk(0x03, &request, timeout)?;
+        ep.out_ep
+            .transfer_blocking(request.into(), timeout)
+            .into_result()?;
 
         // Grab the response into a buffer
-        let mut buf = [0; 8];
-        self.get_usb_handle().read_bulk(0x83, &mut buf, timeout)?;
+        let completion = ep
+            .in_ep
+            .transfer_blocking(Buffer::new(8), timeout)
+            .into_result()?;
+
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(&completion[0..8]);
 
         // Validate the header...
         if buf[0..2] != request[0..2] || buf[3] != 0xa4 {
@@ -155,8 +175,13 @@ pub(crate) trait BeacnAudioMessageLocal:
         request[3] = 0xa4;
         request[4..].copy_from_slice(&value);
 
-        // Write out the command request
-        self.get_usb_handle().write_bulk(0x03, &request, timeout)?;
+        {
+            let mut endpoints = self.get_endpoints().lock().unwrap();
+            endpoints
+                .out_ep
+                .transfer_blocking(request.into(), timeout)
+                .into_result()?;
+        }
 
         // Check whether the value has changed
         let new_value = self.param_lookup(key)?;
@@ -187,11 +212,19 @@ pub(crate) trait BeacnAudioMessageLocal:
 
         // Build the request
         let request = [0x00, 0x00, 0x01, 0xAC];
-        self.get_usb_handle().write_bulk(0x03, &request, timeout)?;
+
+        let mut endpoints = self.get_endpoints().lock().unwrap();
+        endpoints
+            .out_ep
+            .transfer_blocking(request.into(), timeout)
+            .into_result()?;
 
         // TODO: Assuming max length of 1024, it might be higher
-        let mut buf = [0; 1024];
-        self.get_usb_handle().read_bulk(0x83, &mut buf, timeout)?;
+        let completion = endpoints
+            .in_ep
+            .transfer_blocking(Buffer::new(1024), timeout)
+            .into_result()?;
+        let buf = &completion[..];
 
         // Extract the header
         let data_length = LittleEndian::read_u24(&buf[0..3]) as usize;
@@ -255,15 +288,22 @@ pub(crate) trait BeacnAudioMessageLocal:
         message.extend_from_slice(&packet);
 
         let timeout = Duration::from_secs(3);
-        self.get_usb_handle().write_bulk(0x03, &message, timeout)?;
+        let mut endpoints = self.get_endpoints().lock().unwrap();
+        endpoints
+            .out_ep
+            .transfer_blocking(message.into(), timeout)
+            .into_result()?;
 
         Ok(())
     }
 }
 
-/// Simple function to Open a libusb connection to a Beacn Audio device, do initial setup and
+/// Simple function to Open a USB connection to a Beacn Audio device, do initial setup and
 /// grab the firmware version from the device.
-pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<BeacnDeviceHandle> {
+pub(crate) fn open_beacn(
+    def: DeviceDefinition,
+    product_id: &[u16],
+) -> BResult<(BeacnDeviceHandle, AudioEndpoints)> {
     if !product_id.contains(&def.descriptor.product_id()) {
         beacn_bail!(
             "Expecting PIDs {:?} but got {}",
@@ -272,38 +312,56 @@ pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<B
         );
     }
 
-    let handle = def.device.open()?;
-    handle.claim_interface(3)?;
-    handle.set_alternate_setting(3, 1)?;
-    handle.clear_halt(0x83)?;
+    let device = def.descriptor.open().wait()?;
+    let interface = device.claim_interface(3).wait()?;
+    interface.set_alt_setting(1).wait()?;
+
+    let mut out_ep = interface.endpoint::<Bulk, Out>(0x03)?;
+    let mut in_ep = interface.endpoint::<Bulk, In>(0x83)?;
+    in_ep.clear_halt().wait()?;
 
     let setup_timeout = Duration::from_millis(2000);
 
     let request = [0x00, 0x00, 0x00, 0xa0];
-    handle.write_bulk(0x03, &request, setup_timeout)?;
+    out_ep
+        .transfer_blocking(request.into(), setup_timeout)
+        .into_result()?;
 
     // Mic and Studio use bulk reads to get this data
-    let mut input = [0; 512];
     let request = [0x00, 0x00, 0x00, 0xa1];
-    handle.write_bulk(0x03, &request, setup_timeout)?;
-    handle.read_bulk(0x83, &mut input, setup_timeout)?;
+    out_ep
+        .transfer_blocking(request.into(), setup_timeout)
+        .into_result()?;
+
+    let read_len = in_ep.max_packet_size().max(512);
+    let completion = in_ep
+        .transfer_blocking(Buffer::new(read_len), setup_timeout)
+        .into_result()?;
 
     // So, this is consistent between the Mix Create and the Mic :D
-    let (version, serial) = get_device_info(&input)?;
+    let (version, serial) = get_device_info(&completion[..])?;
 
     debug!(
         "Loaded Device, Location: {}.{}, Serial: {}, Version: {}",
-        def.device.bus_number(),
-        def.device.address(),
+        def.descriptor.bus_id(),
+        def.descriptor.device_address(),
         serial.clone(),
         version
     );
 
-    Ok(BeacnDeviceHandle {
+    let handle = BeacnDeviceHandle {
         descriptor: def.descriptor,
-        device: def.device,
-        handle,
+        device,
+        interface,
         version,
         serial,
-    })
+    };
+
+    Ok((
+        handle,
+        AudioEndpoints {
+            out_ep: out_ep,
+            in_ep,
+        },
+    ))
 }

@@ -1,5 +1,5 @@
 use crate::BResult;
-use crate::audio::common::{BeacnAudioMessageLocal, open_beacn};
+use crate::audio::common::{AudioEndpoints, BeacnAudioMessageLocal, open_beacn};
 use crate::audio::{
     BeacnAudioDevice, BeacnAudioDeviceAttach, BeacnAudioMessageExecute, BeacnAudioMessaging,
     DeviceDefinition,
@@ -7,16 +7,20 @@ use crate::audio::{
 use crate::common::BeacnDeviceHandle;
 use crate::manager::{DeviceType, PID_BEACN_MIC};
 use crate::version::VersionNumber;
-use rusb::{DeviceHandle, GlobalContext};
+use std::sync::Mutex;
 
 pub struct BeacnMic {
     handle: BeacnDeviceHandle,
+    endpoints: Mutex<AudioEndpoints>,
 }
 
 impl BeacnAudioDeviceAttach for BeacnMic {
     fn connect(definition: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>> {
-        let handle = open_beacn(definition, PID_BEACN_MIC)?;
-        Ok(Box::new(Self { handle }))
+        let (handle, endpoints) = open_beacn(definition, PID_BEACN_MIC)?;
+        Ok(Box::new(Self {
+            handle,
+            endpoints: Mutex::new(endpoints),
+        }))
     }
 
     fn get_product_id(&self) -> u16 {
@@ -37,8 +41,8 @@ impl BeacnAudioMessageExecute for BeacnMic {
         DeviceType::BeacnMic
     }
 
-    fn get_usb_handle(&self) -> &DeviceHandle<GlobalContext> {
-        &self.handle.handle
+    fn get_endpoints(&self) -> &Mutex<AudioEndpoints> {
+        &self.endpoints
     }
 }
 

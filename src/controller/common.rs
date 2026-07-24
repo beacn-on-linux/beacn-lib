@@ -15,7 +15,8 @@ use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use flume::{Receiver, Sender, bounded};
 use jpeg_decoder::Decoder;
 use log::{debug, error, warn};
-use std::sync::Arc;
+use nusb::MaybeFuture;
+use nusb::transfer::{Buffer, In, Interrupt, Out, TransferError};
 use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -71,24 +72,38 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         // We need a message queue for handling when inputs have been received for parsing, given
         // they can come from one of two places, we'll handle them once. 64 might be a little big.
         let (input_tx, input_rx) = bounded(64);
-        let mut input_buffer = [0; 64];
+        let mut input_buffer = [0u8; 64];
 
         // Timeout Handlers
         let timeout = Duration::from_millis(2000);
 
-        // At this point, we need to pull out the USB handler and wrap it up
-        let handle = Arc::new(handler.handle);
+        // Claim the endpoints we need. The OUT endpoint is always used from this thread.
+        // The IN endpoint is used either by a dedicated reader thread (older "notify"
+        // firmware) or polled from this thread's event loop (newer firmware) -- never both,
+        // so ownership transfers to whichever one needs it below.
+        let mut out_ep = match handler.interface.endpoint::<Interrupt, Out>(0x03) {
+            Ok(ep) => ep,
+            Err(e) => {
+                error!("Failed to open Interrupt OUT endpoint: {}", e);
+                return;
+            }
+        };
+        let in_ep = match handler.interface.endpoint::<Interrupt, In>(0x83) {
+            Ok(ep) => ep,
+            Err(e) => {
+                error!("Failed to open Interrupt IN endpoint: {}", e);
+                return;
+            }
+        };
+
+        let mut polled_in_ep: Option<nusb::Endpoint<Interrupt, In>> = None;
+
         let poll = if is_notify {
-            let handler_clone = handle.clone();
             let tx_clone = input_tx.clone();
             thread::spawn(move || {
                 debug!("Spawning Event Listener");
 
-                // Input buffer for messages
-                let mut input = [0; 64];
-
-                let handle = handler_clone;
-                let input_tx = tx_clone;
+                let mut in_ep = in_ep;
                 let read = Duration::from_millis(100);
 
                 // These are just defensive checks
@@ -97,16 +112,19 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
                 loop {
                     // Firstly, we need to fire off a message saying we're ready for buttons
-                    match handle.read_interrupt(0x83, &mut input, read) {
-                        Ok(_) => {
+                    match in_ep.transfer_blocking(Buffer::new(64), read).into_result() {
+                        Ok(buf) => {
                             no_device_retries = 0;
-                            if let Err(e) = input_tx.send(input) {
+                            let mut input = [0u8; 64];
+                            let n = buf.len().min(64);
+                            input[..n].copy_from_slice(&buf[..n]);
+                            if let Err(e) = tx_clone.send(input) {
                                 // Our channel is gone or closed, bail.
                                 warn!("Message Channel Closed, Terminating: {}", e);
                                 break;
                             }
                         }
-                        Err(rusb::Error::NoDevice) => {
+                        Err(TransferError::Disconnected) => {
                             no_device_retries += 1;
                             if no_device_retries > MAX_NO_DEVICE_RETRIES {
                                 warn!(
@@ -124,10 +142,10 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                             // on the read has been cancelled, and we can safely retry.
                             thread::sleep(Duration::from_millis(100));
                         }
-                        Err(rusb::Error::Timeout) => {
-                            // Timeout is a completely acceptable error to have, it just means
-                            // the user hasn't moved a dial or pressed a button in the last
-                            // `read` seconds, and we're good to wait again.
+                        Err(TransferError::Cancelled) => {
+                            // Cancelled here just means our read timed out without anything to
+                            // report, which just means the user hasn't moved a dial or pressed
+                            // a button in the last `read` seconds, and we're good to wait again.
                             no_device_retries = 0;
                         }
                         Err(usb_error) => {
@@ -141,6 +159,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             });
             never()
         } else {
+            polled_in_ep = Some(in_ep);
             tick(Duration::from_millis(50))
         };
 
@@ -156,26 +175,35 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         let buttons = [1, 7, 0, 4, button_brightness, 0, 0, 0];
 
         // Message to instruct the screen to turn on (default to off after a few seconds)
-        if let Err(e) = handle.write_interrupt(0x03, &enable, timeout) {
+        if let Err(e) = out_ep
+            .transfer_blocking(enable.into(), timeout)
+            .into_result()
+        {
             error!("Unable to Turn the Screen on: {}", e);
             return;
         }
 
         // Set the default display brightness
-        if let Err(e) = handle.write_interrupt(0x03, &brightness, timeout) {
+        if let Err(e) = out_ep
+            .transfer_blocking(brightness.into(), timeout)
+            .into_result()
+        {
             error!("Failed to Set Default Brightness: {}", e);
             return;
         }
 
         // Set the default button brightness
-        if let Err(e) = handle.write_interrupt(0x03, &buttons, timeout) {
+        if let Err(e) = out_ep
+            .transfer_blocking(buttons.into(), timeout)
+            .into_result()
+        {
             error!("Unable to Set Default Button Brightness: {}", e);
             return;
         }
 
         // Force the device into a 'wake' state if it's currently sleeping
         let wake = [00, 00, 00, 0xf1];
-        if let Err(e) = handle.write_interrupt(0x03, &wake, timeout) {
+        if let Err(e) = out_ep.transfer_blocking(wake.into(), timeout).into_result() {
             error!("Unable to Wake Device: {}", e);
             return;
         }
@@ -209,8 +237,10 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     break;
                                 }
                                 KeepAlive => {
-                                    let msg = &[00, 00, 00, 0xf1];
-                                    if let Err(e) = handle.write_interrupt(0x03, msg, timeout) {
+                                    let msg = [00, 00, 00, 0xf1];
+                                    if let Err(e) =
+                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
+                                    {
                                         error!("Error Sending Keep-Alive Request: {}", e);
                                         break;
                                     }
@@ -219,7 +249,9 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     let byte = if enabled { 0 } else { 1 };
                                     let msg = [0, 1, 0, 4, byte, 0, 0, 0];
 
-                                    if let Err(e) = handle.write_interrupt(0x03, &msg, timeout) {
+                                    if let Err(e) =
+                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
+                                    {
                                         error!("Failed to Send Enabled Message: {}", e);
                                         break 'primary;
                                     }
@@ -232,16 +264,19 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     let overall_budget = Duration::from_secs(10);
 
                                     if !device_enabled {
-                                        if let Err(e) =
-                                            handle.write_interrupt(0x03, &enable, timeout)
+                                        if out_ep
+                                            .transfer_blocking(enable.into(), timeout)
+                                            .into_result()
+                                            .is_err()
                                         {
                                             warn!(
-                                                "Failed to enable device, attempting to clear halt: {e}"
+                                                "Failed to enable device, attempting to clear halt"
                                             );
 
-                                            let retry = handle.clear_halt(0x83).is_ok()
-                                                && handle
-                                                    .write_interrupt(0x03, &enable, timeout)
+                                            let retry = out_ep.clear_halt().wait().is_ok()
+                                                && out_ep
+                                                    .transfer_blocking(enable.into(), timeout)
+                                                    .into_result()
                                                     .is_ok();
 
                                             if !retry {
@@ -254,15 +289,17 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         device_enabled = true;
                                     }
 
-                                    let send_chunk =
-                                        |output: &[u8; 1024]| -> Result<(), rusb::Error> {
+                                    let mut send_chunk =
+                                        |output: &[u8; 1024]| -> Result<(), TransferError> {
                                             let started = Instant::now();
                                             let mut retry_count = 0;
                                             loop {
-                                                match handle.write_interrupt(0x03, output, timeout)
+                                                match out_ep
+                                                    .transfer_blocking((*output).into(), timeout)
+                                                    .into_result()
                                                 {
                                                     Ok(_) => return Ok(()),
-                                                    Err(rusb::Error::Timeout)
+                                                    Err(TransferError::Cancelled)
                                                         if started.elapsed() < chunk_retry =>
                                                     {
                                                         retry_count += 1;
@@ -299,7 +336,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
                                                 match send_chunk(&output) {
                                                     Ok(_) => {}
-                                                    Err(rusb::Error::Timeout) => {
+                                                    Err(TransferError::Cancelled) => {
                                                         warn!(
                                                             "Chunk {} failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0",
                                                             index,
@@ -332,7 +369,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
                                                     match send_chunk(&output) {
                                                         Ok(_) => {}
-                                                        Err(rusb::Error::Timeout) => {
+                                                        Err(TransferError::Cancelled) => {
                                                             warn!(
                                                                 "Final chunk failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0",
                                                                 attempt,
@@ -384,8 +421,10 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     }
                                     active_brightness = percent;
 
-                                    let msg = &[0, 0, 0, 4, active_brightness, 0, 0, 0];
-                                    if let Err(e) = handle.write_interrupt(0x03, msg, timeout) {
+                                    let msg = [0, 0, 0, 4, active_brightness, 0, 0, 0];
+                                    if let Err(e) =
+                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
+                                    {
                                         error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }
@@ -393,15 +432,19 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 SetButtonBrightness(value) => {
                                     button_brightness = value;
 
-                                    let msg = &[1, 7, 0, 4, button_brightness, 0, 0, 0];
-                                    if let Err(e) = handle.write_interrupt(0x03, msg, timeout) {
+                                    let msg = [1, 7, 0, 4, button_brightness, 0, 0, 0];
+                                    if let Err(e) =
+                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
+                                    {
                                         error!("Failed to Set Button Brightness: {}", e);
                                         break;
                                     }
                                 }
                                 SetButtonColour(b, c) => {
                                     let msg = [1, b, 0, 4, c.blue, c.green, c.red, c.alpha];
-                                    if let Err(e) = handle.write_interrupt(0x03, &msg, timeout) {
+                                    if let Err(e) =
+                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
+                                    {
                                         error!("Failed to Set Button Colour: {}", e);
                                         break;
                                     }
@@ -416,8 +459,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                 }
                 Event::DimTimeout => {
                     is_dimmed = true;
-                    let msg = &[0, 0, 0, 4, DISPLAY_DEFAULT_DIM_BRIGHTNESS, 0, 0, 0];
-                    if let Err(e) = handle.write_interrupt(0x03, msg, timeout) {
+                    let msg = [0, 0, 0, 4, DISPLAY_DEFAULT_DIM_BRIGHTNESS, 0, 0, 0];
+                    if let Err(e) = out_ep.transfer_blocking(msg.into(), timeout).into_result() {
                         error!("Failed to Set DIM brightness: {}", e);
                         break;
                     }
@@ -433,8 +476,10 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 if is_dimmed {
                                     // We need to wake up screen
                                     is_dimmed = false;
-                                    let msg = &[0, 0, 0, 4, active_brightness, 0, 0, 0];
-                                    if let Err(e) = handle.write_interrupt(0x03, msg, timeout) {
+                                    let msg = [0, 0, 0, 4, active_brightness, 0, 0, 0];
+                                    if let Err(e) =
+                                        out_ep.transfer_blocking(msg.into(), timeout).into_result()
+                                    {
                                         error!("Failed to Set DIM brightness: {}", e);
                                         break;
                                     }
@@ -452,18 +497,33 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                 }
                 Event::Poll => {
                     // Ok, we're at a poll interval, we need to fetch changes to inputs
-                    if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 5], timeout) {
+                    if let Err(e) = out_ep
+                        .transfer_blocking([0, 0, 0, 5].into(), timeout)
+                        .into_result()
+                    {
                         debug!("Error Sending Poll Request: {}", e);
                         break;
                     }
-                    if let Err(e) = handle.read_interrupt(0x83, &mut input_buffer, timeout) {
-                        debug!("Error Reading Poll Response: {}", e);
-                        break;
-                    } else {
-                        if let Err(e) = input_tx.send(input_buffer) {
-                            debug!("Failed to Send Poll Response Data: {}", e);
+
+                    let in_ep = polled_in_ep
+                        .as_mut()
+                        .expect("polled_in_ep is always Some() when Event::Poll can fire");
+                    match in_ep
+                        .transfer_blocking(Buffer::new(64), timeout)
+                        .into_result()
+                    {
+                        Err(e) => {
+                            debug!("Error Reading Poll Response: {}", e);
                             break;
-                        };
+                        }
+                        Ok(buf) => {
+                            let n = buf.len().min(64);
+                            input_buffer[..n].copy_from_slice(&buf[..n]);
+                            if let Err(e) = input_tx.send(input_buffer) {
+                                debug!("Failed to Send Poll Response Data: {}", e);
+                                break;
+                            };
+                        }
                     }
                 }
             }
@@ -557,7 +617,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             if (y + info.height as u32) > display_size.1 {
                 beacn_bail!(
                     "Image overflows display height, {}>{}",
-                    x + info.height as u32,
+                    y + info.height as u32,
                     display_size.1
                 );
             }
@@ -614,7 +674,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     }
 }
 
-/// Simple function to Open a libusb connection to a Beacn Audio device, do initial setup and
+/// Simple function to Open a USB connection to a Beacn Audio device, do initial setup, and
 /// grab the firmware version from the device.
 pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<BeacnDeviceHandle> {
     if !product_id.contains(&def.descriptor.product_id()) {
@@ -625,32 +685,42 @@ pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<B
         );
     }
 
-    let handle = def.device.open()?;
-    handle.claim_interface(0)?;
-    handle.set_alternate_setting(0, 1)?;
-    handle.clear_halt(0x83)?;
+    let device = def.descriptor.open().wait()?;
+    let interface = device.claim_interface(0).wait()?;
+    interface.set_alt_setting(1).wait()?;
+
+    let mut out_ep = interface.endpoint::<Interrupt, Out>(0x03)?;
+    let mut in_ep = interface.endpoint::<Interrupt, In>(0x83)?;
+    in_ep.clear_halt().wait()?;
 
     let setup_timeout = Duration::from_millis(2000);
 
     // Unlike the Mic and Studio, we use an interrupt, rather a bulk read
-    let mut input = [0; 64];
-    handle.write_interrupt(0x03, &[00, 00, 00, 1], setup_timeout)?;
-    handle.read_interrupt(0x83, &mut input, setup_timeout)?;
+    out_ep
+        .transfer_blocking([00u8, 00, 00, 1].into(), setup_timeout)
+        .into_result()?;
+    let completion = in_ep
+        .transfer_blocking(Buffer::new(64), setup_timeout)
+        .into_result()?;
 
-    let (version, serial) = get_device_info(&input)?;
+    let (version, serial) = get_device_info(&completion[..])?;
 
     debug!(
         "Loaded Device, Location: {}.{}, Serial: {}, Version: {}",
-        def.device.bus_number(),
-        def.device.address(),
+        def.descriptor.bus_id(),
+        def.descriptor.device_address(),
         serial.clone(),
         version
     );
 
+    // out_ep / in_ep are dropped here, releasing their claim on the endpoints. They get
+    // claimed again in spawn_event_handler, once we know whether the IN endpoint needs to
+    // live on a dedicated reader thread (older "notify" firmware) or stay on the event loop
+    // thread (newer, polling firmware).
     Ok(BeacnDeviceHandle {
         descriptor: def.descriptor,
-        device: def.device,
-        handle,
+        device,
+        interface,
         version,
         serial,
     })
