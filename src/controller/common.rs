@@ -20,7 +20,7 @@ use nusb::MaybeFuture;
 use nusb::transfer::{Buffer, In, Interrupt, Out, TransferError};
 use std::thread;
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use strum::IntoEnumIterator;
 
 // Default Display 'Active' and 'Dimmed' brightness, and the default dim time
