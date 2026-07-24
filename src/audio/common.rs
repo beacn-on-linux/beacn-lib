@@ -150,10 +150,15 @@ pub(crate) trait BeacnAudioMessageLocal:
             .into_result()?;
 
         // Grab the response into a buffer
+        let max_packet_size = ep.in_ep.max_packet_size();
         let completion = ep
             .in_ep
-            .transfer_blocking(Buffer::new(8), timeout)
+            .transfer_blocking(Buffer::new(max_packet_size), timeout)
             .into_result()?;
+
+        if completion.len() != 8 {
+            beacn_bail!("Invalid Response Length Received");
+        }
 
         let mut buf = [0u8; 8];
         buf.copy_from_slice(&completion[0..8]);
