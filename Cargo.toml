@@ -3,6 +3,13 @@ name = "beacn-lib"
 version = "0.1.11"
 edition = "2024"
 
+[features]
+default = []
+
+# These two get passed forward to nusb for use in async environments
+tokio = ["nusb/tokio"]
+smol = ["nusb/smol"]
+
 [dependencies]
 strum = { version = "0.28.0", features = ["strum_macros", "derive"] }
 enum-map = "2.7.3"
@@ -14,6 +21,8 @@ anyhow = "1.0.103"
 
 #rusb = "0.9.4"
 nusb = "0.2.5"
+
+async-trait = "0.1.91"
 futures-lite = "2.6.1"
 
 # Used for Managing Interaction threads
