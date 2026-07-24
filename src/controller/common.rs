@@ -196,7 +196,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         let mut dim_duration = Duration::from_secs(DISPLAY_DIM_TIME);
 
         // Create some timers for processing
-        let mut dim_timeout = after(dim_duration);
+        let mut dim_timeout = Timer::new(dim_duration);
 
         // TODO: I should probably use a Macro or a closure to handle the recv
         // In all cases, if a channel has closed, we should abort.
@@ -204,7 +204,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         'primary: loop {
             let event = flume::Selector::new()
                 .recv(&rx, Event::Command)
-                .recv(&dim_timeout, |_| Event::DimTimeout)
+                .recv(dim_timeout.receiver(), |_| Event::DimTimeout)
                 .recv(&input_rx, Event::Input)
                 .recv(&poll, |_| Event::Poll)
                 .wait();
@@ -245,13 +245,13 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     dim_duration = timeout;
                                     if !is_dimmed {
                                         // If we're not already dimmed, reset the timer
-                                        dim_timeout = after(timeout);
+                                        dim_timeout.reset(timeout);
                                     }
                                 }
                                 SetActiveBrightness(percent) => {
                                     if is_dimmed {
                                         is_dimmed = false;
-                                        dim_timeout = after(dim_duration);
+                                        dim_timeout.reset(timeout);
                                     }
                                     brightness = percent;
                                     if let Err(e) = messenger.set_screen_brightness(brightness) {
@@ -305,7 +305,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                 }
 
                                 // Set a new Dim timeout
-                                dim_timeout = after(dim_duration);
+                                dim_timeout.reset(timeout);
                             }
                         }
                         Err(e) => {
@@ -344,6 +344,8 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                 }
             }
         }
+
+        dim_timeout.cancel();
 
         debug!("Event Handler Terminated");
     }
@@ -549,28 +551,6 @@ enum Event {
     Poll,
 }
 
-// Replacement for crossbeam::channel::after
-pub fn after(duration: Duration) -> Receiver<()> {
-    let (tx, rx) = bounded(1);
-
-    thread::spawn(move || {
-        if tx.is_disconnected() {
-            return;
-        }
-
-        let start = Instant::now();
-        while start.elapsed() < duration {
-            if tx.is_disconnected() {
-                return;
-            }
-            sleep(Duration::from_millis(50));
-        }
-        let _ = tx.send(());
-    });
-
-    rx
-}
-
 pub fn tick(duration: Duration) -> Receiver<()> {
     let (tx, rx) = flume::unbounded();
 
@@ -589,4 +569,51 @@ pub fn tick(duration: Duration) -> Receiver<()> {
 pub fn never<T>() -> Receiver<T> {
     let (_tx, rx) = flume::bounded(0);
     rx
+}
+
+// Replacement for crossbeam::channel::after
+pub struct Timer {
+    cancel: Sender<()>,
+    rx: Receiver<()>,
+}
+
+impl Timer {
+    pub fn new(duration: Duration) -> Self {
+        let (cancel_tx, cancel_rx) = bounded(1);
+        let (tx, rx) = bounded(1);
+
+        thread::spawn(move || {
+            loop {
+                let event = flume::Selector::new()
+                    .recv(&cancel_rx, |_| false)
+                    .wait_timeout(duration);
+
+                match event {
+                    Ok(false) => break,
+                    Ok(true) => {
+                        let _ = tx.send(());
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
+        Self {
+            cancel: cancel_tx,
+            rx,
+        }
+    }
+
+    pub fn cancel(&self) {
+        let _ = self.cancel.send(());
+    }
+
+    pub fn reset(&mut self, duration: Duration) {
+        let _ = self.cancel.send(());
+        *self = Self::new(duration);
+    }
+
+    pub fn receiver(&self) -> &Receiver<()> {
+        &self.rx
+    }
 }
