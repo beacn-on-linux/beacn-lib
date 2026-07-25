@@ -411,14 +411,14 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             .send(SetEnabled(enabled, tx))
             .map_err(Error::from)?;
 
-        let _ = rx.recv().map_err(Error::from)?;
+        rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
     fn send_keepalive(&self) -> BResult<()> {
         let (tx, rx) = oneshot::channel();
         self.get_sender().send(KeepAlive(tx)).map_err(Error::from)?;
-        let _ = rx.recv().map_err(Error::from)?;
+        rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
@@ -465,7 +465,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             .send(SetImage(x, y, Vec::from(jpeg_image), tx))
             .map_err(Error::from)?;
 
-        let _ = rx.recv().map_err(Error::from)?;
+        rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
@@ -479,7 +479,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             .send(SetActiveBrightness(brightness, tx))
             .map_err(Error::from)?;
 
-        let _ = rx.recv().map_err(Error::from)?;
+        rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
@@ -493,7 +493,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             .send(SetButtonBrightness(brightness, tx))
             .map_err(Error::from)?;
 
-        let _ = rx.recv().map_err(Error::from)?;
+        rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
@@ -509,7 +509,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             .send(SetDimTimeout(timeout, tx))
             .map_err(Error::from)?;
 
-        let _ = rx.recv().map_err(Error::from)?;
+        rx.recv().map_err(Error::from)?;
         Ok(())
     }
 

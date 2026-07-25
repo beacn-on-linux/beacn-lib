@@ -129,7 +129,11 @@ impl BeacnMicManagerInner {
             let still_present = crate::setup::list_devices()
                 .await
                 .ok()
-                .map(|devices| devices.into_iter().any(|d| DeviceLocation::from(&d) == location))
+                .map(|devices| {
+                    devices
+                        .into_iter()
+                        .any(|d| DeviceLocation::from(&d) == location)
+                })
                 .unwrap_or(false);
 
             if !still_present {
