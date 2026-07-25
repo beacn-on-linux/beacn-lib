@@ -1,4 +1,3 @@
-use crate::MaybeFuture as BeacnMaybeFuture;
 use crate::common::{BeacnDeviceHandle, DeviceDefinition, get_device_info};
 use crate::controller::ButtonState::{Press, Release};
 use crate::controller::ControlThreadSender::{
@@ -13,7 +12,7 @@ use crate::controller::{
 use crate::transfer::transfer_with_timeout;
 use crate::types::RGBA;
 use crate::version::VersionNumber;
-use crate::{BResult, beacn_bail};
+use crate::{BResult, MaybeFuture, beacn_bail};
 use anyhow::Error;
 use byteorder::{BigEndian, ByteOrder};
 use flume::{Receiver, Sender, bounded};
@@ -179,7 +178,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             return;
         }
 
-        if let Err(e) = messenger.set_screen_brightness(brightness).wait() {
+        if let Err(e) = messenger.set_brightness(brightness).wait() {
             error!("Failed to Set Default Brightness: {}", e);
             return;
         }
@@ -260,9 +259,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         dim_timeout.reset(dim_duration);
                                     }
                                     brightness = percent;
-                                    if let Err(e) =
-                                        messenger.set_screen_brightness(brightness).wait()
-                                    {
+                                    if let Err(e) = messenger.set_brightness(brightness).wait() {
                                         error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }
@@ -289,10 +286,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                 }
                 Event::DimTimeout => {
                     is_dimmed = true;
-                    if let Err(e) = messenger
-                        .set_screen_brightness(DISPLAY_DIM_BRIGHTNESS)
-                        .wait()
-                    {
+                    if let Err(e) = messenger.set_brightness(DISPLAY_DIM_BRIGHTNESS).wait() {
                         error!("Failed to Set DIM brightness: {}", e);
                         break;
                     }
@@ -309,9 +303,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     // We need to wake up screen
                                     is_dimmed = false;
 
-                                    if let Err(e) =
-                                        messenger.set_screen_brightness(brightness).wait()
-                                    {
+                                    if let Err(e) = messenger.set_brightness(brightness).wait() {
                                         error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }

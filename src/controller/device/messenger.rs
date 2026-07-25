@@ -36,7 +36,7 @@ impl<'a> Messenger<'a> {
         self.send(&[0, 0, 0, 0xf1]).await
     }
 
-    pub async fn set_screen_brightness(&mut self, brightness: u8) -> Result<(), TransferError> {
+    pub async fn set_brightness(&mut self, brightness: u8) -> Result<(), TransferError> {
         self.send(&[0, 0, 0, 4, brightness, 0, 0, 0]).await
     }
 
