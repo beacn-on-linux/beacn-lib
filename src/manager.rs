@@ -9,7 +9,6 @@ use nusb::{DeviceId, DeviceInfo};
 use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::thread;
 use std::time::Duration;
 
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
@@ -33,26 +32,16 @@ struct KnownDevice {
     health_rx: Receiver<()>,
 }
 
-/// Spawn a dedicated OS thread that watches for Beacn device hot-plug events and reports
-/// them on `sender`, for classic synchronous / thread-per-task usage.
-///
-/// This is just `watch_hotplug_devices` driven to completion with `.wait()` on its own
-/// thread -- if you're calling from an async runtime and would rather attach the watch
-/// to your own task instead of us spawning a thread for it, use `watch_hotplug_devices`
-/// directly (`tokio::spawn(watch_hotplug_devices(...))` or equivalent).
-pub fn spawn_hotplug_handler(
+/// This is a blocking hotplug runner, designed to be dropped into a thread. If you're in an
+/// async runtime, use `watch_hotplug_handler` instead.
+pub fn run_hotplug_handler(
     sender: Sender<HotPlugMessage>,
     receiver: Receiver<HotPlugThreadManagement>,
 ) -> Result<()> {
-    debug!("Spawning Beacn Mic Hot Plug Handler");
+    debug!("Running Beacn Mic Hot Plug Handler");
 
-    // nusb's watch_devices() is a single cross-platform (Linux / macOS / Windows) hotplug
-    // API, so unlike the old rusb-based implementation we no longer need a separate
-    // libusb-hotplug-callback path and a polling fallback for platforms without it.
-    thread::spawn(move || {
-        use crate::MaybeFuture;
-        watch_hotplug_devices(sender, receiver).wait();
-    });
+    use crate::MaybeFuture;
+    watch_hotplug_devices(sender, receiver).wait();
 
     Ok(())
 }
