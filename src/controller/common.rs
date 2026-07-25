@@ -10,6 +10,7 @@ use crate::controller::device::timer::Timer;
 use crate::controller::{
     BeacnControlDevice, ButtonLighting, Buttons, ControlThreadSender, Dials, Interactions,
 };
+use crate::transfer::transfer_with_timeout;
 use crate::types::RGBA;
 use crate::version::VersionNumber;
 use crate::{BResult, beacn_bail};
@@ -18,7 +19,6 @@ use byteorder::{BigEndian, ByteOrder};
 use flume::{Receiver, Sender, bounded};
 use jpeg_decoder::Decoder;
 use log::{debug, error, warn};
-use nusb::MaybeFuture;
 use nusb::transfer::{Buffer, In, Interrupt, Out, TransferError};
 use std::thread;
 use std::thread::sleep;
@@ -33,12 +33,13 @@ static DISPLAY_DIM_TIME: u64 = 180;
 // Default button brightness
 static BUTTONS_DEFAULT_BRIGHTNESS: u8 = 8;
 
+#[async_trait::async_trait]
 pub trait BeacnControlDeviceAttach {
     // We're specifically allowing the DeviceDefinition to be a private interface, as it's
     // simply used internally for connection up a device, and shouldn't have any visibility
     // from the outside. This also prevents external code from attempting to call connect.
     #[allow(private_interfaces)]
-    fn connect(
+    async fn connect(
         definition: DeviceDefinition,
         interaction: Option<Sender<Interactions>>,
         health_tx: Sender<()>,
@@ -504,7 +505,10 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
 /// Simple function to Open a USB connection to a Beacn Audio device, do initial setup, and
 /// grab the firmware version from the device.
-pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<BeacnDeviceHandle> {
+pub(crate) async fn open_beacn(
+    def: DeviceDefinition,
+    product_id: &[u16],
+) -> BResult<BeacnDeviceHandle> {
     if !product_id.contains(&def.descriptor.product_id()) {
         beacn_bail!(
             "Expecting PIDs {:?} but got {}",
@@ -513,22 +517,22 @@ pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<B
         );
     }
 
-    let device = def.descriptor.open().wait()?;
-    let interface = device.claim_interface(0).wait()?;
-    interface.set_alt_setting(1).wait()?;
+    let device = crate::setup::open(&def.descriptor).await?;
+    let interface = crate::setup::claim_interface(&device, 0).await?;
+    crate::setup::set_alt_setting(&interface, 1).await?;
 
     let mut out_ep = interface.endpoint::<Interrupt, Out>(0x03)?;
     let mut in_ep = interface.endpoint::<Interrupt, In>(0x83)?;
-    in_ep.clear_halt().wait()?;
+    crate::setup::clear_halt(&mut in_ep).await?;
 
     let setup_timeout = Duration::from_millis(2000);
 
     // Unlike the Mic and Studio, we use an interrupt, rather a bulk read
-    out_ep
-        .transfer_blocking([00u8, 00, 00, 1].into(), setup_timeout)
+    transfer_with_timeout(&mut out_ep, [00u8, 00, 00, 1].into(), setup_timeout)
+        .await
         .into_result()?;
-    let completion = in_ep
-        .transfer_blocking(Buffer::new(64), setup_timeout)
+    let completion = transfer_with_timeout(&mut in_ep, Buffer::new(64), setup_timeout)
+        .await
         .into_result()?;
 
     let (version, serial) = get_device_info(&completion[..])?;

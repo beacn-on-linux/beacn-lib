@@ -8,15 +8,17 @@ use crate::common::BeacnDeviceHandle;
 use crate::manager::{DeviceType, PID_BEACN_MIC};
 use crate::sync::AsyncMutex as Mutex;
 use crate::version::VersionNumber;
+use async_trait::async_trait;
 
 pub struct BeacnMic {
     handle: BeacnDeviceHandle,
     endpoints: Mutex<AudioEndpoints>,
 }
 
+#[async_trait]
 impl BeacnAudioDeviceAttach for BeacnMic {
-    fn connect(definition: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>> {
-        let (handle, endpoints) = open_beacn(definition, PID_BEACN_MIC)?;
+    async fn connect(definition: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>> {
+        let (handle, endpoints) = open_beacn(definition, PID_BEACN_MIC).await?;
         Ok(Box::new(Self {
             handle,
             endpoints: Mutex::new(endpoints),

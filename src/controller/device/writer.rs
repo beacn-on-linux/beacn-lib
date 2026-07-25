@@ -20,31 +20,9 @@ impl<'a> UsbWriter<'a> {
 
             Err(TransferError::Stall) => {
                 warn!("USB endpoint stalled, clearing halt");
-
-                // clear_halt() is one of the small set of nusb operations that need a
-                // blocking syscall under the hood. Awaiting it only works if the
-                // `tokio` or `smol` crate feature is enabled (so nusb has somewhere to
-                // hand the blocking call off to); otherwise it panics. Stalls are rare
-                // (this is error-recovery, not the hot path), so falling back to a
-                // direct blocking `.wait()` here when no runtime feature is enabled is
-                // an acceptable trade-off rather than forcing every caller to pick a
-                // runtime just to compile.
-                #[cfg(any(feature = "tokio", feature = "smol"))]
-                {
-                    self.endpoint
-                        .clear_halt()
-                        .await
-                        .map_err(|_| TransferError::Disconnected)?;
-                }
-                #[cfg(not(any(feature = "tokio", feature = "smol")))]
-                {
-                    use nusb::MaybeFuture;
-                    self.endpoint
-                        .clear_halt()
-                        .wait()
-                        .map_err(|_| TransferError::Disconnected)?;
-                }
-
+                crate::setup::clear_halt(self.endpoint)
+                    .await
+                    .map_err(|_| TransferError::Disconnected)?;
                 self.send_once(data).await
             }
 

@@ -302,25 +302,25 @@ impl From<&DeviceInfo> for DeviceLocation {
 ///
 /// This function is useful during prototyping, but shouldn't be used long term, instead
 /// use the regular hot plug thread.
-pub fn get_beacn_mic_devices() -> Vec<DeviceLocation> {
-    get_beacn_device(PID_BEACN_MIC)
+pub async fn get_beacn_mic_devices() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_MIC).await
 }
 
-pub fn get_beacn_studio_devices() -> Vec<DeviceLocation> {
-    get_beacn_device(PID_BEACN_STUDIO)
+pub async fn get_beacn_studio_devices() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_STUDIO).await
 }
 
-pub fn get_beacn_mix_device() -> Vec<DeviceLocation> {
-    get_beacn_device(PID_BEACN_MIX)
+pub async fn get_beacn_mix_device() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_MIX).await
 }
 
-pub fn get_beacn_mix_create_device() -> Vec<DeviceLocation> {
-    get_beacn_device(PID_BEACN_MIX_CREATE)
+pub async fn get_beacn_mix_create_device() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_MIX_CREATE).await
 }
 
-fn get_beacn_device(pid: &[u16]) -> Vec<DeviceLocation> {
+async fn get_beacn_device(pid: &[u16]) -> Vec<DeviceLocation> {
     let mut devices = vec![];
-    if let Ok(devs) = nusb::list_devices().wait() {
+    if let Ok(devs) = crate::setup::list_devices().await {
         for info in devs {
             if info.vendor_id() == VENDOR_BEACN && pid.contains(&info.product_id()) {
                 devices.push(DeviceLocation::from(&info));

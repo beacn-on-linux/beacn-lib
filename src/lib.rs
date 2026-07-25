@@ -3,6 +3,7 @@ pub mod audio;
 mod common;
 pub mod controller;
 pub mod manager;
+mod setup;
 mod sync;
 mod transfer;
 pub mod types;

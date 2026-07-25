@@ -2,7 +2,7 @@ use crate::manager::{DeviceLocation, VENDOR_BEACN};
 use crate::version::VersionNumber;
 use anyhow::Result;
 use byteorder::{LittleEndian, ReadBytesExt};
-use nusb::{Device, DeviceInfo, Interface, MaybeFuture};
+use nusb::{Device, DeviceInfo, Interface};
 use std::io::{Cursor, Read, Seek};
 
 pub(crate) struct DeviceDefinition {
@@ -19,9 +19,9 @@ pub struct BeacnDeviceHandle {
     pub(crate) serial: String,
 }
 
-pub(crate) fn find_device(location: DeviceLocation) -> Option<DeviceDefinition> {
+pub(crate) async fn find_device(location: DeviceLocation) -> Option<DeviceDefinition> {
     // We need to iterate through the devices and find the one at this location
-    if let Ok(devices) = nusb::list_devices().wait() {
+    if let Ok(devices) = crate::setup::list_devices().await {
         for info in devices {
             if info.vendor_id() == VENDOR_BEACN && DeviceLocation::from(&info) == location {
                 return Some(DeviceDefinition { descriptor: info });

@@ -23,13 +23,13 @@ pub trait BeacnAudioDevice:
 {
 }
 
-pub fn open_audio_device(location: DeviceLocation) -> BResult<Box<dyn BeacnAudioDevice>> {
-    if let Some(device) = find_device(location) {
+pub async fn open_audio_device(location: DeviceLocation) -> BResult<Box<dyn BeacnAudioDevice>> {
+    if let Some(device) = find_device(location).await {
         // We need to return the correct type
         return if PID_BEACN_MIC.contains(&device.descriptor.product_id()) {
-            BeacnMic::connect(device)
+            BeacnMic::connect(device).await
         } else if PID_BEACN_STUDIO.contains(&device.descriptor.product_id()) {
-            BeacnStudio::connect(device)
+            BeacnStudio::connect(device).await
         } else {
             beacn_bail!("Unknown Device")
         };

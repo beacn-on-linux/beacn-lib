@@ -4,6 +4,7 @@ use crate::controller::common::{BeacnControlDeviceAttach, BeacnControlInteractio
 use crate::controller::{BeacnControlDevice, ControlThreadSender, Interactions};
 use crate::manager::PID_BEACN_MIX;
 use crate::version::VersionNumber;
+use async_trait::async_trait;
 use flume::{Sender, bounded};
 use log::debug;
 use std::thread;
@@ -19,8 +20,9 @@ pub struct BeacnMix {
     sender: Sender<ControlThreadSender>,
 }
 
+#[async_trait]
 impl BeacnControlDeviceAttach for BeacnMix {
-    fn connect(
+    async fn connect(
         definition: DeviceDefinition,
         interaction: Option<Sender<Interactions>>,
         health_tx: Sender<()>,
@@ -30,7 +32,7 @@ impl BeacnControlDeviceAttach for BeacnMix {
     {
         // This handle will get sent into the main processing thread which will monitor for
         // interactions, and handle commands.
-        let handle = open_beacn(definition, PID_BEACN_MIX)?;
+        let handle = open_beacn(definition, PID_BEACN_MIX).await?;
         let serial = handle.serial.clone();
         let version = handle.version;
         let pid = handle.descriptor.product_id();

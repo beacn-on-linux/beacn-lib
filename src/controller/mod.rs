@@ -21,16 +21,16 @@ pub trait BeacnControlDevice:
 {
 }
 
-pub fn open_control_device(
+pub async fn open_control_device(
     location: DeviceLocation,
     interaction: Option<Sender<Interactions>>,
     health_tx: Sender<()>,
 ) -> BResult<Box<dyn BeacnControlDevice>> {
-    if let Some(device) = find_device(location) {
+    if let Some(device) = find_device(location).await {
         return if PID_BEACN_MIX.contains(&device.descriptor.product_id()) {
-            BeacnMix::connect(device, interaction, health_tx)
+            BeacnMix::connect(device, interaction, health_tx).await
         } else if PID_BEACN_MIX_CREATE.contains(&device.descriptor.product_id()) {
-            BeacnMixCreate::connect(device, interaction, health_tx)
+            BeacnMixCreate::connect(device, interaction, health_tx).await
         } else {
             beacn_bail!("Unknown Device");
         };
