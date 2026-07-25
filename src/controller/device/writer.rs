@@ -13,9 +13,17 @@ impl<'a> UsbWriter<'a> {
         Self { endpoint, timeout }
     }
 
-    /// Send a USB interrupt OUT transfer.
     pub(crate) async fn send(&mut self, data: &[u8]) -> Result<(), TransferError> {
-        match self.send_once(data).await {
+        self.send_timeout(data, self.timeout).await
+    }
+
+    /// Send a USB interrupt OUT transfer.
+    pub(crate) async fn send_timeout(
+        &mut self,
+        data: &[u8],
+        timeout: Duration,
+    ) -> Result<(), TransferError> {
+        match self.send_once(data, timeout).await {
             Ok(()) => Ok(()),
 
             Err(TransferError::Stall) => {
@@ -23,7 +31,7 @@ impl<'a> UsbWriter<'a> {
                 crate::setup::clear_halt(self.endpoint)
                     .await
                     .map_err(|_| TransferError::Disconnected)?;
-                self.send_once(data).await
+                self.send_once(data, timeout).await
             }
 
             Err(e) => Err(e),
@@ -34,8 +42,8 @@ impl<'a> UsbWriter<'a> {
     ///
     /// This deliberately does not handle recovery. Recovery belongs in send()
     /// so every caller gets identical behaviour.
-    async fn send_once(&mut self, data: &[u8]) -> Result<(), TransferError> {
-        transfer_with_timeout(self.endpoint, Buffer::from(data.to_vec()), self.timeout)
+    async fn send_once(&mut self, data: &[u8], timeout: Duration) -> Result<(), TransferError> {
+        transfer_with_timeout(self.endpoint, Buffer::from(data.to_vec()), timeout)
             .await
             .into_result()
             .map(|_| ())

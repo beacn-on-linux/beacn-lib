@@ -23,6 +23,14 @@ impl<'a> Messenger<'a> {
         self.usb.send(data).await
     }
 
+    pub async fn send_timeout(
+        &mut self,
+        data: &[u8],
+        timeout: Duration,
+    ) -> Result<(), TransferError> {
+        self.usb.send_timeout(data, timeout).await
+    }
+
     pub async fn enable(&mut self, enabled: bool) -> Result<(), TransferError> {
         let value = if enabled { 0 } else { 1 };
 
@@ -144,9 +152,11 @@ impl<'a> Messenger<'a> {
         chunk: &[u8; 1024],
         retry: Duration,
     ) -> Result<(), TransferError> {
+        let chunk_timeout = Duration::from_millis(100);
+
         let started = Instant::now();
         loop {
-            match self.send(chunk).await {
+            match self.send_timeout(chunk, chunk_timeout).await {
                 Ok(()) => return Ok(()),
                 Err(TransferError::Cancelled) if started.elapsed() < retry => {
                     Timer::after(Duration::from_millis(20)).await;
