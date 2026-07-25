@@ -26,6 +26,8 @@ async-trait = "0.1.91"
 async-io = "2.6.0"
 async-lock = "3.4.2"
 
+oneshot = { version = "0.2.1", features = ["std"] }
+
 futures-lite = "2.6.1"
 
 # Used for Managing Interaction threads

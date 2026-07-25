@@ -223,19 +223,21 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                     debug!("Stopping Event Handler");
                                     break;
                                 }
-                                KeepAlive => {
+                                KeepAlive(tx) => {
                                     if let Err(e) = messenger.ping().wait() {
                                         error!("Failed to Send Keep-Alive Request: {}", e);
                                         break;
                                     }
+                                    let _ = tx.send(());
                                 }
-                                SetEnabled(enabled) => {
+                                SetEnabled(enabled, tx) => {
                                     if let Err(e) = messenger.enable(enabled).wait() {
                                         error!("Failed to Enable Device: {}", e);
                                         break;
                                     }
+                                    let _ = tx.send(());
                                 }
-                                SetImage(x, y, img) => {
+                                SetImage(x, y, img, tx) => {
                                     if let Err(e) = messenger.ensure_enabled().wait() {
                                         error!("Failed to Enable Device, dropping Frame: {}", e);
                                         continue 'primary;
@@ -245,15 +247,17 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         error!("Failed to Send Image, dropping Frame: {}", e);
                                         continue 'primary;
                                     }
+                                    let _ = tx.send(());
                                 }
-                                SetDimTimeout(timeout) => {
+                                SetDimTimeout(timeout, tx) => {
                                     dim_duration = timeout;
                                     if !is_dimmed {
                                         // If we're not already dimmed, reset the timer
                                         dim_timeout.reset(dim_duration);
                                     }
+                                    let _ = tx.send(());
                                 }
-                                SetActiveBrightness(percent) => {
+                                SetActiveBrightness(percent, tx) => {
                                     if is_dimmed {
                                         is_dimmed = false;
                                         dim_timeout.reset(dim_duration);
@@ -263,18 +267,21 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
                                         error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }
+                                    let _ = tx.send(());
                                 }
-                                SetButtonBrightness(value) => {
+                                SetButtonBrightness(value, tx) => {
                                     if let Err(e) = messenger.set_button_brightness(value).wait() {
                                         error!("Failed to Set Button Brightness: {}", e);
                                         break;
                                     }
+                                    let _ = tx.send(());
                                 }
-                                SetButtonColour(b, c) => {
+                                SetButtonColour(b, c, tx) => {
                                     if let Err(e) = messenger.set_button_colour(b, c).wait() {
                                         error!("Failed to Set Button Colour: {}", e);
                                         break;
                                     }
+                                    let _ = tx.send(());
                                 }
                             }
                         }
@@ -398,14 +405,20 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     }
 
     fn set_enabled(&self, enabled: bool) -> BResult<()> {
+        let (tx, rx) = oneshot::channel();
+
         self.get_sender()
-            .send(SetEnabled(enabled))
+            .send(SetEnabled(enabled, tx))
             .map_err(Error::from)?;
+
+        let _ = rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
     fn send_keepalive(&self) -> BResult<()> {
-        self.get_sender().send(KeepAlive).map_err(Error::from)?;
+        let (tx, rx) = oneshot::channel();
+        self.get_sender().send(KeepAlive(tx)).map_err(Error::from)?;
+        let _ = rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
@@ -446,9 +459,13 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             beacn_bail!("Unable to Fetch Image Info");
         }
 
+        let (tx, rx) = oneshot::channel();
+
         self.get_sender()
-            .send(SetImage(x, y, Vec::from(jpeg_image)))
+            .send(SetImage(x, y, Vec::from(jpeg_image), tx))
             .map_err(Error::from)?;
+
+        let _ = rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
@@ -457,9 +474,12 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             beacn_bail!("Display Brightness must be a percentage");
         }
 
+        let (tx, rx) = oneshot::channel();
         self.get_sender()
-            .send(SetActiveBrightness(brightness))
+            .send(SetActiveBrightness(brightness, tx))
             .map_err(Error::from)?;
+
+        let _ = rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
@@ -467,9 +487,13 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         if !(0..=10).contains(&brightness) {
             beacn_bail!("Button Brightness must be between 0 and 10");
         }
+
+        let (tx, rx) = oneshot::channel();
         self.get_sender()
-            .send(SetButtonBrightness(brightness))
+            .send(SetButtonBrightness(brightness, tx))
             .map_err(Error::from)?;
+
+        let _ = rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
@@ -480,17 +504,24 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             );
         }
 
+        let (tx, rx) = oneshot::channel();
         self.get_sender()
-            .send(SetDimTimeout(timeout))
+            .send(SetDimTimeout(timeout, tx))
             .map_err(Error::from)?;
+
+        let _ = rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
     fn set_button_colour(&self, button: ButtonLighting, colour: RGBA) -> BResult<()> {
         let button = button as u8;
+
+        let (tx, rx) = oneshot::channel();
         self.get_sender()
-            .send(SetButtonColour(button, colour))
+            .send(SetButtonColour(button, colour, tx))
             .map_err(Error::from)?;
+
+        rx.recv().map_err(Error::from)?;
         Ok(())
     }
 }

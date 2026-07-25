@@ -89,14 +89,14 @@ pub enum ButtonLighting {
     Right = 6,
 }
 
-#[derive(Display, Debug, Clone, PartialEq)]
+#[derive(Display, Debug)]
 pub enum ControlThreadSender {
     Stop,
-    KeepAlive,
-    SetEnabled(bool),
-    SetImage(u32, u32, Vec<u8>),
-    SetDimTimeout(Duration),
-    SetActiveBrightness(u8),
-    SetButtonBrightness(u8),
-    SetButtonColour(u8, RGBA),
+    KeepAlive(oneshot::Sender<()>),
+    SetEnabled(bool, oneshot::Sender<()>),
+    SetImage(u32, u32, Vec<u8>, oneshot::Sender<()>),
+    SetDimTimeout(Duration, oneshot::Sender<()>),
+    SetActiveBrightness(u8, oneshot::Sender<()>),
+    SetButtonBrightness(u8, oneshot::Sender<()>),
+    SetButtonColour(u8, RGBA, oneshot::Sender<()>),
 }
