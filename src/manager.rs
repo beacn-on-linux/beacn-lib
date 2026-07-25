@@ -1,15 +1,15 @@
 use anyhow::Result;
-use flume::{Receiver, RecvTimeoutError, Sender, TryRecvError, bounded};
-use futures_lite::stream::block_on;
+use async_io::Timer;
+use flume::{Receiver, Sender, bounded};
+use futures_lite::StreamExt;
+use futures_lite::future::or;
 use log::{debug, error, warn};
 use nusb::hotplug::HotplugEvent;
-use nusb::{DeviceId, DeviceInfo, MaybeFuture};
+use nusb::{DeviceId, DeviceInfo};
 use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::sync::{Arc, Mutex};
 use std::thread;
-use std::thread::sleep;
 use std::time::Duration;
 
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
@@ -33,25 +33,28 @@ struct KnownDevice {
     health_rx: Receiver<()>,
 }
 
+/// Spawn a dedicated OS thread that watches for Beacn device hot-plug events and reports
+/// them on `sender`, for classic synchronous / thread-per-task usage.
+///
+/// This is just `watch_hotplug_devices` driven to completion with `.wait()` on its own
+/// thread -- if you're calling from an async runtime and would rather attach the watch
+/// to your own task instead of us spawning a thread for it, use `watch_hotplug_devices`
+/// directly (`tokio::spawn(watch_hotplug_devices(...))` or equivalent).
 pub fn spawn_hotplug_handler(
     sender: Sender<HotPlugMessage>,
     receiver: Receiver<HotPlugThreadManagement>,
 ) -> Result<()> {
     debug!("Spawning Beacn Mic Hot Plug Handler");
 
-    // Create the object for managing devices
-    let manager = BeacnMicManager::new(sender.clone());
-
     // nusb's watch_devices() is a single cross-platform (Linux / macOS / Windows) hotplug
     // API, so unlike the old rusb-based implementation we no longer need a separate
     // libusb-hotplug-callback path and a polling fallback for platforms without it.
-    thread::spawn(move || hotplug_watch(manager, receiver, sender));
+    thread::spawn(move || {
+        use crate::MaybeFuture;
+        watch_hotplug_devices(sender, receiver).wait();
+    });
 
     Ok(())
-}
-
-struct BeacnMicManager {
-    inner: Arc<Mutex<BeacnMicManagerInner>>,
 }
 
 struct BeacnMicManagerInner {
@@ -59,23 +62,12 @@ struct BeacnMicManagerInner {
     sender: Sender<HotPlugMessage>,
 }
 
-impl BeacnMicManager {
-    fn new(sender: Sender<HotPlugMessage>) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(BeacnMicManagerInner {
-                sender,
-                known_devices: HashMap::new(),
-            })),
-        }
-    }
-}
-
 impl BeacnMicManagerInner {
     fn thread_stopped(&self) {
         let _ = self.sender.send(HotPlugMessage::ThreadStopped);
     }
 
-    fn device_connected(&mut self, device: &DeviceInfo, device_type: DeviceType) {
+    async fn device_connected(&mut self, device: &DeviceInfo, device_type: DeviceType) {
         let location = DeviceLocation::from(device);
         if self.known_devices.values().any(|k| k.location == location) {
             warn!("Received 'Arrived' Message for already present device!");
@@ -95,13 +87,13 @@ impl BeacnMicManagerInner {
             },
         );
 
-        // We're actually going to sleep on this for a quarter of a second because there appears
-        // to be situations where if we run through this too quickly, the udev rules may not have
-        // finished being setup when we attempt to connect to the device. This results in a
-        // Permission Denied error, even if we have permission!
+        // We're actually going to wait on this for a quarter of a second because there
+        // appears to be situations where if we run through this too quickly, the udev
+        // rules may not have finished being setup when we attempt to connect to the
+        // device. This results in a Permission Denied error, even if we have permission!
         //
         // Shoutout to Jordahn on Discord for helping diagnose this issue.
-        sleep(Duration::from_millis(250));
+        Timer::after(Duration::from_millis(250)).await;
 
         let _ = self.sender.send(HotPlugMessage::DeviceAttached(
             location,
@@ -119,45 +111,57 @@ impl BeacnMicManagerInner {
         }
     }
 
-    fn check_device_health(&mut self) {
-        for known in &mut self.known_devices.values_mut() {
-            if known.health_rx.try_recv().is_ok() {
-                // We're going to do a fresh enumeration to see if the device is still here,
-                // this makes sure that if a device is unplugged but the removal callback
-                // hasn't fired yet, we don't double-up the removal messages.
-                let still_present = nusb::list_devices()
-                    .wait()
-                    .ok()
-                    .map(|devices| {
-                        devices
-                            .into_iter()
-                            .any(|d| DeviceLocation::from(&d) == known.location)
-                    })
-                    .unwrap_or(false);
+    async fn check_device_health(&mut self) {
+        // Collect which known devices have a failed health check first (this just drains
+        // their health_rx, same as the original synchronous version did), so we're not
+        // holding a `&mut` borrow of `known_devices` across the `.await` below.
+        let failing: Vec<(DeviceLocation, DeviceType)> = self
+            .known_devices
+            .values_mut()
+            .filter(|known| known.health_rx.try_recv().is_ok())
+            .map(|known| (known.location.clone(), known.device_type))
+            .collect();
 
-                if still_present {
-                    warn!(
-                        "Device {} health failed, but still present, sending faux reconnect",
-                        known.location
-                    );
+        for (location, device_type) in failing {
+            // We're going to do a fresh enumeration to see if the device is still here,
+            // this makes sure that if a device is unplugged but the removal callback
+            // hasn't fired yet, we don't double-up the removal messages.
+            let still_present = crate::setup::list_devices()
+                .await
+                .ok()
+                .map(|devices| devices.into_iter().any(|d| DeviceLocation::from(&d) == location))
+                .unwrap_or(false);
 
-                    // The device is still present, so we'll 'fake' a disconnect / reconnect cycle
-                    // so that upstream code can recreate the connection to the device.
-                    let (health_tx, health_rx) = bounded(1);
-                    known.health_rx = health_rx;
-                    let _ = self
-                        .sender
-                        .send(HotPlugMessage::DeviceRemoved(known.location.clone()));
-
-                    // Sleep for a moment, just to give things time to settle
-                    sleep(Duration::from_millis(250));
-                    let _ = self.sender.send(HotPlugMessage::DeviceAttached(
-                        known.location.clone(),
-                        known.device_type,
-                        health_tx,
-                    ));
-                }
+            if !still_present {
+                continue;
             }
+
+            warn!(
+                "Device {} health failed, but still present, sending faux reconnect",
+                location
+            );
+
+            // The device is still present, so we'll 'fake' a disconnect / reconnect cycle
+            // so that upstream code can recreate the connection to the device.
+            let (health_tx, health_rx) = bounded(1);
+            if let Some(known) = self
+                .known_devices
+                .values_mut()
+                .find(|k| k.location == location)
+            {
+                known.health_rx = health_rx;
+            }
+            let _ = self
+                .sender
+                .send(HotPlugMessage::DeviceRemoved(location.clone()));
+
+            // Wait a moment, just to give things time to settle
+            Timer::after(Duration::from_millis(250)).await;
+            let _ = self.sender.send(HotPlugMessage::DeviceAttached(
+                location,
+                device_type,
+                health_tx,
+            ));
         }
     }
 }
@@ -180,15 +184,36 @@ fn identify_beacn_device(info: &DeviceInfo) -> Option<DeviceType> {
     }
 }
 
-fn hotplug_watch(
-    manager: BeacnMicManager,
-    receiver: Receiver<HotPlugThreadManagement>,
-    sender: Sender<HotPlugMessage>,
-) {
-    let inner = manager.inner.clone();
+enum HotplugLoopEvent {
+    Management(Result<HotPlugThreadManagement, flume::RecvError>),
+    Hotplug(Option<HotplugEvent>),
+    HealthCheck,
+}
 
-    // Create the nusb watcher, and start looking for device events..
-    let watch = match nusb::watch_devices() {
+/// Watch for Beacn device hot-plug events and report them on `sender`, without spawning
+/// any OS thread of our own.
+///
+/// Await this directly from your own async runtime (or hand it to `tokio::spawn` /
+/// `smol::spawn` / etc. to run it in the background), or drive it with `.wait()`
+/// (`beacn_lib::MaybeFuture`) to block the current thread for as long as you want to
+/// watch. `spawn_hotplug_handler` is a thin convenience wrapper around the latter, for
+/// classic thread-per-task usage where you don't want to manage the thread yourself.
+///
+/// Runs until `receiver` gets `HotPlugThreadManagement::Quit`, `sender`'s corresponding
+/// receiver is dropped, or the underlying hotplug watch itself fails.
+pub async fn watch_hotplug_devices(
+    sender: Sender<HotPlugMessage>,
+    receiver: Receiver<HotPlugThreadManagement>,
+) {
+    let mut inner = BeacnMicManagerInner {
+        sender: sender.clone(),
+        known_devices: HashMap::new(),
+    };
+
+    // Create the nusb watcher, and start looking for device events. Unlike list_devices,
+    // open, etc., watch_devices() itself doesn't need a blocking syscall to set up, so we
+    // can call it directly without going through `crate::setup`.
+    let mut watch = match nusb::watch_devices() {
         Ok(watch) => watch,
         Err(e) => {
             error!("Unable to start USB hotplug watch: {}", e);
@@ -199,69 +224,58 @@ fn hotplug_watch(
 
     // watch_devices says to populate from list_devices after it's called, so we can
     // grab and handle devices which already exist.
-    if let Ok(devices) = nusb::list_devices().wait() {
+    if let Ok(devices) = crate::setup::list_devices().await {
         for info in devices {
             if let Some(device_type) = identify_beacn_device(&info) {
-                inner.lock().unwrap().device_connected(&info, device_type);
+                inner.device_connected(&info, device_type).await;
             }
         }
     }
 
-    // watch_devices() gives us a stream, given that we're blocking, we need a thread which can
-    // pull out events and send them up to our general handler.
-    let (event_tx, event_rx) = bounded(16);
-    thread::spawn(move || {
-        for event in block_on(watch) {
-            if event_tx.send(event).is_err() {
-                warn!("Hotplug Watcher: Channel Closed, stopping");
-                break;
-            }
-        }
-    });
+    // Periodic health-check tick, replacing the old poll-with-timeout loop -- this is
+    // just another branch in the select below now that we're not restricted to blocking
+    // primitives.
+    let mut health_tick = Timer::interval(Duration::from_millis(100));
 
     loop {
-        let message = receiver.try_recv();
-        if should_stop(message) {
-            break;
-        }
+        let event = or(
+            or(
+                async { HotplugLoopEvent::Management(receiver.recv_async().await) },
+                async { HotplugLoopEvent::Hotplug(watch.next().await) },
+            ),
+            async {
+                health_tick.next().await;
+                HotplugLoopEvent::HealthCheck
+            },
+        )
+        .await;
 
-        match event_rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(HotplugEvent::Connected(info)) => {
-                if let Some(device_type) = identify_beacn_device(&info) {
-                    debug!("Found Beacn Device (type {:?})", device_type);
-                    inner.lock().unwrap().device_connected(&info, device_type);
-                }
-            }
-            Ok(HotplugEvent::Disconnected(info)) => {
-                inner.lock().unwrap().device_removed(info);
-            }
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => {
-                error!("Hotplug watch thread has gone away, terminating hot plug Thread");
+        match event {
+            HotplugLoopEvent::Management(Ok(HotPlugThreadManagement::Quit)) => break,
+            HotplugLoopEvent::Management(Err(_)) => {
+                error!("Receiver has Disconnected, terminating hot plug watcher");
                 break;
             }
-        }
-
-        inner.lock().unwrap().check_device_health();
-    }
-
-    let inner = inner.lock().unwrap();
-    inner.thread_stopped();
-}
-
-fn should_stop(message: Result<HotPlugThreadManagement, TryRecvError>) -> bool {
-    match message {
-        Ok(message) => match message {
-            HotPlugThreadManagement::Quit => true,
-        },
-        Err(error) => match error {
-            TryRecvError::Empty => false,
-            TryRecvError::Disconnected => {
-                error!("Receiver has Disconnected, terminating hot plug Thread");
-                true
+            HotplugLoopEvent::Hotplug(Some(HotplugEvent::Connected(info))) => {
+                if let Some(device_type) = identify_beacn_device(&info) {
+                    debug!("Found Beacn Device (type {:?})", device_type);
+                    inner.device_connected(&info, device_type).await;
+                }
             }
-        },
+            HotplugLoopEvent::Hotplug(Some(HotplugEvent::Disconnected(info))) => {
+                inner.device_removed(info);
+            }
+            HotplugLoopEvent::Hotplug(None) => {
+                error!("Hotplug watch stream ended, terminating hot plug watcher");
+                break;
+            }
+            HotplugLoopEvent::HealthCheck => {
+                inner.check_device_health().await;
+            }
+        }
     }
+
+    inner.thread_stopped();
 }
 
 #[derive(Debug, Clone)]

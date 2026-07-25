@@ -17,7 +17,7 @@ mod mix;
 mod mix_create;
 
 pub trait BeacnControlDevice:
-    BeacnControlDeviceAttach + BeacnControlInteraction + RefUnwindSafe
+    BeacnControlDeviceAttach + BeacnControlInteraction + RefUnwindSafe + Sync + Send
 {
 }
 
