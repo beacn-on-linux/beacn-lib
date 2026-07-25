@@ -23,8 +23,8 @@ pub enum DeviceType {
     #[default]
     BeacnMic,
     BeacnStudio,
-    BeacnMix,
     BeacnMixCreate,
+    BeacnMix,
 }
 
 struct KnownDevice {
@@ -229,10 +229,16 @@ pub async fn watch_hotplug_devices(
     // watch_devices says to populate from list_devices after it's called, so we can
     // grab and handle devices which already exist.
     if let Ok(devices) = crate::setup::list_devices().await {
-        for info in devices {
-            if let Some(device_type) = identify_beacn_device(&info) {
-                inner.device_connected(&info, device_type).await;
-            }
+        // Locate all Beacn Devices
+        let mut devices: Vec<_> = devices
+            .filter_map(|info| identify_beacn_device(&info).map(|ty| (info, ty)))
+            .collect();
+
+        // Order them by startup order
+        devices.sort_by_key(|(_, ty)| *ty);
+
+        for (info, device_type) in devices {
+            inner.device_connected(&info, device_type).await;
         }
     }
 
