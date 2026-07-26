@@ -14,7 +14,29 @@ In addition, this project accepts no responsibility or liability for any use of 
 which may occur from its use. Please read the LICENSE for more information.
 
 ***
-### Notes
-This is still a work in progress, hotplug and device detection is present, it should be possible to send messages
-to the Beacn Mic and Beacn Studio, it should also be possible to connect to, send images to, and read inputs from
-the Beacn Mix and Mix Create
+
+## Features
+- **Hot-plug Support**: Automatic device detection
+- **Audio Devices**: Control all settings in the Beacn Mic and Studio
+- **Control Devices**: Mix / Mix Create screen and interaction handling
+- **Async-First**: Full async / await support, with optional .wait() for blocking calls
+
+## Supported Devices
+- Beacn Mic
+- Beacn Studio
+- Beacn Mix
+- Beacn Mix Create
+ 
+## Usage
+```toml
+[dependencies]
+beacn-lib = { git = "https://github.com/beacn-on-linux/beacn-lib", tag = "v0.2.0", features = [] }
+```
+If you're using `tokio` or `smol` they should be included as features otherwise tasks such as listing and
+opening devices will fall back to regular blocking calls.
+
+#### Examples
+The [`examples/`](examples) directory contains a number of examples which demonstrate all of the features
+and concepts of this library, provided in both sync and async flavours.
+
+
