@@ -3,7 +3,7 @@ use beacn_lib::audio::messages::lighting::{Lighting, LightingBrightness};
 use beacn_lib::audio::{BeacnAudioDevice, open_audio_device};
 use beacn_lib::manager::{DeviceType, get_beacn_mic_devices, get_beacn_studio_devices};
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     // Firstly, find any Mix and Mix Create devices
     let mics = get_beacn_mic_devices().await;

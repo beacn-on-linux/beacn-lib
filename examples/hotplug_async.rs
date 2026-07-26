@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tokio::{join, select, task};
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     let (hotplug_tx, hotplug_rx) = flume::unbounded();
     let (mgmt_tx, mgmt_rx) = flume::unbounded();

@@ -6,7 +6,7 @@ use image::{ImageBuffer, Rgb};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     let mut devices = get_beacn_mix_device().await;
     devices.extend(get_beacn_mix_create_device().await);
