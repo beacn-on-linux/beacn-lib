@@ -1,6 +1,5 @@
-use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, run_hotplug_handler};
+use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, spawn_hotplug_handler};
 use flume::TryRecvError;
-use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -10,7 +9,7 @@ fn main() {
     let start = Instant::now();
 
     // Spawn up a hotplug thread, this will announce all existing devices and watch for new ones.
-    let handle = thread::spawn(|| run_hotplug_handler(hotplug_tx, mgmt_rx));
+    let handle = spawn_hotplug_handler(hotplug_tx, mgmt_rx);
 
     // Listen for messages coming from the hotplug thread for 10 seconds, then exit.
     loop {

@@ -9,6 +9,8 @@ use nusb::{DeviceId, DeviceInfo};
 use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use std::thread;
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
@@ -32,26 +34,12 @@ struct KnownDevice {
     health_rx: Receiver<()>,
 }
 
-/// This is a blocking hotplug runner, designed to be dropped into a thread. If you're in an
-/// async runtime, use `watch_hotplug_handler` instead.
-pub fn run_hotplug_handler(
-    sender: Sender<HotPlugMessage>,
-    receiver: Receiver<HotPlugThreadManagement>,
-) -> Result<()> {
-    debug!("Running Beacn Mic Hot Plug Handler");
-
-    use crate::MaybeFuture;
-    watch_hotplug_devices(sender, receiver).wait();
-
-    Ok(())
-}
-
-struct BeacnMicManagerInner {
+struct HotPlugManager {
     known_devices: HashMap<DeviceId, KnownDevice>,
     sender: Sender<HotPlugMessage>,
 }
 
-impl BeacnMicManagerInner {
+impl HotPlugManager {
     fn thread_stopped(&self) {
         let _ = self.sender.send(HotPlugMessage::ThreadStopped);
     }
@@ -101,9 +89,8 @@ impl BeacnMicManagerInner {
     }
 
     async fn check_device_health(&mut self) {
-        // Collect which known devices have a failed health check first (this just drains
-        // their health_rx, same as the original synchronous version did), so we're not
-        // holding a `&mut` borrow of `known_devices` across the `.await` below.
+        // Check the health reciever of all devices for pings, indicating that the device messaging
+        // has failed.
         let failing: Vec<(DeviceLocation, DeviceType)> = self
             .known_devices
             .values_mut()
@@ -183,6 +170,23 @@ enum HotplugLoopEvent {
     HealthCheck,
 }
 
+/// Spawn an OS thread and Watch for Beacn device hot-plug events and report them on `sender`.
+///
+/// If you're running in an async context, instead take a look at `watch_hotplug_devices` which
+/// can instead be used directly in your runtime.
+///
+/// Runs until `receiver` gets `HotPlugThreadManagement::Quit`, `sender`'s corresponding
+/// receiver is dropped, or the underlying hotplug watch itself fails.
+pub fn spawn_hotplug_handler(
+    sender: Sender<HotPlugMessage>,
+    receiver: Receiver<HotPlugThreadManagement>,
+) -> JoinHandle<()> {
+    debug!("Running Beacn Mic Hot Plug Handler");
+
+    use crate::MaybeFuture;
+    thread::spawn(|| watch_hotplug_devices(sender, receiver).wait())
+}
+
 /// Watch for Beacn device hot-plug events and report them on `sender`, without spawning
 /// any OS thread of our own.
 ///
@@ -198,7 +202,7 @@ pub async fn watch_hotplug_devices(
     sender: Sender<HotPlugMessage>,
     receiver: Receiver<HotPlugThreadManagement>,
 ) {
-    let mut inner = BeacnMicManagerInner {
+    let mut inner = HotPlugManager {
         sender: sender.clone(),
         known_devices: HashMap::new(),
     };
@@ -310,23 +314,26 @@ impl From<&DeviceInfo> for DeviceLocation {
     }
 }
 
-/// This is a generic function that will just return a list of Beacn Mic's attached to your
-/// system for situations where you want to handle hot plugging yourself.
-///
-/// This function is useful during prototyping, but shouldn't be used long term, instead
-/// use the regular hot plug thread.
+/// This is a generic function that will just return a list of USB Locations of Beacn Mic devices
+/// attached to your system for situations where you want to handle hot plugging yourself.
 pub async fn get_beacn_mic_devices() -> Vec<DeviceLocation> {
     get_beacn_device(PID_BEACN_MIC).await
 }
 
+/// This is a generic function that will just return a list of USB Locations of Beacn Studio
+/// devices attached to your system for situations where you want to handle hot plugging yourself.
 pub async fn get_beacn_studio_devices() -> Vec<DeviceLocation> {
     get_beacn_device(PID_BEACN_STUDIO).await
 }
 
+/// This is a generic function that will just return a list USB Locations of Beacn Mix devices
+/// attached to your system for situations where you want to handle hot plugging yourself.
 pub async fn get_beacn_mix_device() -> Vec<DeviceLocation> {
     get_beacn_device(PID_BEACN_MIX).await
 }
 
+/// This is a generic function that will just return a list USB Locations of Beacn Mix Create
+/// devices attached to your system for situations where you want to handle hot plugging yourself.
 pub async fn get_beacn_mix_create_device() -> Vec<DeviceLocation> {
     get_beacn_device(PID_BEACN_MIX_CREATE).await
 }
