@@ -1,10 +1,11 @@
-use beacn_lib::controller::{BeacnControlDevice, Interactions, open_control_device};
+use beacn_lib::controller::{BeacnControlDevice, Interactions, open_control_device, ButtonLighting};
 use beacn_lib::manager::{DeviceLocation, get_beacn_mix_create_device, get_beacn_mix_device};
 use flume::Receiver;
 use image::codecs::jpeg::JpegEncoder;
 use image::{ImageBuffer, Rgb};
 use std::time::Duration;
 use tokio::sync::mpsc;
+use beacn_lib::types::RGBA;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -76,25 +77,25 @@ async fn main() {
     drop(event_tx);
 
     let mut ticker = tokio::time::interval(Duration::from_secs(1));
-    let deadline = tokio::time::sleep(Duration::from_secs(10));
-    tokio::pin!(deadline);
-
     let mut step = 0;
 
-    loop {
+    'primary: loop {
         tokio::select! {
-            _ = &mut deadline => {
-                break;
-            }
-
             _ = ticker.tick() => {
                 for device in &device_maps {
                     let (x, y, image) = test_pattern(step);
+                    for (button, colour) in test_buttons(step) {
+                        let _ = device.device.set_button_colour(button, colour);
+                    }
 
                     let _ = device.device.send_keepalive();
                     let _ = device.device.set_image(x, y, &image);
 
-                    step = (step + 1) % 9;
+                    step += 1;
+
+                    if step == 10 {
+                        break 'primary;
+                    }
                 }
             }
 
@@ -147,6 +148,7 @@ fn test_pattern(step: usize) -> (u32, u32, Vec<u8>) {
             band,
         ),
         5..=8 => (((step - 5) as u32) * band, [0u8, 0, 0], band),
+        9 => (0, [0u8, 0, 0], width),
         _ => unreachable!(),
     };
 
@@ -159,4 +161,33 @@ fn test_pattern(step: usize) -> (u32, u32, Vec<u8>) {
 
     encoder.encode_image(&image).unwrap();
     (x, 0, jpeg)
+}
+
+fn test_buttons(step: usize) -> Vec<(ButtonLighting, RGBA)> {
+    let black = RGBA::from([0, 0, 0, 255]);
+    let red = RGBA::from([255, 0, 0, 255]);
+    let green = RGBA::from([0, 255, 0, 255]);
+    let blue = RGBA::from([0, 0, 255, 255]);
+    let white = RGBA::from([255, 255, 255, 255]);
+
+    let clear = vec![
+        (ButtonLighting::Dial1, black),
+        (ButtonLighting::Dial2, black),
+        (ButtonLighting::Dial3, black),
+        (ButtonLighting::Dial4, black),
+    ];
+
+    match step {
+        0 => clear,
+        1 => vec![(ButtonLighting::Dial1, red)],
+        2 => vec![(ButtonLighting::Dial2, green)],
+        3 => vec![(ButtonLighting::Dial3, blue)],
+        4 => vec![(ButtonLighting::Dial4, white)],
+        5 => vec![(ButtonLighting::Dial1, black)],
+        6 => vec![(ButtonLighting::Dial2, black)],
+        7 => vec![(ButtonLighting::Dial3, black)],
+        8 => vec![(ButtonLighting::Dial4, black)],
+        9 => clear,
+        _ => unreachable!(),
+    }
 }

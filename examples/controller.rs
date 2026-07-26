@@ -1,10 +1,13 @@
 use beacn_lib::MaybeFuture;
-use beacn_lib::controller::{BeacnControlDevice, Interactions, open_control_device};
+use beacn_lib::controller::{
+    BeacnControlDevice, ButtonLighting, Interactions, open_control_device,
+};
 use beacn_lib::manager::{DeviceLocation, get_beacn_mix_create_device, get_beacn_mix_device};
+use beacn_lib::types::RGBA;
 use flume::Receiver;
 use image::codecs::jpeg::JpegEncoder;
 use image::{ImageBuffer, Rgb};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 fn main() {
     // Firstly, find any Mix and Mix Create devices
@@ -39,9 +42,6 @@ fn main() {
         return;
     }
 
-    // We're going to track an instant on our loop and quit after 10 seconds
-    let deadline = Instant::now() + Duration::from_secs(10);
-
     // Spawn up a ticker..
     let mut step = 0;
     let (tick_tx, tick_rx) = flume::unbounded();
@@ -55,37 +55,41 @@ fn main() {
     });
 
     // Ok, we're built up now, lets listen for messages from the devices
-    while Instant::now() < deadline {
+    'primary: loop {
         let mut selector = flume::Selector::new();
 
         for device in &device_maps {
             let location = device.location.clone();
             selector = selector.recv(&device.interactions, move |msg| {
                 println!("[{}] {:?}", location, msg);
+                false
             });
 
             let location = device.location.clone();
             selector = selector.recv(&device.health, move |_| {
                 println!("[{}] Error on Device Handler!", location);
+                false
             });
         }
+        selector = selector.recv(&tick_rx, |_| true);
 
-        selector = selector.recv(&tick_rx, |_| {
+        let tick = selector.wait();
+        if tick {
             for device in &device_maps {
                 let (x, y, image) = test_pattern(step);
+                for (button, colour) in test_buttons(step) {
+                    let _ = device.device.set_button_colour(button, colour);
+                }
 
-                // The display's screen will switch off after 30 seconds of inactivity, we send
-                // keepalives to keep the screen on.
                 let _ = device.device.send_keepalive();
                 let _ = device.device.set_image(x, y, &image);
 
                 step += 1;
             }
-        });
 
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if selector.wait_timeout(remaining).is_err() {
-            break;
+            if step == 10 {
+                break 'primary;
+            }
         }
     }
     for device in device_maps {
@@ -117,6 +121,7 @@ fn test_pattern(step: usize) -> (u32, u32, Vec<u8>) {
             band,
         ),
         5..=8 => (((step - 5) as u32) * band, [0u8, 0, 0], band),
+        9 => (0, [0u8, 0, 0], width),
         _ => unreachable!(),
     };
 
@@ -129,4 +134,33 @@ fn test_pattern(step: usize) -> (u32, u32, Vec<u8>) {
 
     encoder.encode_image(&image).unwrap();
     (x, 0, jpeg)
+}
+
+fn test_buttons(step: usize) -> Vec<(ButtonLighting, RGBA)> {
+    let black = RGBA::from([0, 0, 0, 255]);
+    let red = RGBA::from([255, 0, 0, 255]);
+    let green = RGBA::from([0, 255, 0, 255]);
+    let blue = RGBA::from([0, 0, 255, 255]);
+    let white = RGBA::from([255, 255, 255, 255]);
+
+    let clear = vec![
+        (ButtonLighting::Dial1, black),
+        (ButtonLighting::Dial2, black),
+        (ButtonLighting::Dial3, black),
+        (ButtonLighting::Dial4, black),
+    ];
+
+    match step {
+        0 => clear,
+        1 => vec![(ButtonLighting::Dial1, red)],
+        2 => vec![(ButtonLighting::Dial2, green)],
+        3 => vec![(ButtonLighting::Dial3, blue)],
+        4 => vec![(ButtonLighting::Dial4, white)],
+        5 => vec![(ButtonLighting::Dial1, black)],
+        6 => vec![(ButtonLighting::Dial2, black)],
+        7 => vec![(ButtonLighting::Dial3, black)],
+        8 => vec![(ButtonLighting::Dial4, black)],
+        9 => clear,
+        _ => unreachable!(),
+    }
 }
