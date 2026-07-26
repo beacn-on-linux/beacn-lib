@@ -45,6 +45,17 @@ pub struct RGBA {
     pub alpha: u8,
 }
 
+impl RGBA {
+    pub fn from(color: [u8; 4]) -> Self {
+        Self {
+            red: color[0],
+            green: color[1],
+            blue: color[2],
+            alpha: color[3],
+        }
+    }
+}
+
 pub(crate) mod sealed {
     use crate::types::RGBA;
 
