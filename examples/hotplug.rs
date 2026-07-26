@@ -49,5 +49,5 @@ fn main() {
     }
 
     let _ = mgmt_tx.send(HotPlugThreadManagement::Quit);
-    let _ = handle.join().unwrap();
+    handle.join().unwrap();
 }
