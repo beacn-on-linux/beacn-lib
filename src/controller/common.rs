@@ -21,9 +21,9 @@ use jpeg_decoder::Decoder;
 use log::{debug, error, warn};
 use nusb::transfer::{Buffer, In, Interrupt, Out, TransferError};
 use std::sync::Arc;
-use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
+use std::{mem, thread};
 use strum::IntoEnumIterator;
 
 // Default Display 'Active' and 'Dimmed' brightness, and the default dim time
@@ -564,7 +564,6 @@ pub(crate) async fn open_beacn(
     // Unlike the Mic and Studio, we use an interrupt, rather a bulk read
     let mut out_ep = interface.endpoint::<Interrupt, Out>(0x03)?;
     let mut in_ep = interface.endpoint::<Interrupt, In>(0x83)?;
-    crate::setup::clear_halt(&mut in_ep).await?;
 
     let setup_timeout = Duration::from_millis(2000);
     transfer(&mut out_ep, [0, 0, 0, 0].into(), setup_timeout).await?;
@@ -621,6 +620,9 @@ pub fn tick(duration: Duration) -> Receiver<()> {
 }
 
 pub fn never<T>() -> Receiver<T> {
-    let (_tx, rx) = flume::bounded(0);
+    let (tx, rx) = bounded(0);
+
+    // This *TECHNICALLY* leaks memory, but the number of occurrences will be tiny.
+    mem::forget(tx);
     rx
 }
