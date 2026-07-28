@@ -14,11 +14,13 @@ use crate::types::RGBA;
 use crate::version::VersionNumber;
 use crate::{BResult, MaybeFuture, beacn_bail};
 use anyhow::Error;
+use anyhow::Result;
 use byteorder::{BigEndian, ByteOrder};
 use flume::{Receiver, Sender, bounded};
 use jpeg_decoder::Decoder;
 use log::{debug, error, warn};
 use nusb::transfer::{Buffer, In, Interrupt, Out, TransferError};
+use std::sync::Arc;
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
@@ -42,7 +44,7 @@ pub trait BeacnControlDeviceAttach {
         definition: DeviceDefinition,
         interaction: Option<Sender<Interactions>>,
         health_tx: Sender<()>,
-    ) -> BResult<Box<dyn BeacnControlDevice>>
+    ) -> BResult<Arc<Box<dyn BeacnControlDevice>>>
     where
         Self: Sized;
 
@@ -51,7 +53,9 @@ pub trait BeacnControlDeviceAttach {
     fn get_version(&self) -> String;
 
     #[allow(private_interfaces)]
-    fn get_sender(&self) -> &Sender<ControlThreadSender>;
+    fn get_sender(&self) -> Result<&Sender<ControlThreadSender>>;
+    fn set_sender_enabled(&self, enabled: bool);
+
     fn get_display_size(&self) -> (u32, u32);
 }
 
@@ -61,12 +65,15 @@ pub trait BeacnControlDeviceAttach {
 pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     #[allow(private_interfaces)]
     fn spawn_event_handler(
+        control: Arc<Box<dyn BeacnControlDevice>>,
         rx: Receiver<ControlThreadSender>,
         handler: BeacnDeviceHandle,
         interaction: Option<Sender<Interactions>>,
     ) where
         Self: Sized,
     {
+        control.set_sender_enabled(true);
+
         // In 1.2.0 build 81+ the Beacn Mix and Mix Create shifted to a 'polling' method
         // of interaction checks. For versions older we need to use the original notify
         let notify_version = VersionNumber(1, 2, 0, 80);
@@ -357,6 +364,14 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             }
         }
 
+        // Before we exit, we should drain the remaining receiver queue and make sure all
+        // senders it contains are also dropped. This prevents code locking up between end
+        // and health send.
+        control.set_sender_enabled(false);
+        while let Ok(msg) = rx.try_recv() {
+            drop(msg);
+        }
+
         debug!("Event Handler Terminated");
     }
 
@@ -407,7 +422,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
     fn set_enabled(&self, enabled: bool) -> BResult<()> {
         let (tx, rx) = oneshot::channel();
 
-        self.get_sender()
+        self.get_sender()?
             .send(SetEnabled(enabled, tx))
             .map_err(Error::from)?;
 
@@ -417,7 +432,9 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
     fn send_keepalive(&self) -> BResult<()> {
         let (tx, rx) = oneshot::channel();
-        self.get_sender().send(KeepAlive(tx)).map_err(Error::from)?;
+        self.get_sender()?
+            .send(KeepAlive(tx))
+            .map_err(Error::from)?;
         rx.recv().map_err(Error::from)?;
         Ok(())
     }
@@ -461,7 +478,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
 
         let (tx, rx) = oneshot::channel();
 
-        self.get_sender()
+        self.get_sender()?
             .send(SetImage(x, y, Vec::from(jpeg_image), tx))
             .map_err(Error::from)?;
 
@@ -475,7 +492,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         }
 
         let (tx, rx) = oneshot::channel();
-        self.get_sender()
+        self.get_sender()?
             .send(SetActiveBrightness(brightness, tx))
             .map_err(Error::from)?;
 
@@ -489,7 +506,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         }
 
         let (tx, rx) = oneshot::channel();
-        self.get_sender()
+        self.get_sender()?
             .send(SetButtonBrightness(brightness, tx))
             .map_err(Error::from)?;
 
@@ -505,7 +522,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         }
 
         let (tx, rx) = oneshot::channel();
-        self.get_sender()
+        self.get_sender()?
             .send(SetDimTimeout(timeout, tx))
             .map_err(Error::from)?;
 
@@ -517,7 +534,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
         let button = button as u8;
 
         let (tx, rx) = oneshot::channel();
-        self.get_sender()
+        self.get_sender()?
             .send(SetButtonColour(button, colour, tx))
             .map_err(Error::from)?;
 
@@ -544,14 +561,13 @@ pub(crate) async fn open_beacn(
     let interface = crate::setup::claim_interface(&device, 0).await?;
     crate::setup::set_alt_setting(&interface, 1).await?;
 
+    // Unlike the Mic and Studio, we use an interrupt, rather a bulk read
     let mut out_ep = interface.endpoint::<Interrupt, Out>(0x03)?;
     let mut in_ep = interface.endpoint::<Interrupt, In>(0x83)?;
     crate::setup::clear_halt(&mut in_ep).await?;
 
     let setup_timeout = Duration::from_millis(2000);
     transfer(&mut out_ep, [0, 0, 0, 0].into(), setup_timeout).await?;
-
-    // Unlike the Mic and Studio, we use an interrupt, rather a bulk read
     transfer(&mut out_ep, [0, 0, 0, 1].into(), setup_timeout).await?;
     let completion = transfer(&mut in_ep, Buffer::new(64), setup_timeout).await?;
 

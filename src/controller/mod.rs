@@ -8,6 +8,7 @@ use crate::{BResult, beacn_bail};
 use enum_map::Enum;
 use flume::Sender;
 use std::panic::RefUnwindSafe;
+use std::sync::Arc;
 use std::time::Duration;
 use strum::{Display, EnumIter};
 
@@ -25,7 +26,7 @@ pub async fn open_control_device(
     location: DeviceLocation,
     interaction: Option<Sender<Interactions>>,
     health_tx: Sender<()>,
-) -> BResult<Box<dyn BeacnControlDevice>> {
+) -> BResult<Arc<Box<dyn BeacnControlDevice>>> {
     if let Some(device) = find_device(location).await {
         return if PID_BEACN_MIX.contains(&device.descriptor.product_id()) {
             BeacnMix::connect(device, interaction, health_tx).await

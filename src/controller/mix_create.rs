@@ -4,9 +4,13 @@ use crate::controller::common::{BeacnControlDeviceAttach, BeacnControlInteractio
 use crate::controller::{BeacnControlDevice, ControlThreadSender, Interactions};
 use crate::manager::PID_BEACN_MIX_CREATE;
 use crate::version::VersionNumber;
+use anyhow::Result;
+use anyhow::bail;
 use async_trait::async_trait;
 use flume::{Sender, bounded};
 use log::debug;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
@@ -18,6 +22,7 @@ pub struct BeacnMixCreate {
     version: VersionNumber,
 
     sender: Sender<ControlThreadSender>,
+    sender_enabled: AtomicBool,
 }
 
 #[async_trait]
@@ -26,7 +31,7 @@ impl BeacnControlDeviceAttach for BeacnMixCreate {
         definition: DeviceDefinition,
         interaction: Option<Sender<Interactions>>,
         health_tx: Sender<()>,
-    ) -> BResult<Box<dyn BeacnControlDevice>>
+    ) -> BResult<Arc<Box<dyn BeacnControlDevice>>>
     where
         Self: Sized,
     {
@@ -44,15 +49,19 @@ impl BeacnControlDeviceAttach for BeacnMixCreate {
             serial,
             version,
             sender,
+
+            sender_enabled: AtomicBool::new(false),
         };
+        let control: Arc<Box<dyn BeacnControlDevice>> = Arc::new(Box::new(control_attach));
+        let control_inner = control.clone();
 
         // Only spawn the thread if the user is interested in Interactions
         thread::spawn(move || {
-            Self::spawn_event_handler(receiver, handle, interaction);
+            Self::spawn_event_handler(control_inner, receiver, handle, interaction);
             sleep(Duration::from_millis(500));
             let _ = health_tx.send(());
         });
-        Ok(Box::new(control_attach))
+        Ok(control)
     }
 
     fn get_product_id(&self) -> u16 {
@@ -67,8 +76,15 @@ impl BeacnControlDeviceAttach for BeacnMixCreate {
         self.version.to_string()
     }
 
-    fn get_sender(&self) -> &Sender<ControlThreadSender> {
-        &self.sender
+    fn get_sender(&self) -> Result<&Sender<ControlThreadSender>> {
+        if self.sender.is_disconnected() || !self.sender_enabled.load(Ordering::Relaxed) {
+            bail!("Sender is disconnected!");
+        }
+        Ok(&self.sender)
+    }
+
+    fn set_sender_enabled(&self, enabled: bool) {
+        self.sender_enabled.store(enabled, Ordering::Relaxed);
     }
 
     fn get_display_size(&self) -> (u32, u32) {
