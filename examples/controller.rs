@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use beacn_lib::MaybeFuture;
 use beacn_lib::controller::{
     BeacnControlDevice, ButtonLighting, Interactions, open_control_device,
@@ -8,6 +7,7 @@ use beacn_lib::types::RGBA;
 use flume::Receiver;
 use image::codecs::jpeg::JpegEncoder;
 use image::{ImageBuffer, Rgb};
+use std::sync::Arc;
 use std::time::Duration;
 
 fn main() {
