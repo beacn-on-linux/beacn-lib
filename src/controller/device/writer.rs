@@ -13,6 +13,10 @@ impl<'a> UsbWriter<'a> {
         Self { endpoint, timeout }
     }
 
+    pub(crate) async fn clear_halt(&mut self) -> Result<(), TransferError> {
+        crate::setup::clear_halt(self.endpoint).await.map_err(|_| TransferError::Disconnected)
+    }
+
     pub(crate) async fn send(&mut self, data: &[u8]) -> Result<(), TransferError> {
         self.send_timeout(data, self.timeout).await
     }
@@ -28,9 +32,7 @@ impl<'a> UsbWriter<'a> {
 
             Err(TransferError::Stall) => {
                 warn!("USB endpoint stalled, clearing halt");
-                crate::setup::clear_halt(self.endpoint)
-                    .await
-                    .map_err(|_| TransferError::Disconnected)?;
+                self.clear_halt().await?;
                 self.send_once(data, timeout).await
             }
 
