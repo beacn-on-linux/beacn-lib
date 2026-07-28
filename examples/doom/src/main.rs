@@ -87,7 +87,7 @@ fn main() {
         let devices = get_beacn_mix_create_device().wait();
         if devices.is_empty() {
             warn!("No BEACN Mix Create found, waiting 5 seconds and trying again..");
-            interruptible_sleep(Duration::from_secs(5), &*shutdown);
+            interruptible_sleep(Duration::from_secs(5), &shutdown);
             continue;
         }
 
@@ -101,7 +101,7 @@ fn main() {
                 warn!(
                     "Failed to connect to Beacn Mix Create: {e}, waiting 5 seconds and trying again.."
                 );
-                interruptible_sleep(Duration::from_secs(5), &*shutdown);
+                interruptible_sleep(Duration::from_secs(5), &shutdown);
                 continue;
             }
         };
@@ -119,7 +119,7 @@ fn main() {
 
             if _health_rx.try_recv().is_ok() {
                 warn!("Device Lost, waiting 5 seconds then trying to get it back..");
-                interruptible_sleep(Duration::from_secs(5), &*shutdown);
+                interruptible_sleep(Duration::from_secs(5), &shutdown);
                 continue 'main;
             }
 
@@ -153,10 +153,11 @@ fn main() {
                         }
                     }
 
-                    Interactions::DialChanged(dial, delta) => match dial {
-                        Dials::Dial4 => input.dial_turn = (delta as i16 * 120) * -1,
-                        _ => {}
-                    },
+                    Interactions::DialChanged(dial, delta) => {
+                        if dial == Dials::Dial4 {
+                            input.dial_turn = -(delta as i16 * 120);
+                        }
+                    }
                 }
             }
 
