@@ -6,6 +6,7 @@
 //! Dial 4 Press: Shoot
 //! Dial 4 Button: Use
 
+use std::thread::sleep;
 use beacn_lib::MaybeFuture;
 use beacn_lib::controller::{ButtonState, Buttons, Dials, Interactions, open_control_device};
 use beacn_lib::manager::get_beacn_mix_create_device;
@@ -17,9 +18,9 @@ use image::{ImageBuffer, RgbaImage};
 use neurodoom::{Button as DoomButton, Buttons as DoomButtons};
 use neurodoom::{ClassicEngine, PeerId, PlayerAction};
 
+use image::imageops::{FilterType, resize};
+use log::{debug, info, warn};
 use std::time::{Duration, Instant};
-use image::imageops::{resize, FilterType};
-use log::debug;
 
 const DOOM_TICK: Duration = Duration::from_millis(1000 / 35); // ~35Hz
 const DISPLAY_TICK: Duration = Duration::from_millis(1000 / 20); // 20Hz
@@ -60,19 +61,6 @@ impl InputState {
 fn main() {
     env_logger::init();
 
-    let devices = get_beacn_mix_create_device().wait();
-    if devices.is_empty() {
-        println!("No BEACN Mix Create found");
-        return;
-    }
-
-    let (interaction_tx, interaction_rx) = flume::unbounded();
-    let (health_tx, _health_rx) = flume::unbounded();
-
-    let device = open_control_device(devices[0].clone(), Some(interaction_tx), health_tx)
-        .wait()
-        .unwrap();
-
     let mut input = InputState {
         dial_turn: 0,
         forward: false,
@@ -83,74 +71,102 @@ fn main() {
     let wad = std::fs::read("DOOM1.WAD").expect("missing DOOM1.WAD");
     let mut doom = ClassicEngine::new(&wad, "E1M1").expect("failed to initialise Doom");
 
-    let mut last_display = Instant::now();
+    'main: loop {
+        info!("Attempting to Connect to Beacn Mix Create Device..");
 
-    let mut tick_accumulator = Duration::ZERO;
-    let mut last_time = Instant::now();
+        let devices = get_beacn_mix_create_device().wait();
+        if devices.is_empty() {
+            warn!("No BEACN Mix Create found, waiting 5 seconds and trying again..");
+            sleep(Duration::from_secs(5));
+            continue;
+        }
 
-    loop {
-        let now = Instant::now();
+        let (interaction_tx, interaction_rx) = flume::unbounded();
+        let (health_tx, _health_rx) = flume::unbounded();
 
-        tick_accumulator += now - last_time;
-        last_time = now;
+        let device = open_control_device(devices[0].clone(), Some(interaction_tx), health_tx)
+            .wait()
+            .unwrap();
 
-        input.dial_turn = 0;
+        let mut last_display = Instant::now();
 
-        // Drain BEACN events
-        while let Ok(event) = interaction_rx.try_recv() {
-            match event {
-                Interactions::ButtonPress(button, state) => {
-                    let pressed = matches!(state, ButtonState::Press);
+        let mut tick_accumulator = Duration::ZERO;
+        let mut last_time = Instant::now();
 
-                    match button {
-                        Buttons::AudienceMix => {
-                            input.forward = pressed;
+        loop {
+            if _health_rx.try_recv().is_ok() {
+                warn!("Device Lost, waiting 5 seconds then trying to get it back..");
+                sleep(Duration::from_secs(5));
+                continue 'main;
+            }
+
+            let now = Instant::now();
+
+            tick_accumulator += now - last_time;
+            last_time = now;
+
+            input.dial_turn = 0;
+
+            // Drain BEACN events
+            while let Ok(event) = interaction_rx.try_recv() {
+                match event {
+                    Interactions::ButtonPress(button, state) => {
+                        let pressed = matches!(state, ButtonState::Press);
+
+                        match button {
+                            Buttons::AudienceMix => {
+                                input.forward = pressed;
+                            }
+
+                            Buttons::Dial4 => {
+                                input.shoot = pressed;
+                            }
+
+                            Buttons::Audience4 => {
+                                input.use_key = pressed;
+                            }
+
+                            _ => {}
                         }
-
-                        Buttons::Dial4 => {
-                            input.shoot = pressed;
-                        }
-
-                        Buttons::Audience4 => {
-                            input.use_key = pressed;
-                        }
-
-                        _ => {}
                     }
-                }
 
-                Interactions::DialChanged(dial, delta) => {
-                    match dial {
+                    Interactions::DialChanged(dial, delta) => match dial {
                         Dials::Dial4 => input.dial_turn = (delta as i16 * 120) * -1,
                         _ => {}
-                    }
+                    },
                 }
             }
-        }
 
-        while tick_accumulator >= DOOM_TICK {
-            let action = input.to_player_action();
+            while tick_accumulator >= DOOM_TICK {
+                let action = input.to_player_action();
 
-            doom.tick_single(PeerId(0), action);
-            tick_accumulator -= DOOM_TICK;
-        }
-
-        if now.duration_since(last_display) >= DISPLAY_TICK {
-            debug!("Rendering Frame..");
-            let framebuffer = doom.framebuffer();
-
-            let jpeg = encode_frame(framebuffer);
-            let _ = device.send_keepalive();
-
-            if let Err(e) = device.set_image(0, 0, &jpeg) {
-                println!("display error: {:?}", e);
+                doom.tick_single(PeerId(0), action);
+                tick_accumulator -= DOOM_TICK;
             }
 
-            // We update the timestamp now, so maintain consistency between frames
-            last_display = now;
-        }
+            if now.duration_since(last_display) >= DISPLAY_TICK {
+                let frame = encode_frame(doom.framebuffer());
 
-        std::thread::sleep(Duration::from_millis(1));
+                match device.send_keepalive() {
+                    Ok(()) => {
+                        if let Err(e) = device.set_image(0, 0, &frame) {
+                            debug!("Image send failed: {e}");
+                            std::thread::sleep(Duration::from_millis(200));
+                        }
+                    }
+                    Err(e) => {
+                        debug!("Keepalive failed: {e}");
+                        std::thread::sleep(Duration::from_millis(200));
+                    }
+                }
+
+                // We update the timestamp now, so maintain consistency between frames
+                last_display = now;
+            }
+
+            // Lets not pure CPU spin here :D
+            sleep(Duration::from_millis(5));
+        }
     }
 }
 
