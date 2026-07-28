@@ -84,9 +84,14 @@ fn main() {
         let (interaction_tx, interaction_rx) = flume::unbounded();
         let (health_tx, _health_rx) = flume::unbounded();
 
-        let device = open_control_device(devices[0].clone(), Some(interaction_tx), health_tx)
-            .wait()
-            .unwrap();
+        let device = match open_control_device(devices[0].clone(), Some(interaction_tx), health_tx).wait() {
+            Ok(device) => device,
+            Err(e) => {
+                warn!("Failed to connect to Beacn Mix Create: {e}, waiting 5 seconds and trying again..");
+                sleep(Duration::from_secs(5));
+                continue;
+            }
+        };
 
         let mut last_display = Instant::now();
 
