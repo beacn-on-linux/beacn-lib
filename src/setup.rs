@@ -63,11 +63,13 @@ where
 {
     #[cfg(any(feature = "tokio", feature = "smol"))]
     {
+        endpoint.cancel_all();
         endpoint.clear_halt().await
     }
     #[cfg(not(any(feature = "tokio", feature = "smol")))]
     {
         use nusb::MaybeFuture;
+        endpoint.cancel_all();
         endpoint.clear_halt().wait()
     }
 }
