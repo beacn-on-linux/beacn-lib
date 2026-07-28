@@ -602,13 +602,17 @@ enum Event {
 }
 
 pub fn tick(duration: Duration) -> Receiver<()> {
-    let (tx, rx) = flume::unbounded();
+    let (tx, rx) = bounded(1);
 
     thread::spawn(move || {
         loop {
             sleep(duration);
-            if tx.send(()).is_err() {
-                break;
+
+            // Use try_send to avoid blocking the thread if the channel is full
+            match tx.try_send(()) {
+                Ok(_) => {}
+                Err(flume::TrySendError::Full(_)) => {}
+                Err(flume::TrySendError::Disconnected(_)) => break,
             }
         }
     });
