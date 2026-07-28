@@ -2,7 +2,7 @@ use crate::controller::device::writer::UsbWriter;
 use crate::types::RGBA;
 use async_io::Timer;
 use byteorder::{ByteOrder, LittleEndian};
-use log::{error, warn};
+use log::error;
 use nusb::transfer::{Interrupt, Out, TransferError};
 use std::time::{Duration, Instant};
 
@@ -126,16 +126,7 @@ impl<'a> Messenger<'a> {
             output[3] = 0x50;
             output[4..4 + value.len()].copy_from_slice(value);
 
-            let attempt = self.send_chunk(&output, chunk_retry).await;
-            match attempt {
-                Err(e) if index == 0 => {
-                    warn!("Failed to send First Chunk, attempting Reset..");
-                    return Err(e);
-                }
-
-                Err(e) => return Err(e),
-                _ => {}
-            }
+            self.send_chunk(&output, chunk_retry).await?;
 
             if iter.peek().is_none() {
                 output.fill(0);
@@ -156,11 +147,7 @@ impl<'a> Messenger<'a> {
         Ok(())
     }
 
-    async fn send_chunk(
-        &mut self,
-        chunk: &[u8; 1024],
-        retry: Duration,
-    ) -> Result<(), TransferError> {
+    async fn send_chunk(&mut self, chunk: &[u8], retry: Duration) -> Result<(), TransferError> {
         let chunk_timeout = Duration::from_millis(100);
 
         let started = Instant::now();
