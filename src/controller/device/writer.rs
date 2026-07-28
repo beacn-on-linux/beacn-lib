@@ -14,7 +14,9 @@ impl<'a> UsbWriter<'a> {
     }
 
     pub(crate) async fn clear_halt(&mut self) -> Result<(), TransferError> {
-        crate::setup::clear_halt(self.endpoint).await.map_err(|_| TransferError::Disconnected)
+        crate::setup::clear_halt(self.endpoint)
+            .await
+            .map_err(|_| TransferError::Disconnected)
     }
 
     pub(crate) async fn send(&mut self, data: &[u8]) -> Result<(), TransferError> {

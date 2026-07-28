@@ -38,7 +38,6 @@ pub async fn open_audio_device(location: DeviceLocation) -> BResult<Box<dyn Beac
 }
 
 #[derive(Debug, Clone)]
-#[allow(unused)]
 pub struct LinkedApp {
     pub channel: LinkChannel,
     pub name: String,

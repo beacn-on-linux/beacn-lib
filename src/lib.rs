@@ -69,3 +69,7 @@ macro_rules! beacn_bail {
         return Err($crate::BeacnError::Other(anyhow::Error::from($err)))
     };
 }
+
+mod sealed {
+    pub trait Sealed {}
+}

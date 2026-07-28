@@ -5,12 +5,12 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use nusb::{Device, DeviceInfo, Interface};
 use std::io::{Cursor, Read, Seek};
 
-pub(crate) struct DeviceDefinition {
+pub struct DeviceDefinition {
     pub(crate) descriptor: DeviceInfo,
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
+#[allow(unused)]
 pub struct BeacnDeviceHandle {
     pub(crate) descriptor: DeviceInfo,
     pub(crate) device: Device,

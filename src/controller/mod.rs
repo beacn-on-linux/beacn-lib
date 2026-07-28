@@ -1,8 +1,10 @@
 use crate::common::find_device;
-use crate::controller::common::{BeacnControlDeviceAttach, BeacnControlInteraction};
-use crate::controller::mix::BeacnMix;
-use crate::controller::mix_create::BeacnMixCreate;
+use crate::controller::common::{
+    BeacnControlAPI, BeacnControlDeviceAttach, BeacnControlDeviceInternal,
+};
+use crate::controller::device_kind::{BeacnDevice, BeacnDeviceKind};
 use crate::manager::{DeviceLocation, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
+use crate::sealed::Sealed;
 use crate::types::RGBA;
 use crate::{BResult, beacn_bail};
 use enum_map::Enum;
@@ -13,12 +15,34 @@ use std::time::Duration;
 use strum::{Display, EnumIter};
 
 mod common;
-pub mod device;
-mod mix;
-mod mix_create;
+mod device;
+pub mod device_kind;
 
+#[allow(private_interfaces)]
+pub type BeacnMix = BeacnDevice<BeacnMixKind>;
+pub struct BeacnMixKind;
+impl BeacnDeviceKind for BeacnMixKind {
+    const PID: &[u16] = PID_BEACN_MIX;
+    const NAME: &'static str = "BeacnMix";
+}
+
+#[allow(private_interfaces)]
+pub type BeacnMixCreate = BeacnDevice<BeacnMixCreateKind>;
+pub struct BeacnMixCreateKind;
+impl BeacnDeviceKind for BeacnMixCreateKind {
+    const PID: &[u16] = PID_BEACN_MIX_CREATE;
+    const NAME: &'static str = "BeacnMixCreate";
+}
+
+#[allow(private_bounds)]
 pub trait BeacnControlDevice:
-    BeacnControlDeviceAttach + BeacnControlInteraction + RefUnwindSafe + Sync + Send
+    BeacnControlDeviceAttach
+    + BeacnControlDeviceInternal
+    + BeacnControlAPI
+    + Sealed
+    + RefUnwindSafe
+    + Sync
+    + Send
 {
 }
 
@@ -27,16 +51,20 @@ pub async fn open_control_device(
     interaction: Option<Sender<Interactions>>,
     health_tx: Sender<()>,
 ) -> BResult<Arc<Box<dyn BeacnControlDevice>>> {
-    if let Some(device) = find_device(location).await {
-        return if PID_BEACN_MIX.contains(&device.descriptor.product_id()) {
+    let Some(device) = find_device(location).await else {
+        beacn_bail!("Device not found");
+    };
+
+    let pid = device.descriptor.product_id();
+    match pid {
+        _ if PID_BEACN_MIX.contains(&pid) => {
             BeacnMix::connect(device, interaction, health_tx).await
-        } else if PID_BEACN_MIX_CREATE.contains(&device.descriptor.product_id()) {
+        }
+        _ if PID_BEACN_MIX_CREATE.contains(&pid) => {
             BeacnMixCreate::connect(device, interaction, health_tx).await
-        } else {
-            beacn_bail!("Unknown Device");
-        };
+        }
+        _ => beacn_bail!("Unknown Device"),
     }
-    beacn_bail!("Unknown Device")
 }
 
 // These are some helper enums, generally used in messaging :)
