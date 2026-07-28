@@ -1,6 +1,6 @@
-use crate::common::find_device;
+use crate::common::{BeacnDeviceInfo, find_device};
 use crate::controller::common::{
-    BeacnControlAPI, BeacnControlDeviceAttach, BeacnControlDeviceInternal,
+    BeacnControlAPI, BeacnControlDeviceInfo, BeacnControlDeviceInternal,
 };
 use crate::controller::device_kind::{BeacnDevice, BeacnDeviceKind};
 use crate::manager::{DeviceLocation, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
@@ -36,7 +36,8 @@ impl BeacnDeviceKind for BeacnMixCreateKind {
 
 #[allow(private_bounds)]
 pub trait BeacnControlDevice:
-    BeacnControlDeviceAttach
+    BeacnDeviceInfo
+    + BeacnControlDeviceInfo
     + BeacnControlDeviceInternal
     + BeacnControlAPI
     + Sealed

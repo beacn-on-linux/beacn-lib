@@ -1,51 +1,45 @@
 use crate::audio::messages::{DeviceMessageType, Message};
 use crate::audio::{BeacnAudioDevice, DeviceDefinition, LinkChannel, LinkedApp};
-use crate::common::{BeacnDeviceHandle, get_device_info};
+use crate::common::{BeacnDeviceHandle, BeacnDeviceInfo, get_device_info};
 use crate::manager::DeviceType;
 use crate::sync::AsyncMutex as Mutex;
 use crate::transfer::transfer;
-use crate::version::VersionNumber;
 use crate::{BResult, beacn_bail};
 use async_trait::async_trait;
 use byteorder::{ByteOrder, LittleEndian};
 use log::{debug, warn};
 use nusb::transfer::{Buffer, Bulk, In, Out};
 use std::time::Duration;
-
-// This defines the code needed for connecting to a Beacn Audio Device, it's currently consistent
-// between the Mic and Studio, so we'll have a common base implementation for open()
-#[async_trait]
-pub trait BeacnAudioDeviceAttach {
-    // We're specifically allowing the DeviceDefinition to be a private interface, as it's
-    // simply used internally for connection up a device, and shouldn't have any visibility
-    // from the outside. This also prevents external code from attempting to call connect.
-    #[allow(private_interfaces)]
-    async fn connect(device: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>>
-    where
-        Self: Sized;
-
-    fn get_product_id(&self) -> u16;
-    fn get_serial(&self) -> String;
-    fn get_version(&self) -> VersionNumber;
-}
+use crate::sealed::Sealed;
 
 /// This is a bulk endpoint pair. These are mutexed together to prevent
 /// the potential of different threads (or async tasks) attempting to interact with
 /// the device at the same time; access is treated one at a time.
-pub(crate) struct AudioEndpoints {
+pub struct AudioEndpoints {
     pub(crate) out_ep: nusb::Endpoint<Bulk, Out>,
     pub(crate) in_ep: nusb::Endpoint<Bulk, In>,
 }
 
-#[allow(private_interfaces)]
-pub trait BeacnAudioMessageExecute {
+pub(crate) trait BeacnAudioMessageExecute: Sealed {
     fn get_device_type(&self) -> DeviceType;
     fn get_endpoints(&self) -> &Mutex<AudioEndpoints>;
 }
 
+#[async_trait]
+pub(crate) trait BeacnAudioDeviceInternal: Sealed {
+    // We're specifically allowing the DeviceDefinition to be a private interface, as it's
+    // simply used internally for connection up a device, and shouldn't have any visibility
+    // from the outside. This also prevents external code from attempting to call connect.
+
+    async fn connect(definition: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>>
+    where
+        Self: Sized;
+}
+
 // Trait for Sending and Receiving Messages
 #[async_trait]
-pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal {
+#[allow(private_bounds)]
+pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal + Sealed {
     async fn handle_message(&self, message: Message) -> BResult<Message> {
         if message.is_device_message_set() {
             self.set_value(message).await
@@ -64,7 +58,7 @@ pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal
 
 // Stuff that is local to this instance
 #[async_trait]
-pub trait BeacnAudioMessageLocal: BeacnAudioMessageExecute + BeacnAudioDeviceAttach {
+pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute + BeacnDeviceInfo + Sealed {
     fn is_command_valid(&self, message: &Message) -> bool {
         let message_type = message.get_device_message_type();
         let device_type = self.get_device_type();

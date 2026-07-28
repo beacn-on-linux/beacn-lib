@@ -1,9 +1,11 @@
 use crate::manager::{DeviceLocation, VENDOR_BEACN};
 use crate::version::VersionNumber;
 use anyhow::Result;
+use async_trait::async_trait;
 use byteorder::{LittleEndian, ReadBytesExt};
 use nusb::{Device, DeviceInfo, Interface};
 use std::io::{Cursor, Read, Seek};
+use crate::sealed::Sealed;
 
 pub struct DeviceDefinition {
     pub(crate) descriptor: DeviceInfo,
@@ -17,6 +19,14 @@ pub struct BeacnDeviceHandle {
     pub(crate) interface: Interface,
     pub(crate) version: VersionNumber,
     pub(crate) serial: String,
+}
+
+// This trait gets attached to devices and returns information about them.
+#[async_trait]
+pub trait BeacnDeviceInfo: Sealed {
+    fn get_product_id(&self) -> u16;
+    fn get_serial(&self) -> String;
+    fn get_version(&self) -> VersionNumber;
 }
 
 pub(crate) async fn find_device(location: DeviceLocation) -> Option<DeviceDefinition> {

@@ -23,14 +23,7 @@ use std::time::Duration;
 use std::{mem, thread};
 
 #[async_trait]
-pub trait BeacnControlDeviceAttach: Sealed {
-    // We're specifically allowing the DeviceDefinition to be a private interface, as it's
-    // simply used internally for connection up a device, and shouldn't have any visibility
-    // from the outside. This also prevents external code from attempting to call connect.
-    fn get_product_id(&self) -> u16;
-    fn get_serial(&self) -> String;
-    fn get_version(&self) -> String;
-
+pub trait BeacnControlDeviceInfo: Sealed {
     fn get_display_size(&self) -> (u32, u32);
 }
 
@@ -52,7 +45,7 @@ pub(crate) trait BeacnControlDeviceInternal: Sealed {
 // can simply use the same behaviour between the two
 #[allow(private_bounds)]
 pub trait BeacnControlAPI:
-    BeacnControlDeviceAttach + BeacnControlDeviceInternal + BeacnControlDeviceRunner + Sealed
+    BeacnControlDeviceInfo + BeacnControlDeviceInternal + BeacnControlDeviceRunner + Sealed
 {
     fn set_enabled(&self, enabled: bool) -> BResult<()> {
         let (tx, rx) = oneshot::channel();

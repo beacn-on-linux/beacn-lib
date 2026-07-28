@@ -1,7 +1,7 @@
 use crate::BResult;
-use crate::common::DeviceDefinition;
+use crate::common::{BeacnDeviceInfo, DeviceDefinition};
 use crate::controller::common::{
-    BeacnControlAPI, BeacnControlDeviceAttach, BeacnControlDeviceInternal, open_beacn,
+    BeacnControlAPI, BeacnControlDeviceInfo, BeacnControlDeviceInternal, open_beacn,
 };
 use crate::controller::device::runner::BeacnControlDeviceRunner;
 use crate::controller::{BeacnControlDevice, ControlThreadSender, Interactions};
@@ -41,18 +41,21 @@ pub(crate) struct BeacnDevice<K: BeacnDeviceKind> {
 impl<K: BeacnDeviceKind + RefUnwindSafe> Sealed for BeacnDevice<K> {}
 
 #[async_trait]
-impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnControlDeviceAttach for BeacnDevice<K> {
+impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnControlDeviceInfo for BeacnDevice<K> {
+    fn get_display_size(&self) -> (u32, u32) {
+        (800, 480)
+    }
+}
+
+impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnDeviceInfo for BeacnDevice<K> {
     fn get_product_id(&self) -> u16 {
         self.pid
     }
     fn get_serial(&self) -> String {
         self.serial.clone()
     }
-    fn get_version(&self) -> String {
-        self.version.to_string()
-    }
-    fn get_display_size(&self) -> (u32, u32) {
-        (800, 480)
+    fn get_version(&self) -> VersionNumber {
+        self.version
     }
 }
 

@@ -1,40 +1,59 @@
 mod common;
+mod device_kind;
 pub mod messages;
-mod mic;
-mod studio;
 
-use crate::audio::common::{BeacnAudioDeviceAttach, BeacnAudioMessageExecute, BeacnAudioMessaging};
-use crate::audio::mic::BeacnMic;
-use crate::audio::studio::BeacnStudio;
-use crate::common::{DeviceDefinition, find_device};
+use crate::audio::common::{
+    BeacnAudioDeviceInternal, BeacnAudioMessageExecute, BeacnAudioMessaging,
+};
+use crate::audio::device_kind::{BeacnDevice, BeacnDeviceKind};
+use crate::common::{BeacnDeviceInfo, DeviceDefinition, find_device};
 use crate::manager::{DeviceLocation, PID_BEACN_MIC, PID_BEACN_STUDIO};
+use crate::sealed::Sealed;
 use crate::{BResult, beacn_bail};
 use enum_map::Enum;
 use std::panic::RefUnwindSafe;
 use strum::EnumIter;
 
+#[allow(private_interfaces)]
+pub type BeacnMic = BeacnDevice<BeacnMicKind>;
+pub struct BeacnMicKind;
+impl BeacnDeviceKind for BeacnMicKind {
+    const PID: &[u16] = PID_BEACN_MIC;
+    const NAME: &'static str = "BeacnMix";
+}
+
+#[allow(private_interfaces)]
+pub type BeacnStudio = BeacnDevice<BeacnStudioKind>;
+pub struct BeacnStudioKind;
+impl BeacnDeviceKind for BeacnStudioKind {
+    const PID: &[u16] = PID_BEACN_STUDIO;
+    const NAME: &'static str = "BeacnMixCreate";
+}
+
+#[allow(private_bounds)]
 pub trait BeacnAudioDevice:
-    BeacnAudioDeviceAttach
+    BeacnDeviceInfo
+    + BeacnAudioDeviceInternal
     + BeacnAudioMessageExecute
     + BeacnAudioMessaging
     + RefUnwindSafe
+    + Sealed
     + Send
     + Sync
 {
 }
 
 pub async fn open_audio_device(location: DeviceLocation) -> BResult<Box<dyn BeacnAudioDevice>> {
-    if let Some(device) = find_device(location).await {
-        // We need to return the correct type
-        return if PID_BEACN_MIC.contains(&device.descriptor.product_id()) {
-            BeacnMic::connect(device).await
-        } else if PID_BEACN_STUDIO.contains(&device.descriptor.product_id()) {
-            BeacnStudio::connect(device).await
-        } else {
-            beacn_bail!("Unknown Device")
-        };
+    let Some(device) = find_device(location).await else {
+        beacn_bail!("Device not found");
+    };
+
+    let pid = device.descriptor.product_id();
+    match pid {
+        _ if PID_BEACN_MIC.contains(&pid) => BeacnMic::connect(device).await,
+        _ if PID_BEACN_STUDIO.contains(&pid) => BeacnStudio::connect(device).await,
+        _ => beacn_bail!("Unknown Device"),
     }
-    beacn_bail!("Unknown Device")
 }
 
 #[derive(Debug, Clone)]
