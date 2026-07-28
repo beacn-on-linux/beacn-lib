@@ -1,4 +1,4 @@
-use crate::transfer::transfer_with_timeout;
+use crate::transfer::transfer;
 use log::warn;
 use nusb::transfer::{Buffer, Interrupt, Out, TransferError};
 use std::time::Duration;
@@ -43,9 +43,8 @@ impl<'a> UsbWriter<'a> {
     /// This deliberately does not handle recovery. Recovery belongs in send()
     /// so every caller gets identical behaviour.
     async fn send_once(&mut self, data: &[u8], timeout: Duration) -> Result<(), TransferError> {
-        transfer_with_timeout(self.endpoint, Buffer::from(data.to_vec()), timeout)
+        transfer(self.endpoint, Buffer::from(data.to_vec()), timeout)
             .await
-            .into_result()
             .map(|_| ())
     }
 }

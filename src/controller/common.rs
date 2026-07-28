@@ -9,7 +9,7 @@ use crate::controller::device::timer::Timer;
 use crate::controller::{
     BeacnControlDevice, ButtonLighting, Buttons, ControlThreadSender, Dials, Interactions,
 };
-use crate::transfer::transfer_with_timeout;
+use crate::transfer::transfer;
 use crate::types::RGBA;
 use crate::version::VersionNumber;
 use crate::{BResult, MaybeFuture, beacn_bail};
@@ -549,14 +549,11 @@ pub(crate) async fn open_beacn(
     crate::setup::clear_halt(&mut in_ep).await?;
 
     let setup_timeout = Duration::from_millis(2000);
+    transfer(&mut out_ep, [0, 0, 0, 0].into(), setup_timeout).await?;
 
     // Unlike the Mic and Studio, we use an interrupt, rather a bulk read
-    transfer_with_timeout(&mut out_ep, [00u8, 00, 00, 1].into(), setup_timeout)
-        .await
-        .into_result()?;
-    let completion = transfer_with_timeout(&mut in_ep, Buffer::new(64), setup_timeout)
-        .await
-        .into_result()?;
+    transfer(&mut out_ep, [0, 0, 0, 1].into(), setup_timeout).await?;
+    let completion = transfer(&mut in_ep, Buffer::new(64), setup_timeout).await?;
 
     let (version, serial) = get_device_info(&completion[..])?;
 

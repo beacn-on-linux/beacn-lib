@@ -3,7 +3,7 @@ use crate::audio::{BeacnAudioDevice, DeviceDefinition, LinkChannel, LinkedApp};
 use crate::common::{BeacnDeviceHandle, get_device_info};
 use crate::manager::DeviceType;
 use crate::sync::AsyncMutex as Mutex;
-use crate::transfer::transfer_with_timeout;
+use crate::transfer::transfer;
 use crate::version::VersionNumber;
 use crate::{BResult, beacn_bail};
 use async_trait::async_trait;
@@ -146,16 +146,11 @@ pub trait BeacnAudioMessageLocal: BeacnAudioMessageExecute + BeacnAudioDeviceAtt
         let mut ep = self.get_endpoints().lock().await;
 
         // Write out the command request
-        transfer_with_timeout(&mut ep.out_ep, request.into(), timeout)
-            .await
-            .into_result()?;
+        transfer(&mut ep.out_ep, request.into(), timeout).await?;
 
         // Grab the response into a buffer
         let max_packet_size = ep.in_ep.max_packet_size();
-        let completion =
-            transfer_with_timeout(&mut ep.in_ep, Buffer::new(max_packet_size), timeout)
-                .await
-                .into_result()?;
+        let completion = transfer(&mut ep.in_ep, Buffer::new(max_packet_size), timeout).await?;
 
         if completion.len() != 8 {
             beacn_bail!("Invalid Response Length Received");
@@ -183,9 +178,7 @@ pub trait BeacnAudioMessageLocal: BeacnAudioMessageExecute + BeacnAudioDeviceAtt
 
         {
             let mut endpoints = self.get_endpoints().lock().await;
-            transfer_with_timeout(&mut endpoints.out_ep, request.into(), timeout)
-                .await
-                .into_result()?;
+            transfer(&mut endpoints.out_ep, request.into(), timeout).await?;
         }
 
         // Check whether the value has changed
@@ -219,14 +212,10 @@ pub trait BeacnAudioMessageLocal: BeacnAudioMessageExecute + BeacnAudioDeviceAtt
         let request = [0x00, 0x00, 0x01, 0xAC];
 
         let mut endpoints = self.get_endpoints().lock().await;
-        transfer_with_timeout(&mut endpoints.out_ep, request.into(), timeout)
-            .await
-            .into_result()?;
+        transfer(&mut endpoints.out_ep, request.into(), timeout).await?;
 
         // TODO: Assuming max length of 1024, it might be higher
-        let completion = transfer_with_timeout(&mut endpoints.in_ep, Buffer::new(1024), timeout)
-            .await
-            .into_result()?;
+        let completion = transfer(&mut endpoints.in_ep, Buffer::new(1024), timeout).await?;
         let buf = &completion[..];
 
         // Extract the header
@@ -292,9 +281,7 @@ pub trait BeacnAudioMessageLocal: BeacnAudioMessageExecute + BeacnAudioDeviceAtt
 
         let timeout = Duration::from_secs(3);
         let mut endpoints = self.get_endpoints().lock().await;
-        transfer_with_timeout(&mut endpoints.out_ep, message.into(), timeout)
-            .await
-            .into_result()?;
+        transfer(&mut endpoints.out_ep, message.into(), timeout).await?;
 
         Ok(())
     }
@@ -325,20 +312,14 @@ pub(crate) async fn open_beacn(
     let setup_timeout = Duration::from_millis(2000);
 
     let request = [0x00, 0x00, 0x00, 0xa0];
-    transfer_with_timeout(&mut out_ep, request.into(), setup_timeout)
-        .await
-        .into_result()?;
+    transfer(&mut out_ep, request.into(), setup_timeout).await?;
 
     // Mic and Studio use bulk reads to get this data
     let request = [0x00, 0x00, 0x00, 0xa1];
-    transfer_with_timeout(&mut out_ep, request.into(), setup_timeout)
-        .await
-        .into_result()?;
+    transfer(&mut out_ep, request.into(), setup_timeout).await?;
 
     let read_len = in_ep.max_packet_size().max(512);
-    let completion = transfer_with_timeout(&mut in_ep, Buffer::new(read_len), setup_timeout)
-        .await
-        .into_result()?;
+    let completion = transfer(&mut in_ep, Buffer::new(read_len), setup_timeout).await?;
 
     // So, this is consistent between the Mix Create and the Mic :D
     let (version, serial) = get_device_info(&completion[..])?;
