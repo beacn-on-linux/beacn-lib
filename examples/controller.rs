@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use beacn_lib::MaybeFuture;
 use beacn_lib::controller::{
     BeacnControlDevice, ButtonLighting, Interactions, open_control_device,
@@ -98,7 +99,7 @@ fn main() {
 }
 
 struct Device {
-    device: Box<dyn BeacnControlDevice>,
+    device: Arc<Box<dyn BeacnControlDevice>>,
     location: DeviceLocation,
 
     health: Receiver<()>,
