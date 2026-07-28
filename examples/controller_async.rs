@@ -1,11 +1,13 @@
-use beacn_lib::controller::{BeacnControlDevice, Interactions, open_control_device, ButtonLighting};
+use beacn_lib::controller::{
+    BeacnControlDevice, ButtonLighting, Interactions, open_control_device,
+};
 use beacn_lib::manager::{DeviceLocation, get_beacn_mix_create_device, get_beacn_mix_device};
+use beacn_lib::types::RGBA;
 use flume::Receiver;
 use image::codecs::jpeg::JpegEncoder;
 use image::{ImageBuffer, Rgb};
 use std::time::Duration;
 use tokio::sync::mpsc;
-use beacn_lib::types::RGBA;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
