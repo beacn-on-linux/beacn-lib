@@ -1,14 +1,25 @@
-use crate::manager::{DeviceLocation, VENDOR_BEACN};
+use crate::manager::{DeviceLocation, DeviceType, VENDOR_BEACN};
+use crate::sealed::Sealed;
+use crate::transfer::transfer;
 use crate::version::VersionNumber;
+use crate::{BResult, beacn_bail, setup};
 use anyhow::Result;
 use async_trait::async_trait;
 use byteorder::{LittleEndian, ReadBytesExt};
+use log::{debug, warn};
+use nusb::transfer::{Buffer, BulkOrInterrupt, EndpointType, In, Out, TransferError};
 use nusb::{Device, DeviceInfo, Interface};
 use std::io::{Cursor, Read, Seek};
-use crate::sealed::Sealed;
+use std::time::Duration;
 
 pub struct DeviceDefinition {
     pub(crate) descriptor: DeviceInfo,
+}
+
+/// Define the Device Kinds
+pub trait BeacnDeviceKind: Send + Sync + 'static {
+    const PID: &[u16];
+    const TYPE: DeviceType;
 }
 
 #[derive(Debug)]
@@ -17,7 +28,7 @@ pub struct BeacnDeviceHandle {
     pub(crate) descriptor: DeviceInfo,
     pub(crate) device: Device,
     pub(crate) interface: Interface,
-    pub(crate) version: VersionNumber,
+    pub(crate) fw_version: VersionNumber,
     pub(crate) serial: String,
 }
 
@@ -27,6 +38,75 @@ pub trait BeacnDeviceInfo: Sealed {
     fn get_product_id(&self) -> u16;
     fn get_serial(&self) -> String;
     fn get_version(&self) -> VersionNumber;
+}
+
+/// A function to open a Beacn Device
+pub(crate) async fn open_device<T>(
+    product_id: &[u16],
+    definition: DeviceDefinition,
+    interface_num: u8,
+    firmware_bytes: &[u8],
+) -> BResult<BeacnDeviceHandle>
+where
+    T: EndpointType + BulkOrInterrupt,
+{
+    if !product_id.contains(&definition.descriptor.product_id()) {
+        beacn_bail!(
+            "Expecting PIDs {:?} but got {}",
+            product_id,
+            definition.descriptor.product_id()
+        );
+    }
+
+    let device = setup::open(&definition.descriptor).await?;
+    let interface = setup::claim_interface(&device, interface_num).await?;
+    setup::set_alt_setting(&interface, 1).await?;
+
+    // Create some endpoints, caller tells us the type
+    let mut out_ep = interface.endpoint::<T, Out>(0x03)?;
+    let mut in_ep = interface.endpoint::<T, In>(0x83)?;
+
+    let setup_timeout = Duration::from_millis(2000);
+    let read_len = in_ep.max_packet_size().max(64);
+
+    for byte in firmware_bytes {
+        transfer(&mut out_ep, [0, 0, 0, *byte].into(), setup_timeout).await?;
+    }
+
+    let completion = {
+        match transfer(&mut in_ep, Buffer::new(read_len), setup_timeout).await {
+            Ok(buf) => buf,
+            Err(e) => {
+                if e == TransferError::Stall {
+                    warn!("Stall on interface, attempting to Clear..");
+                    setup::clear_halt(&mut in_ep).await?;
+
+                    // Try it again..
+                    transfer(&mut in_ep, Buffer::new(read_len), setup_timeout).await?
+                } else {
+                    beacn_bail!("Failed to read firmware version: {}", e);
+                }
+            }
+        }
+    };
+
+    let (version, serial) = get_device_info(&completion[..])?;
+
+    debug!(
+        "Loaded Device, Location: {}.{}, Serial: {}, Version: {}",
+        definition.descriptor.bus_id(),
+        definition.descriptor.device_address(),
+        serial.clone(),
+        version
+    );
+
+    Ok(BeacnDeviceHandle {
+        descriptor: definition.descriptor,
+        device,
+        interface,
+        fw_version: version,
+        serial,
+    })
 }
 
 pub(crate) async fn find_device(location: DeviceLocation) -> Option<DeviceDefinition> {

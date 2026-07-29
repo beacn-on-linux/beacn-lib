@@ -1,7 +1,7 @@
 use crate::BResult;
-use crate::common::{BeacnDeviceInfo, DeviceDefinition};
+use crate::common::{BeacnDeviceInfo, BeacnDeviceKind, DeviceDefinition, open_device};
 use crate::controller::common::{
-    BeacnControlAPI, BeacnControlDeviceInfo, BeacnControlDeviceInternal, open_beacn,
+    BeacnControlAPI, BeacnControlDeviceInfo, BeacnControlDeviceInternal,
 };
 use crate::controller::device::runner::BeacnControlDeviceRunner;
 use crate::controller::{BeacnControlDevice, ControlThreadSender, Interactions};
@@ -12,6 +12,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use flume::{Sender, bounded};
 use log::debug;
+use nusb::transfer::Interrupt;
 use std::marker::PhantomData;
 use std::panic::RefUnwindSafe;
 use std::sync::Arc;
@@ -20,17 +21,11 @@ use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
 
-/// Supplies the bits that differ between physical device types.
-pub trait BeacnDeviceKind: Send + Sync + 'static {
-    const PID: &[u16];
-    const NAME: &'static str;
-}
-
 #[derive(Debug)]
 pub(crate) struct BeacnDevice<K: BeacnDeviceKind> {
     pid: u16,
     serial: String,
-    version: VersionNumber,
+    fw_version: VersionNumber,
 
     sender: Sender<ControlThreadSender>,
     sender_enabled: AtomicBool,
@@ -55,7 +50,7 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnDeviceInfo for BeacnDevice<K> {
         self.serial.clone()
     }
     fn get_version(&self) -> VersionNumber {
-        self.version
+        self.fw_version
     }
 }
 
@@ -68,17 +63,13 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnControlDeviceInternal for BeacnDev
     where
         Self: Sized,
     {
-        let handle = open_beacn(definition, K::PID).await?;
-        let serial = handle.serial.clone();
-        let version = handle.version;
-        let pid = handle.descriptor.product_id();
-
+        let handle = open_device::<Interrupt>(K::PID, definition, 0, &[0x00, 0x01]).await?;
         let (sender, receiver) = bounded(64);
 
         let control_attach = Self {
-            pid,
-            serial,
-            version,
+            pid: handle.descriptor.product_id(),
+            serial: handle.serial.clone(),
+            fw_version: handle.fw_version,
             sender,
             sender_enabled: AtomicBool::new(false),
             _kind: PhantomData,
@@ -112,7 +103,7 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnControlAPI for BeacnDevice<K> {}
 
 impl<K: BeacnDeviceKind> Drop for BeacnDevice<K> {
     fn drop(&mut self) {
-        debug!("Dropping {}", K::NAME);
+        debug!("Dropping {}", K::TYPE);
         let _ = self.sender.send(ControlThreadSender::Stop);
     }
 }

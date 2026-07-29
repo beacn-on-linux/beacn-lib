@@ -1,22 +1,18 @@
-use crate::common::{BeacnDeviceHandle, DeviceDefinition, get_device_info};
+use crate::common::DeviceDefinition;
 use crate::controller::ControlThreadSender::{
     KeepAlive, SetActiveBrightness, SetButtonBrightness, SetButtonColour, SetDimTimeout,
     SetEnabled, SetImage,
 };
 use crate::controller::device::runner::BeacnControlDeviceRunner;
 use crate::controller::{BeacnControlDevice, ButtonLighting, ControlThreadSender, Interactions};
-use crate::transfer::transfer;
-use crate::types::RGBA;
-
 use crate::sealed::Sealed;
+use crate::types::RGBA;
 use crate::{BResult, beacn_bail};
 use anyhow::Error;
 use anyhow::Result;
 use async_trait::async_trait;
 use flume::{Receiver, Sender, bounded};
 use jpeg_decoder::Decoder;
-use log::debug;
-use nusb::transfer::{Buffer, In, Interrupt, Out};
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
@@ -169,56 +165,6 @@ pub trait BeacnControlAPI:
         rx.recv().map_err(Error::from)?;
         Ok(())
     }
-}
-
-/// Simple function to Open a USB connection to a Beacn Audio device, do initial setup, and
-/// grab the firmware version from the device.
-pub(crate) async fn open_beacn(
-    def: DeviceDefinition,
-    product_id: &[u16],
-) -> BResult<BeacnDeviceHandle> {
-    if !product_id.contains(&def.descriptor.product_id()) {
-        beacn_bail!(
-            "Expecting PIDs {:?} but got {}",
-            product_id,
-            def.descriptor.product_id()
-        );
-    }
-
-    let device = crate::setup::open(&def.descriptor).await?;
-    let interface = crate::setup::claim_interface(&device, 0).await?;
-    crate::setup::set_alt_setting(&interface, 1).await?;
-
-    // Unlike the Mic and Studio, we use an interrupt, rather a bulk read
-    let mut out_ep = interface.endpoint::<Interrupt, Out>(0x03)?;
-    let mut in_ep = interface.endpoint::<Interrupt, In>(0x83)?;
-
-    let setup_timeout = Duration::from_millis(2000);
-    transfer(&mut out_ep, [0, 0, 0, 0].into(), setup_timeout).await?;
-    transfer(&mut out_ep, [0, 0, 0, 1].into(), setup_timeout).await?;
-    let completion = transfer(&mut in_ep, Buffer::new(64), setup_timeout).await?;
-
-    let (version, serial) = get_device_info(&completion[..])?;
-
-    debug!(
-        "Loaded Device, Location: {}.{}, Serial: {}, Version: {}",
-        def.descriptor.bus_id(),
-        def.descriptor.device_address(),
-        serial.clone(),
-        version
-    );
-
-    // out_ep / in_ep are dropped here, releasing their claim on the endpoints. They get
-    // claimed again in spawn_event_handler, once we know whether the IN endpoint needs to
-    // live on a dedicated reader thread (older "notify" firmware) or stay on the event loop
-    // thread (newer, polling firmware).
-    Ok(BeacnDeviceHandle {
-        descriptor: def.descriptor,
-        device,
-        interface,
-        version,
-        serial,
-    })
 }
 
 pub fn tick(duration: Duration) -> Receiver<()> {

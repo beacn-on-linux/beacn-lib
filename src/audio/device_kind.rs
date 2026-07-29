@@ -4,21 +4,16 @@ use crate::audio::common::{
     AudioEndpoints, BeacnAudioDeviceInternal, BeacnAudioMessageExecute, BeacnAudioMessageLocal,
     BeacnAudioMessaging,
 };
-use crate::common::{BeacnDeviceHandle, BeacnDeviceInfo, DeviceDefinition};
+use crate::common::{BeacnDeviceHandle, BeacnDeviceInfo, DeviceDefinition, open_device, BeacnDeviceKind};
 use crate::manager::DeviceType;
 use crate::sealed::Sealed;
 use crate::sync::AsyncMutex;
 use crate::version::VersionNumber;
 use async_trait::async_trait;
 use log::debug;
+use nusb::transfer::{Bulk, In, Out};
 use std::marker::PhantomData;
 use std::panic::RefUnwindSafe;
-
-/// Supplies the bits that differ between physical device types.
-pub trait BeacnDeviceKind: Send + Sync + 'static {
-    const PID: &[u16];
-    const NAME: &'static str;
-}
 
 pub(crate) struct BeacnDevice<K: BeacnDeviceKind> {
     handle: BeacnDeviceHandle,
@@ -40,7 +35,7 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnDeviceInfo for BeacnDevice<K> {
     }
 
     fn get_version(&self) -> VersionNumber {
-        self.handle.version
+        self.handle.fw_version
     }
 }
 
@@ -50,7 +45,14 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioDeviceInternal for BeacnDevic
     where
         Self: Sized,
     {
-        let (handle, endpoints) = crate::audio::common::open_beacn(definition, K::PID).await?;
+        let handle = open_device::<Bulk>(K::PID, definition, 3, &[0xa0, 0xa1]).await?;
+
+        // Grab the Endpoints
+        let out_ep = handle.interface.endpoint::<Bulk, Out>(0x03)?;
+        let in_ep = handle.interface.endpoint::<Bulk, In>(0x83)?;
+
+        let endpoints = AudioEndpoints { in_ep, out_ep };
+
         Ok(Box::new(Self {
             handle,
             endpoints: AsyncMutex::new(endpoints),
@@ -65,7 +67,7 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioMessageLocal for BeacnDevice<
 impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioMessaging for BeacnDevice<K> {}
 impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioMessageExecute for BeacnDevice<K> {
     fn get_device_type(&self) -> DeviceType {
-        DeviceType::BeacnStudio
+        K::TYPE
     }
 
     fn get_endpoints(&self) -> &AsyncMutex<AudioEndpoints> {
@@ -75,6 +77,6 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioMessageExecute for BeacnDevic
 
 impl<K: BeacnDeviceKind> Drop for BeacnDevice<K> {
     fn drop(&mut self) {
-        debug!("Dropping {}", K::NAME);
+        debug!("Dropping {}", K::TYPE);
     }
 }

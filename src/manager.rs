@@ -12,6 +12,7 @@ use std::fmt::{Display, Formatter};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
+use strum::Display;
 
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
 pub(crate) const PID_BEACN_MIC: &[u16] = &[0x0001, 0x8001];
@@ -19,7 +20,7 @@ pub(crate) const PID_BEACN_STUDIO: &[u16] = &[0x0003];
 pub(crate) const PID_BEACN_MIX: &[u16] = &[0x0004];
 pub(crate) const PID_BEACN_MIX_CREATE: &[u16] = &[0x0007];
 
-#[derive(Debug, Default, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Display, Default, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DeviceType {
     #[default]
     BeacnMic,

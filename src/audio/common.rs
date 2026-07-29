@@ -1,16 +1,16 @@
 use crate::audio::messages::{DeviceMessageType, Message};
 use crate::audio::{BeacnAudioDevice, DeviceDefinition, LinkChannel, LinkedApp};
-use crate::common::{BeacnDeviceHandle, BeacnDeviceInfo, get_device_info};
+use crate::common::BeacnDeviceInfo;
 use crate::manager::DeviceType;
+use crate::sealed::Sealed;
 use crate::sync::AsyncMutex as Mutex;
 use crate::transfer::transfer;
 use crate::{BResult, beacn_bail};
 use async_trait::async_trait;
 use byteorder::{ByteOrder, LittleEndian};
-use log::{debug, warn};
+use log::warn;
 use nusb::transfer::{Buffer, Bulk, In, Out};
 use std::time::Duration;
-use crate::sealed::Sealed;
 
 /// This is a bulk endpoint pair. These are mutexed together to prevent
 /// the potential of different threads (or async tasks) attempting to interact with
@@ -58,7 +58,9 @@ pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal
 
 // Stuff that is local to this instance
 #[async_trait]
-pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute + BeacnDeviceInfo + Sealed {
+pub(crate) trait BeacnAudioMessageLocal:
+    BeacnAudioMessageExecute + BeacnDeviceInfo + Sealed
+{
     fn is_command_valid(&self, message: &Message) -> bool {
         let message_type = message.get_device_message_type();
         let device_type = self.get_device_type();
@@ -91,9 +93,9 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute + BeacnDeviceI
     async fn fetch_value(&self, message: Message) -> BResult<Message> {
         // Before we do anything, we need to make sure this message is valid on our device
         if !self.is_command_valid(&message) {
-            warn!("Command Sent not valid for this device:");
+            warn!("Cannot Fetch, Message not valid for this device:");
             warn!("{:?}", message);
-            beacn_bail!("Command is not valid for this device");
+            beacn_bail!("Cannot Fetch, Message not valid for this device.");
         }
 
         if !self.is_command_firmware_valid(&message) {
@@ -111,9 +113,9 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute + BeacnDeviceI
 
     async fn set_value(&self, message: Message) -> BResult<Message> {
         if !self.is_command_valid(&message) {
-            warn!("Command Sent not valid for this device:");
+            warn!("Command Sent, Message not valid for this device:");
             warn!("{:?}", message);
-            beacn_bail!("Command is not valid for this device");
+            beacn_bail!("Command Sent, Message not valid for this device");
         }
 
         if !self.is_command_firmware_valid(&message) {
@@ -279,60 +281,4 @@ pub(crate) trait BeacnAudioMessageLocal: BeacnAudioMessageExecute + BeacnDeviceI
 
         Ok(())
     }
-}
-
-/// Simple function to Open a USB connection to a Beacn Audio device, do initial setup and
-/// grab the firmware version from the device.
-pub(crate) async fn open_beacn(
-    def: DeviceDefinition,
-    product_id: &[u16],
-) -> BResult<(BeacnDeviceHandle, AudioEndpoints)> {
-    if !product_id.contains(&def.descriptor.product_id()) {
-        beacn_bail!(
-            "Expecting PIDs {:?} but got {}",
-            product_id,
-            def.descriptor.product_id()
-        );
-    }
-
-    let device = crate::setup::open(&def.descriptor).await?;
-    let interface = crate::setup::claim_interface(&device, 3).await?;
-    crate::setup::set_alt_setting(&interface, 1).await?;
-
-    let mut out_ep = interface.endpoint::<Bulk, Out>(0x03)?;
-    let mut in_ep = interface.endpoint::<Bulk, In>(0x83)?;
-    crate::setup::clear_halt(&mut in_ep).await?;
-
-    let setup_timeout = Duration::from_millis(2000);
-
-    let request = [0x00, 0x00, 0x00, 0xa0];
-    transfer(&mut out_ep, request.into(), setup_timeout).await?;
-
-    // Mic and Studio use bulk reads to get this data
-    let request = [0x00, 0x00, 0x00, 0xa1];
-    transfer(&mut out_ep, request.into(), setup_timeout).await?;
-
-    let read_len = in_ep.max_packet_size().max(512);
-    let completion = transfer(&mut in_ep, Buffer::new(read_len), setup_timeout).await?;
-
-    // So, this is consistent between the Mix Create and the Mic :D
-    let (version, serial) = get_device_info(&completion[..])?;
-
-    debug!(
-        "Loaded Device, Location: {}.{}, Serial: {}, Version: {}",
-        def.descriptor.bus_id(),
-        def.descriptor.device_address(),
-        serial.clone(),
-        version
-    );
-
-    let handle = BeacnDeviceHandle {
-        descriptor: def.descriptor,
-        device,
-        interface,
-        version,
-        serial,
-    };
-
-    Ok((handle, AudioEndpoints { out_ep, in_ep }))
 }

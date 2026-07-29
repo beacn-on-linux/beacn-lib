@@ -5,9 +5,9 @@ pub mod messages;
 use crate::audio::common::{
     BeacnAudioDeviceInternal, BeacnAudioMessageExecute, BeacnAudioMessaging,
 };
-use crate::audio::device_kind::{BeacnDevice, BeacnDeviceKind};
-use crate::common::{BeacnDeviceInfo, DeviceDefinition, find_device};
-use crate::manager::{DeviceLocation, PID_BEACN_MIC, PID_BEACN_STUDIO};
+use crate::audio::device_kind::{BeacnDevice};
+use crate::common::{BeacnDeviceInfo, DeviceDefinition, find_device, BeacnDeviceKind};
+use crate::manager::{DeviceLocation, DeviceType, PID_BEACN_MIC, PID_BEACN_STUDIO};
 use crate::sealed::Sealed;
 use crate::{BResult, beacn_bail};
 use enum_map::Enum;
@@ -19,7 +19,7 @@ pub type BeacnMic = BeacnDevice<BeacnMicKind>;
 pub struct BeacnMicKind;
 impl BeacnDeviceKind for BeacnMicKind {
     const PID: &[u16] = PID_BEACN_MIC;
-    const NAME: &'static str = "BeacnMix";
+    const TYPE: DeviceType = DeviceType::BeacnMic;
 }
 
 #[allow(private_interfaces)]
@@ -27,7 +27,7 @@ pub type BeacnStudio = BeacnDevice<BeacnStudioKind>;
 pub struct BeacnStudioKind;
 impl BeacnDeviceKind for BeacnStudioKind {
     const PID: &[u16] = PID_BEACN_STUDIO;
-    const NAME: &'static str = "BeacnMixCreate";
+    const TYPE: DeviceType = DeviceType::BeacnStudio;
 }
 
 #[allow(private_bounds)]

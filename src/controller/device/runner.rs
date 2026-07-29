@@ -51,7 +51,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
         // In 1.2.0 build 81+ the Beacn Mix and Mix Create shifted to a 'polling' method
         // of interaction checks. For versions older we need to use the original notify
         let notify_version = VersionNumber(1, 2, 0, 80);
-        let is_notify = handler.version <= notify_version;
+        let is_notify = handler.fw_version <= notify_version;
 
         // We need a message queue for handling when inputs have been received for parsing, given
         // they can come from one of two places, we'll handle them once. 64 might be a little big.

@@ -1,9 +1,9 @@
-use crate::common::{BeacnDeviceInfo, find_device};
+use crate::common::{BeacnDeviceInfo, find_device, BeacnDeviceKind};
 use crate::controller::common::{
     BeacnControlAPI, BeacnControlDeviceInfo, BeacnControlDeviceInternal,
 };
-use crate::controller::device_kind::{BeacnDevice, BeacnDeviceKind};
-use crate::manager::{DeviceLocation, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
+use crate::controller::device_kind::{BeacnDevice};
+use crate::manager::{DeviceLocation, DeviceType, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
 use crate::sealed::Sealed;
 use crate::types::RGBA;
 use crate::{BResult, beacn_bail};
@@ -23,7 +23,7 @@ pub type BeacnMix = BeacnDevice<BeacnMixKind>;
 pub struct BeacnMixKind;
 impl BeacnDeviceKind for BeacnMixKind {
     const PID: &[u16] = PID_BEACN_MIX;
-    const NAME: &'static str = "BeacnMix";
+    const TYPE: DeviceType = DeviceType::BeacnMix;
 }
 
 #[allow(private_interfaces)]
@@ -31,7 +31,7 @@ pub type BeacnMixCreate = BeacnDevice<BeacnMixCreateKind>;
 pub struct BeacnMixCreateKind;
 impl BeacnDeviceKind for BeacnMixCreateKind {
     const PID: &[u16] = PID_BEACN_MIX_CREATE;
-    const NAME: &'static str = "BeacnMixCreate";
+    const TYPE: DeviceType = DeviceType::BeacnMixCreate;
 }
 
 #[allow(private_bounds)]
