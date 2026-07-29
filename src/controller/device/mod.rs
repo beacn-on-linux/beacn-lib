@@ -1,4 +1,4 @@
 pub(crate) mod messenger;
 pub(crate) mod runner;
-pub(crate) mod timer;
+pub(crate) mod timers;
 mod writer;

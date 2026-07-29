@@ -1,6 +1,7 @@
 use flume::select::SelectError;
 use flume::{Receiver, Sender, bounded};
-use std::thread;
+use std::{mem, thread};
+use std::thread::sleep;
 use std::time::Duration;
 
 pub struct Timer {
@@ -55,3 +56,31 @@ impl Timer {
         &self.rx
     }
 }
+
+pub fn tick(duration: Duration) -> Receiver<()> {
+    let (tx, rx) = bounded(1);
+
+    thread::spawn(move || {
+        loop {
+            sleep(duration);
+
+            // Use try_send to avoid blocking the thread if the channel is full
+            match tx.try_send(()) {
+                Ok(_) => {}
+                Err(flume::TrySendError::Full(_)) => {}
+                Err(flume::TrySendError::Disconnected(_)) => break,
+            }
+        }
+    });
+
+    rx
+}
+
+pub fn never<T>() -> Receiver<T> {
+    let (tx, rx) = bounded(0);
+
+    // This *TECHNICALLY* leaks memory, but the number of occurrences will be tiny.
+    mem::forget(tx);
+    rx
+}
+

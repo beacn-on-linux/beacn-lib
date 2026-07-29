@@ -11,12 +11,10 @@ use crate::{BResult, beacn_bail};
 use anyhow::Error;
 use anyhow::Result;
 use async_trait::async_trait;
-use flume::{Receiver, Sender, bounded};
+use flume::{Sender};
 use jpeg_decoder::Decoder;
 use std::sync::Arc;
-use std::thread::sleep;
 use std::time::Duration;
-use std::{mem, thread};
 
 #[async_trait]
 pub trait BeacnControlDeviceInfo: Sealed {
@@ -165,31 +163,4 @@ pub trait BeacnControlAPI:
         rx.recv().map_err(Error::from)?;
         Ok(())
     }
-}
-
-pub fn tick(duration: Duration) -> Receiver<()> {
-    let (tx, rx) = bounded(1);
-
-    thread::spawn(move || {
-        loop {
-            sleep(duration);
-
-            // Use try_send to avoid blocking the thread if the channel is full
-            match tx.try_send(()) {
-                Ok(_) => {}
-                Err(flume::TrySendError::Full(_)) => {}
-                Err(flume::TrySendError::Disconnected(_)) => break,
-            }
-        }
-    });
-
-    rx
-}
-
-pub fn never<T>() -> Receiver<T> {
-    let (tx, rx) = bounded(0);
-
-    // This *TECHNICALLY* leaks memory, but the number of occurrences will be tiny.
-    mem::forget(tx);
-    rx
 }

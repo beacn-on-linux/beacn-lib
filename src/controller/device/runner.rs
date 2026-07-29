@@ -5,9 +5,8 @@ use crate::controller::ControlThreadSender::{
     KeepAlive, SetActiveBrightness, SetButtonBrightness, SetButtonColour, SetDimTimeout,
     SetEnabled, SetImage,
 };
-use crate::controller::common::{never, tick};
 use crate::controller::device::messenger::Messenger;
-use crate::controller::device::timer::Timer;
+use crate::controller::device::timers::{never, tick, Timer};
 use crate::controller::{BeacnControlDevice, Buttons, ControlThreadSender, Dials, Interactions};
 use crate::sealed::Sealed;
 use crate::version::VersionNumber;
