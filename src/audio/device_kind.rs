@@ -1,10 +1,11 @@
 use crate::BResult;
 use crate::audio::BeacnAudioDevice;
 use crate::audio::common::{
-    AudioEndpoints, BeacnAudioDeviceInternal, BeacnAudioMessageExecute, BeacnAudioMessageLocal,
-    BeacnAudioMessaging,
+    AudioEndpoints, BeacnAudioAPI, BeacnAudioDeviceInternal, BeacnAudioMessageLocal,
 };
-use crate::common::{BeacnDeviceHandle, BeacnDeviceInfo, DeviceDefinition, open_device, BeacnDeviceKind};
+use crate::common::{
+    BeacnDeviceHandle, BeacnDeviceInfo, BeacnDeviceKind, DeviceDefinition, open_device,
+};
 use crate::manager::DeviceType;
 use crate::sealed::Sealed;
 use crate::sync::AsyncMutex;
@@ -60,12 +61,7 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioDeviceInternal for BeacnDevic
             _kind: PhantomData,
         }))
     }
-}
 
-impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioDevice for BeacnDevice<K> {}
-impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioMessageLocal for BeacnDevice<K> {}
-impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioMessaging for BeacnDevice<K> {}
-impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioMessageExecute for BeacnDevice<K> {
     fn get_device_type(&self) -> DeviceType {
         K::TYPE
     }
@@ -74,6 +70,10 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioMessageExecute for BeacnDevic
         &self.endpoints
     }
 }
+
+impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioDevice for BeacnDevice<K> {}
+impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioMessageLocal for BeacnDevice<K> {}
+impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioAPI for BeacnDevice<K> {}
 
 impl<K: BeacnDeviceKind> Drop for BeacnDevice<K> {
     fn drop(&mut self) {

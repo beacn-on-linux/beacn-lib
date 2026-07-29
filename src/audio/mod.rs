@@ -2,11 +2,9 @@ mod common;
 mod device_kind;
 pub mod messages;
 
-use crate::audio::common::{
-    BeacnAudioDeviceInternal, BeacnAudioMessageExecute, BeacnAudioMessaging,
-};
-use crate::audio::device_kind::{BeacnDevice};
-use crate::common::{BeacnDeviceInfo, DeviceDefinition, find_device, BeacnDeviceKind};
+use crate::audio::common::{BeacnAudioAPI, BeacnAudioDeviceInternal};
+use crate::audio::device_kind::BeacnDevice;
+use crate::common::{BeacnDeviceInfo, BeacnDeviceKind, DeviceDefinition, find_device};
 use crate::manager::{DeviceLocation, DeviceType, PID_BEACN_MIC, PID_BEACN_STUDIO};
 use crate::sealed::Sealed;
 use crate::{BResult, beacn_bail};
@@ -32,14 +30,7 @@ impl BeacnDeviceKind for BeacnStudioKind {
 
 #[allow(private_bounds)]
 pub trait BeacnAudioDevice:
-    BeacnDeviceInfo
-    + BeacnAudioDeviceInternal
-    + BeacnAudioMessageExecute
-    + BeacnAudioMessaging
-    + RefUnwindSafe
-    + Sealed
-    + Send
-    + Sync
+    BeacnDeviceInfo + BeacnAudioDeviceInternal + BeacnAudioAPI + RefUnwindSafe + Sealed + Send + Sync
 {
 }
 

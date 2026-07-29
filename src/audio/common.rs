@@ -20,11 +20,6 @@ pub struct AudioEndpoints {
     pub(crate) in_ep: nusb::Endpoint<Bulk, In>,
 }
 
-pub(crate) trait BeacnAudioMessageExecute: Sealed {
-    fn get_device_type(&self) -> DeviceType;
-    fn get_endpoints(&self) -> &Mutex<AudioEndpoints>;
-}
-
 #[async_trait]
 pub(crate) trait BeacnAudioDeviceInternal: Sealed {
     // We're specifically allowing the DeviceDefinition to be a private interface, as it's
@@ -34,12 +29,15 @@ pub(crate) trait BeacnAudioDeviceInternal: Sealed {
     async fn connect(definition: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>>
     where
         Self: Sized;
+
+    fn get_device_type(&self) -> DeviceType;
+    fn get_endpoints(&self) -> &Mutex<AudioEndpoints>;
 }
 
 // Trait for Sending and Receiving Messages
 #[async_trait]
 #[allow(private_bounds)]
-pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal + Sealed {
+pub trait BeacnAudioAPI: BeacnAudioDeviceInternal + BeacnAudioMessageLocal + Sealed {
     async fn handle_message(&self, message: Message) -> BResult<Message> {
         if message.is_device_message_set() {
             self.set_value(message).await
@@ -59,7 +57,7 @@ pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal
 // Stuff that is local to this instance
 #[async_trait]
 pub(crate) trait BeacnAudioMessageLocal:
-    BeacnAudioMessageExecute + BeacnDeviceInfo + Sealed
+    BeacnAudioDeviceInternal + BeacnDeviceInfo + Sealed
 {
     fn is_command_valid(&self, message: &Message) -> bool {
         let message_type = message.get_device_message_type();
