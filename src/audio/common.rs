@@ -46,8 +46,8 @@ pub trait BeacnAudioAPI: BeacnAudioDeviceInternal + BeacnAudioMessageLocal + Sea
         }
     }
 
-    async fn get_linked_app_list(&self) -> BResult<Option<Vec<LinkedApp>>> {
-        self.get_linked_apps().await
+    async fn get_linked_apps(&self) -> BResult<Option<Vec<LinkedApp>>> {
+        self.get_app_links().await
     }
     async fn set_linked_app(&self, app: LinkedApp) -> BResult<()> {
         self.set_app_link(app).await
@@ -193,7 +193,7 @@ pub(crate) trait BeacnAudioMessageLocal:
     }
 
     /// Returns the Apps and their link configuration from PC2
-    async fn get_linked_apps(&self) -> BResult<Option<Vec<LinkedApp>>> {
+    async fn get_app_links(&self) -> BResult<Option<Vec<LinkedApp>>> {
         let mut apps = vec![];
 
         if self.get_device_type() != DeviceType::BeacnStudio {
