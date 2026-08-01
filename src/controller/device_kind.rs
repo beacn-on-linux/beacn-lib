@@ -70,7 +70,7 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnControlDeviceInternal for BeacnDev
             pid: handle.descriptor.product_id(),
             serial: handle.serial.clone(),
             fw_version: handle.fw_version,
-            sender,
+            sender: sender.clone(),
             sender_enabled: AtomicBool::new(false),
             _kind: PhantomData,
         };
@@ -78,7 +78,8 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnControlDeviceInternal for BeacnDev
         let control_inner = control.clone();
 
         thread::spawn(move || {
-            Self::spawn_event_handler(control_inner, receiver, handle, interaction);
+            use crate::MaybeFuture;
+            Self::spawn_event_handler(control_inner, receiver, handle, interaction).wait();
             sleep(Duration::from_millis(500));
             let _ = health_tx.send(());
         });

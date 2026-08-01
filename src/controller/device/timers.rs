@@ -1,85 +1,51 @@
-use flume::select::SelectError;
-use flume::{Receiver, Sender, bounded};
-use std::thread::sleep;
+use async_io::Timer as IoTimer;
 use std::time::Duration;
-use std::{mem, thread};
+
 
 pub struct Timer {
-    reset: Sender<Duration>,
-    rx: Receiver<()>,
+    inner: IoTimer,
 }
 
 impl Timer {
     pub fn new(duration: Duration) -> Self {
-        let (reset_tx, reset_rx) = bounded(1);
-        let (tx, rx) = bounded(1);
-
-        thread::spawn(move || {
-            // How long this current duration is
-            let mut duration = duration;
-
-            loop {
-                // We're going to receive a reset, or a timeout, behaviour will depend on which
-                let event = flume::Selector::new()
-                    .recv(&reset_rx, |duration| duration)
-                    .wait_timeout(duration);
-
-                match event {
-                    // Got a reset, let's set the new duration and restart the loop.
-                    Ok(Ok(new_duration)) => duration = new_duration,
-                    Ok(Err(_)) => break,
-
-                    Err(SelectError::Timeout) => {
-                        let _ = tx.send(());
-
-                        // We shouldn't trigger again until we've been reset
-                        match reset_rx.recv() {
-                            Ok(new_duration) => duration = new_duration,
-                            Err(_) => break,
-                        }
-                    }
-                }
-            }
-        });
-
         Self {
-            reset: reset_tx,
-            rx,
+            inner: IoTimer::after(duration),
         }
     }
 
+    /// Push the deadline out to `duration` from now.
     pub fn reset(&mut self, duration: Duration) {
-        let _ = self.reset.send(duration);
+        self.inner = IoTimer::after(duration);
     }
 
-    pub fn receiver(&self) -> &Receiver<()> {
-        &self.rx
+    /// Resolves once the current deadline elapses.
+    pub async fn wait(&mut self) {
+        (&mut self.inner).await;
     }
 }
 
-pub fn tick(duration: Duration) -> Receiver<()> {
-    let (tx, rx) = bounded(1);
 
-    thread::spawn(move || {
-        loop {
-            sleep(duration);
+pub struct Ticker {
+    duration: Duration,
+    inner: IoTimer,
+}
 
-            // Use try_send to avoid blocking the thread if the channel is full
-            match tx.try_send(()) {
-                Ok(_) => {}
-                Err(flume::TrySendError::Full(_)) => {}
-                Err(flume::TrySendError::Disconnected(_)) => break,
-            }
+impl Ticker {
+    pub fn new(duration: Duration) -> Self {
+        Self {
+            duration,
+            inner: IoTimer::after(duration),
         }
-    });
+    }
 
-    rx
+    /// Resolves once every `duration`, forever.
+    pub async fn tick(&mut self) {
+        (&mut self.inner).await;
+        self.inner = IoTimer::after(self.duration);
+    }
 }
 
-pub fn never<T>() -> Receiver<T> {
-    let (tx, rx) = bounded(0);
-
-    // This *TECHNICALLY* leaks memory, but the number of occurrences will be tiny.
-    mem::forget(tx);
-    rx
+/// Sleep is the easiest, we just call after() directly.
+pub(crate) async fn sleep(duration: Duration) {
+    async_io::Timer::after(duration).await;
 }

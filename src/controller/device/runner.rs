@@ -1,4 +1,3 @@
-use crate::MaybeFuture;
 use crate::common::BeacnDeviceHandle;
 use crate::controller::ButtonState::{Press, Release};
 use crate::controller::ControlThreadSender::{
@@ -6,17 +5,20 @@ use crate::controller::ControlThreadSender::{
     SetEnabled, SetImage,
 };
 use crate::controller::device::messenger::Messenger;
-use crate::controller::device::timers::{Timer, never, tick};
+use crate::controller::device::timers::{Ticker, Timer, sleep};
 use crate::controller::{BeacnControlDevice, Buttons, ControlThreadSender, Dials, Interactions};
 use crate::sealed::Sealed;
+use crate::transfer::transfer;
 use crate::version::VersionNumber;
 use byteorder::{BigEndian, ByteOrder};
-use flume::{Receiver, Sender, bounded};
+use flume::{Receiver, Sender};
+use futures_lite::future::or;
+use futures_lite::stream::{self, Stream, StreamExt};
 use log::{debug, error, warn};
 use nusb::transfer::{Buffer, In, Interrupt, Out, TransferError};
+use std::future::pending;
+use std::pin::Pin;
 use std::sync::Arc;
-use std::thread;
-use std::thread::sleep;
 use std::time::Duration;
 use strum::IntoEnumIterator;
 
@@ -30,14 +32,16 @@ static BUTTONS_DEFAULT_BRIGHTNESS: u8 = 8;
 
 // Internal Event Manager
 enum Event {
-    Command(anyhow::Result<ControlThreadSender, flume::RecvError>),
+    Command(Result<ControlThreadSender, flume::RecvError>),
     DimTimeout,
-    Input(anyhow::Result<[u8; 64], flume::RecvError>),
+    Input([u8; 64]),
+    InputEnded,
     Poll,
+    ProcessInputs([u8; 64]),
 }
 
 pub(crate) trait BeacnControlDeviceRunner: Sealed {
-    fn spawn_event_handler(
+    async fn spawn_event_handler(
         control: Arc<Box<dyn BeacnControlDevice>>,
         rx: Receiver<ControlThreadSender>,
         handler: BeacnDeviceHandle,
@@ -48,22 +52,21 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
         control.set_sender_enabled(true);
 
         // In 1.2.0 build 81+ the Beacn Mix and Mix Create shifted to a 'polling' method
-        // of interaction checks. For versions older we need to use the original notify
+        // of interaction checks. For versions older we need to listen for a notification
         let notify_version = VersionNumber(1, 2, 0, 80);
         let is_notify = handler.fw_version <= notify_version;
-
-        // We need a message queue for handling when inputs have been received for parsing, given
-        // they can come from one of two places, we'll handle them once. 64 might be a little big.
-        let (input_tx, input_rx) = bounded(64);
-        let mut input_buffer = [0u8; 64];
 
         // Timeout Handlers
         let timeout = Duration::from_millis(2000);
 
-        // Claim the endpoints we need. The OUT endpoint is always used from this thread.
-        // The IN endpoint is used either by a dedicated reader thread (older "notify"
-        // firmware) or polled from this thread's event loop (newer firmware) -- never both,
-        // so ownership transfers to whichever one needs it below.
+        // This is an internal event loop, it's designed to allow Events to trigger other Events
+        // when needed (for example, the two different interaction methods can feed into a single
+        // handler with the same data).
+        let (event_tx, event_rx) = flume::unbounded::<Event>();
+
+        // Claim the endpoints we need. The OUT endpoint is always used from this task.
+        // The IN endpoint is used either by a persistent background read (older "notify"
+        // firmware) or polled from this task's event loop (newer firmware).
         let mut out_ep = match handler.interface.endpoint::<Interrupt, Out>(0x03) {
             Ok(ep) => ep,
             Err(e) => {
@@ -80,103 +83,50 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
         };
 
         let mut messenger = Messenger::new(&mut out_ep, timeout);
+
         let mut polled_in_ep: Option<nusb::Endpoint<Interrupt, In>> = None;
-
-        let poll = if is_notify {
-            let tx_clone = input_tx.clone();
-            thread::spawn(move || {
-                debug!("Spawning Event Listener");
-
-                let mut in_ep = in_ep;
-                let read = Duration::from_millis(100);
-
-                // These are just defensive checks
-                const MAX_NO_DEVICE_RETRIES: u32 = 10;
-                let mut no_device_retries = 0;
-
-                loop {
-                    // Firstly, we need to fire off a message saying we're ready for buttons
-                    match in_ep.transfer_blocking(Buffer::new(64), read).into_result() {
-                        Ok(buf) => {
-                            no_device_retries = 0;
-                            let mut input = [0u8; 64];
-                            let n = buf.len().min(64);
-                            input[..n].copy_from_slice(&buf[..n]);
-                            if let Err(e) = tx_clone.send(input) {
-                                // Our channel is gone or closed, bail.
-                                warn!("Message Channel Closed, Terminating: {}", e);
-                                break;
-                            }
-                        }
-                        Err(TransferError::Disconnected) => {
-                            no_device_retries += 1;
-                            if no_device_retries > MAX_NO_DEVICE_RETRIES {
-                                warn!(
-                                    "Device not recovering after {} retries, assuming dead",
-                                    MAX_NO_DEVICE_RETRIES
-                                );
-
-                                // TODO: We need to actually fully teardown the device
-                                // If we get here, then the handle is gone, and that's not been detected
-                                // upstream anywhere, which should cause a teardown / reconnect
-                                break;
-                            }
-
-                            // The assumption here is that when waking from sleep, the interrupt
-                            // on the read has been cancelled, and we can safely retry.
-                            thread::sleep(Duration::from_millis(100));
-                        }
-                        Err(TransferError::Cancelled) => {
-                            // Cancelled here just means our read timed out without anything to
-                            // report, which just means the user hasn't moved a dial or pressed
-                            // a button in the last `read` seconds, and we're good to wait again.
-                            no_device_retries = 0;
-                        }
-                        Err(usb_error) => {
-                            warn!("USB Error while receiving inputs: {}", usb_error);
-                            break;
-                        }
-                    }
-                }
-
-                debug!("Event Listener Terminated");
-            });
-            never()
+        let mut notify_reads: Pin<Box<dyn Stream<Item = [u8; 64]> + Send>> = if is_notify {
+            Box::pin(build_notify_read_stream(in_ep))
         } else {
             polled_in_ep = Some(in_ep);
-            tick(Duration::from_millis(50))
+            Box::pin(stream::pending())
+        };
+
+        let mut poll_tick = match is_notify {
+            true => PollTick::Disabled,
+            false => PollTick::Interval(Ticker::new(Duration::from_millis(50))),
         };
 
         // This tracks the button states (so we can message on Send / Receive)
-        let mut last_button_state = 0;
+        let mut old_state = 0;
 
         let mut is_dimmed = false;
         let mut brightness = DISPLAY_DEFAULT_FULL_BRIGHTNESS;
 
-        if let Err(e) = messenger.ensure_enabled().wait() {
+        if let Err(e) = messenger.ensure_enabled().await {
             error!("Failed to Enable Device: {}", e);
             return;
         }
 
-        if let Err(e) = messenger.set_brightness(brightness).wait() {
+        if let Err(e) = messenger.set_brightness(brightness).await {
             error!("Failed to Set Default Brightness: {}", e);
             return;
         }
 
         if let Err(e) = messenger
             .set_button_brightness(BUTTONS_DEFAULT_BRIGHTNESS)
-            .wait()
+            .await
         {
             error!("Failed to Set Default Button Brightness: {}", e);
             return;
         }
 
-        if let Err(e) = messenger.ping().wait() {
+        if let Err(e) = messenger.ping().await {
             error!("Failed to Wake Device: {}", e);
             return;
         }
 
-        sleep(Duration::from_millis(250));
+        sleep(Duration::from_millis(250)).await;
 
         let mut dim_duration = Duration::from_secs(DISPLAY_DIM_TIME);
 
@@ -186,14 +136,31 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
         // TODO: I should probably use a Macro or a closure to handle the recv
         // In all cases, if a channel has closed, we should abort.
         debug!("Spawning Event Handler for {}", handler.serial);
-        'primary: loop {
-            let event = flume::Selector::new()
-                .recv(&rx, Event::Command)
-                .recv(dim_timeout.receiver(), |_| Event::DimTimeout)
-                .recv(&input_rx, Event::Input)
-                .recv(&poll, |_| Event::Poll)
-                .wait();
 
+        'primary: loop {
+            // We're using this because we have futures-lite available as an agnostic handler,
+            // it's not pretty, but should get the job done. Wait for one of our tasks to fire.
+            let event = or(
+                or(async { Event::Command(rx.recv_async().await) }, async {
+                    dim_timeout.wait().await;
+                    Event::DimTimeout
+                }),
+                or(
+                    async {
+                        match notify_reads.next().await {
+                            Some(input) => Event::Input(input),
+                            None => Event::InputEnded,
+                        }
+                    },
+                    or(async { event_rx.recv_async().await.unwrap() }, async {
+                        poll_tick.wait().await;
+                        Event::Poll
+                    }),
+                ),
+            )
+            .await;
+
+            // Now handle the fired task.
             match event {
                 Event::Command(msg) => {
                     match msg {
@@ -204,26 +171,26 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                                     break;
                                 }
                                 KeepAlive(tx) => {
-                                    if let Err(e) = messenger.ping().wait() {
+                                    if let Err(e) = messenger.ping().await {
                                         error!("Failed to Send Keep-Alive Request: {}", e);
                                         break;
                                     }
                                     let _ = tx.send(());
                                 }
                                 SetEnabled(enabled, tx) => {
-                                    if let Err(e) = messenger.enable(enabled).wait() {
+                                    if let Err(e) = messenger.enable(enabled).await {
                                         error!("Failed to Enable Device: {}", e);
                                         break;
                                     }
                                     let _ = tx.send(());
                                 }
                                 SetImage(x, y, img, tx) => {
-                                    if let Err(e) = messenger.ensure_enabled().wait() {
+                                    if let Err(e) = messenger.ensure_enabled().await {
                                         error!("Failed to Enable Device, dropping Frame: {}", e);
                                         continue 'primary;
                                     }
 
-                                    if let Err(e) = messenger.send_image(x, y, &img).wait() {
+                                    if let Err(e) = messenger.send_image(x, y, &img).await {
                                         error!("Failed to Send Image, dropping Frame: {}", e);
                                         continue 'primary;
                                     }
@@ -243,21 +210,21 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                                         dim_timeout.reset(dim_duration);
                                     }
                                     brightness = percent;
-                                    if let Err(e) = messenger.set_brightness(brightness).wait() {
+                                    if let Err(e) = messenger.set_brightness(brightness).await {
                                         error!("Failed to Set Brightness: {}", e);
                                         break;
                                     }
                                     let _ = tx.send(());
                                 }
                                 SetButtonBrightness(value, tx) => {
-                                    if let Err(e) = messenger.set_button_brightness(value).wait() {
+                                    if let Err(e) = messenger.set_button_brightness(value).await {
                                         error!("Failed to Set Button Brightness: {}", e);
                                         break;
                                     }
                                     let _ = tx.send(());
                                 }
                                 SetButtonColour(b, c, tx) => {
-                                    if let Err(e) = messenger.set_button_colour(b, c).wait() {
+                                    if let Err(e) = messenger.set_button_colour(b, c).await {
                                         error!("Failed to Set Button Colour: {}", e);
                                         break;
                                     }
@@ -273,66 +240,62 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                 }
                 Event::DimTimeout => {
                     is_dimmed = true;
-                    if let Err(e) = messenger.set_brightness(DISPLAY_DIM_BRIGHTNESS).wait() {
+                    if let Err(e) = messenger.set_brightness(DISPLAY_DIM_BRIGHTNESS).await {
                         error!("Failed to Set DIM brightness: {}", e);
                         break;
                     }
                 }
-                Event::Input(msg) => {
-                    match msg {
-                        Ok(input) => {
-                            let (changed, button_state) =
-                                Self::handle_interaction(input, last_button_state, &interaction);
-                            last_button_state = button_state;
-
-                            if changed {
-                                if is_dimmed {
-                                    // We need to wake up screen
-                                    is_dimmed = false;
-
-                                    if let Err(e) = messenger.set_brightness(brightness).wait() {
-                                        error!("Failed to Set Brightness: {}", e);
-                                        break;
-                                    }
-                                }
-
-                                // Set a new Dim timeout
-                                dim_timeout.reset(dim_duration);
-                            }
-                        }
-                        Err(e) => {
-                            error!("Input Receiver Terminated: {:?}", e);
-                            break;
-                        }
-                    }
+                Event::Input(input) => {
+                    let _ = event_tx.send(Event::ProcessInputs(input));
+                }
+                Event::InputEnded => {
+                    error!("Input Receiver Terminated");
+                    break;
                 }
                 Event::Poll => {
                     // Ok, we're at a poll interval, we need to fetch changes to inputs
-                    if let Err(e) = messenger.poll_inputs().wait() {
+                    if let Err(e) = messenger.poll_inputs().await {
                         error!("Failed to Poll Inputs: {}", e);
                         break;
                     }
 
-                    let in_ep = polled_in_ep
-                        .as_mut()
-                        .expect("polled_in_ep is always Some() when Event::Poll can fire");
-                    match in_ep
-                        .transfer_blocking(Buffer::new(64), timeout)
-                        .into_result()
-                    {
+                    let Some(in_ep) = polled_in_ep.as_mut() else {
+                        error!("polled_in_ep is None when Event::Poll can fire");
+                        break;
+                    };
+
+                    match transfer(in_ep, Buffer::new(64), timeout).await {
                         Err(e) => {
                             debug!("Error Reading Poll Response: {}", e);
                             break;
                         }
+
                         Ok(buf) => {
+                            let mut input = [0u8; 64];
                             let n = buf.len().min(64);
-                            input_buffer[..n].copy_from_slice(&buf[..n]);
-                            if let Err(e) = input_tx.send(input_buffer) {
-                                debug!("Failed to Send Poll Response Data: {}", e);
-                                break;
-                            };
+                            input[..n].copy_from_slice(&buf[..n]);
+
+                            // Fire off to the event queue
+                            let _ = event_tx.send(Event::ProcessInputs(input));
                         }
                     }
+                }
+                Event::ProcessInputs(input) => {
+                    let (changed, state) = Self::on_interaction(input, old_state, &interaction);
+                    old_state = state;
+
+                    if !changed {
+                        continue;
+                    }
+
+                    if is_dimmed {
+                        is_dimmed = false;
+                        if let Err(e) = messenger.set_brightness(brightness).await {
+                            error!("Failed to Set Brightness: {}", e);
+                            break;
+                        }
+                    }
+                    dim_timeout.reset(dim_duration);
                 }
             }
         }
@@ -348,7 +311,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
         debug!("Event Handler Terminated");
     }
 
-    fn handle_interaction(
+    fn on_interaction(
         message: [u8; 64],
         last: u16,
         tx: &Option<Sender<Interactions>>,
@@ -390,5 +353,74 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
             }
         }
         (has_interacted, buttons)
+    }
+}
+
+/// Builds an async-friendly background read for the "notify" firmware path, we pass back a stream
+/// which can be awaited and will handle message reading, and will trigger when a message arrives.
+///
+/// We maintain ownership of the endpoint for the run, but when a message arrives we return it
+/// back to the caller.
+fn build_notify_read_stream(in_ep: nusb::Endpoint<Interrupt, In>) -> impl Stream<Item = [u8; 64]> {
+    // Defensive check, how many consecutive "device gone" reads we'll tolerate before assuming
+    // the device is actually dead.
+    const MAX_DEVICE_RETRIES: u32 = 10;
+
+    let read_timeout = Duration::from_millis(100);
+    stream::unfold(
+        (in_ep, 0u32),
+        move |(mut ep, mut device_retries)| async move {
+            loop {
+                match transfer(&mut ep, Buffer::new(64), read_timeout).await {
+                    Ok(buf) => {
+                        device_retries = 0;
+                        let mut input = [0u8; 64];
+                        let n = buf.len().min(64);
+                        input[..n].copy_from_slice(&buf[..n]);
+                        return Some((input, (ep, device_retries)));
+                    }
+                    Err(TransferError::Cancelled) => {
+                        // Just a read timeout with nothing to report -- the user hasn't moved a
+                        // dial or pressed a button recently. Loop and wait again.
+                        device_retries = 0;
+                    }
+                    Err(TransferError::Disconnected) => {
+                        device_retries += 1;
+                        if device_retries > MAX_DEVICE_RETRIES {
+                            warn!(
+                                "Device not recovering after {} retries, assuming dead",
+                                MAX_DEVICE_RETRIES
+                            );
+
+                            return None;
+                        }
+
+                        // The assumption here is that when waking from sleep, the interrupt on
+                        // the read has been cancelled, and we can safely retry.
+                        sleep(Duration::from_millis(100)).await;
+                    }
+                    Err(usb_error) => {
+                        warn!("USB Error while receiving inputs: {}", usb_error);
+                        return None;
+                    }
+                }
+            }
+        },
+    )
+}
+
+// Handles the firmware behaviour paths, newer firmwares need polling, older ones don't, so this
+// enum lets us cleanly define both cases.
+pub enum PollTick {
+    Disabled,
+    Interval(Ticker),
+}
+
+impl PollTick {
+    pub async fn wait(&mut self) {
+        match self {
+            PollTick::Disabled => pending().await,
+            PollTick::Interval(ticker) => ticker.tick().await,
+        }
     }
 }
