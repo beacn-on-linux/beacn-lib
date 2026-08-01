@@ -6,12 +6,10 @@
 //! Dial 4 Press: Shoot
 //! Dial 4 Button: Use
 
-use beacn_lib::MaybeFuture;
 use beacn_lib::controller::{ButtonState, Buttons, Dials, Interactions, open_control_device};
 use beacn_lib::manager::get_beacn_mix_create_device;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread::sleep;
 
 use beacn_lib::flume;
 use image::codecs::jpeg::JpegEncoder;
@@ -25,6 +23,7 @@ use log::{debug, info, warn};
 use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::flag::register;
 use std::time::{Duration, Instant};
+use tokio::time::sleep;
 
 const DOOM_TICK: Duration = Duration::from_millis(1000 / 35); // ~35Hz
 const DISPLAY_TICK: Duration = Duration::from_millis(1000 / 20); // 20Hz
@@ -62,7 +61,8 @@ impl InputState {
     }
 }
 
-fn main() {
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
     env_logger::init();
     let shutdown = install_shutdown_handler();
 
@@ -84,10 +84,10 @@ fn main() {
 
         info!("Attempting to Connect to Beacn Mix Create Device..");
 
-        let devices = get_beacn_mix_create_device().wait();
+        let devices = get_beacn_mix_create_device().await;
         if devices.is_empty() {
             warn!("No BEACN Mix Create found, waiting 5 seconds and trying again..");
-            interruptible_sleep(Duration::from_secs(5), &shutdown);
+            interruptible_sleep(Duration::from_secs(5), &shutdown).await;
             continue;
         }
 
@@ -95,13 +95,13 @@ fn main() {
         let (health_tx, _health_rx) = flume::unbounded();
 
         let device = devices[0].clone();
-        let device = match open_control_device(device, Some(interaction_tx), health_tx).wait() {
+        let device = match open_control_device(device, Some(interaction_tx), health_tx).await {
             Ok(device) => device,
             Err(e) => {
                 warn!(
                     "Failed to connect to Beacn Mix Create: {e}, waiting 5 seconds and trying again.."
                 );
-                interruptible_sleep(Duration::from_secs(5), &shutdown);
+                interruptible_sleep(Duration::from_secs(5), &shutdown).await;
                 continue;
             }
         };
@@ -119,7 +119,7 @@ fn main() {
 
             if _health_rx.try_recv().is_ok() {
                 warn!("Device Lost, waiting 5 seconds then trying to get it back..");
-                interruptible_sleep(Duration::from_secs(5), &shutdown);
+                interruptible_sleep(Duration::from_secs(5), &shutdown).await;
                 continue 'main;
             }
 
@@ -171,16 +171,16 @@ fn main() {
             if now.duration_since(last_display) >= DISPLAY_TICK {
                 let frame = encode_frame(doom.framebuffer());
 
-                match device.send_keepalive().wait() {
+                match device.send_keepalive().await {
                     Ok(()) => {
-                        if let Err(e) = device.set_image(0, 0, &frame).wait() {
-                            debug!("Image send failed: {e}");
-                            sleep(Duration::from_millis(200));
+                        if let Err(e) = device.set_image(0, 0, &frame).await {
+                            warn!("Image send failed: {e}");
+                            sleep(Duration::from_millis(200)).await;
                         }
                     }
                     Err(e) => {
                         debug!("Keepalive failed: {e}");
-                        sleep(Duration::from_millis(200));
+                        sleep(Duration::from_millis(200)).await;
                     }
                 }
 
@@ -189,7 +189,7 @@ fn main() {
             }
 
             // Lets not pure CPU spin here :D
-            sleep(Duration::from_millis(5));
+            sleep(Duration::from_millis(5)).await;
         }
     }
 }
@@ -215,7 +215,7 @@ fn install_shutdown_handler() -> Arc<AtomicBool> {
     shutdown
 }
 
-fn interruptible_sleep(duration: Duration, interrupt: &AtomicBool) {
+async fn interruptible_sleep(duration: Duration, interrupt: &AtomicBool) {
     let start = Instant::now();
 
     while start.elapsed() < duration {
@@ -226,11 +226,11 @@ fn interruptible_sleep(duration: Duration, interrupt: &AtomicBool) {
         // If we're near the end, sleep until we're done
         let remaining = duration - start.elapsed();
         if duration - remaining < Duration::from_millis(50) {
-            sleep(remaining);
+            sleep(remaining).await;
             return;
         }
 
         // Wait 50ms, then check again..
-        sleep(Duration::from_millis(50));
+        sleep(Duration::from_millis(50)).await;
     }
 }
