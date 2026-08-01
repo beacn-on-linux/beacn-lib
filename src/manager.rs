@@ -1,5 +1,4 @@
 use anyhow::Result;
-use async_io::Timer;
 use flume::{Receiver, Sender, bounded};
 use futures_lite::StreamExt;
 use futures_lite::future::or;
@@ -13,6 +12,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use strum::Display;
+use crate::timers::{sleep, Ticker};
 
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
 pub(crate) const PID_BEACN_MIC: &[u16] = &[0x0001, 0x8001];
@@ -71,7 +71,7 @@ impl HotPlugManager {
         // device. This results in a Permission Denied error, even if we have permission!
         //
         // Shoutout to Jordahn on Discord for helping diagnose this issue.
-        Timer::after(Duration::from_millis(250)).await;
+        sleep(Duration::from_millis(250)).await;
 
         let _ = self.sender.send(HotPlugMessage::DeviceAttached(
             location,
@@ -137,7 +137,7 @@ impl HotPlugManager {
                 .send(HotPlugMessage::DeviceRemoved(location.clone()));
 
             // Wait a moment, just to give things time to settle
-            Timer::after(Duration::from_millis(250)).await;
+            sleep(Duration::from_millis(250)).await;
             let _ = self.sender.send(HotPlugMessage::DeviceAttached(
                 location,
                 device_type,
@@ -239,7 +239,7 @@ pub async fn watch_hotplug_devices(
     // Periodic health-check tick, replacing the old poll-with-timeout loop -- this is
     // just another branch in the select below now that we're not restricted to blocking
     // primitives.
-    let mut health_tick = Timer::interval(Duration::from_millis(100));
+    let mut health_tick = Ticker::new(Duration::from_millis(100));
 
     loop {
         let event = or(
@@ -248,7 +248,7 @@ pub async fn watch_hotplug_devices(
                 async { HotplugLoopEvent::Hotplug(watch.next().await) },
             ),
             async {
-                health_tick.next().await;
+                health_tick.tick().await;
                 HotplugLoopEvent::HealthCheck
             },
         )

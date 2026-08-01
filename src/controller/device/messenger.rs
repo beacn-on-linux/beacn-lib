@@ -1,10 +1,10 @@
 use crate::controller::device::writer::UsbWriter;
 use crate::types::RGBA;
-use async_io::Timer;
 use byteorder::{ByteOrder, LittleEndian};
 use log::error;
 use nusb::transfer::{Interrupt, Out, TransferError};
 use std::time::{Duration, Instant};
+use crate::timers::sleep;
 
 pub struct Messenger<'a> {
     usb: UsbWriter<'a>,
@@ -77,7 +77,7 @@ impl<'a> Messenger<'a> {
     pub async fn ensure_enabled(&mut self) -> Result<(), TransferError> {
         if !self.enabled {
             self.enable(true).await?;
-            Timer::after(Duration::from_millis(100)).await;
+            sleep(Duration::from_millis(100)).await;
         }
         Ok(())
     }
@@ -89,12 +89,12 @@ impl<'a> Messenger<'a> {
         while overall_started.elapsed() < overall_budget {
             match self.send_image_attempt(x, y, img).await {
                 Ok(()) => {
-                    Timer::after(Duration::from_millis(10)).await;
+                    sleep(Duration::from_millis(10)).await;
                     return Ok(());
                 }
 
                 Err(TransferError::Cancelled) => {
-                    Timer::after(Duration::from_millis(10)).await;
+                    sleep(Duration::from_millis(10)).await;
                 }
                 Err(e) => return Err(e),
             }
@@ -155,7 +155,7 @@ impl<'a> Messenger<'a> {
             match self.send_timeout(chunk, chunk_timeout).await {
                 Ok(()) => return Ok(()),
                 Err(TransferError::Cancelled) if started.elapsed() < retry => {
-                    Timer::after(Duration::from_millis(20)).await;
+                    sleep(Duration::from_millis(20)).await;
                 }
                 Err(e) => return Err(e),
             }

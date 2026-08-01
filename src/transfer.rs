@@ -1,8 +1,8 @@
-use async_io::Timer;
 use futures_lite::future::or;
 use nusb::Endpoint;
 use nusb::transfer::{Buffer, BulkOrInterrupt, Completion, EndpointDirection};
 use std::time::Duration;
+use crate::timers::sleep;
 
 /// This is basically a drop-in replacement for nusb::transfer::transfer_with_timeout designed
 /// to be run in a non-blocking async environment. For now, it's functionally identical, but
@@ -21,7 +21,7 @@ where
     // Race the transfer completion against a timer. `next_complete()` is documented as
     // cancel-safe, so dropping it (when the timer wins the race) is fine.
     let outcome = or(async { Some(endpoint.next_complete().await) }, async {
-        Timer::after(timeout).await;
+        sleep(timeout).await;
         None
     })
     .await;
