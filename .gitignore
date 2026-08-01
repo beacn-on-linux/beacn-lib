@@ -1,7 +1,4 @@
 /target
 /.idea/
 /beacn-mic-lib.iml
-/examples/doom/target/
-/examples/doom/Cargo.lock
-/examples/doom/DOOM1.WAD
 
