@@ -11,39 +11,39 @@ tokio = ["dep:tokio", "nusb/tokio"]
 smol = ["nusb/smol"]
 
 [dependencies]
-strum = { version = "0.28.0", features = ["strum_macros", "derive"] }
-enum-map = "2.7.3"
+strum = { version = "0.28", features = ["strum_macros", "derive"] }
+enum-map = "2.7"
 
 byteorder = "1.5.0"
 
 log = "0.4.33"
-anyhow = "1.0.103"
+anyhow = "1"
 
-nusb = "0.2.5"
+nusb = "0.2"
 
-async-trait = "0.1.91"
-async-io = "2.6.0"
-async-lock = "3.4.2"
+async-trait = "0.1"
+async-io = "2.6"
+async-lock = "3.4"
 
-oneshot = { version = "0.2.1", features = ["std", "async"] }
+oneshot = { version = "0.2", features = ["std", "async"] }
 
-futures-lite = "2.6.1"
+futures-lite = "2.6"
 
 # Used for Managing Interaction threads
-flume = "0.12.0"
+flume = "0.12"
 
 # Used to verify Mix / Mix Create image data
-jpeg-decoder = "0.3.2"
+jpeg-decoder = "0.3"
 
 # Easier Error Handling
-thiserror = "2.0.18"
+thiserror = "2.0"
 
 # Tokio Spawner
 tokio = { version = "1", optional = true, features = ["rt"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
-image = { version = "0.25.10", features = ["jpeg"] }
+image = { version = "0.25", features = ["jpeg"] }
 
 [[example]]
 name = "enumerate"
