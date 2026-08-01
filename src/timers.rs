@@ -1,27 +1,41 @@
 use std::future;
 use std::time::{Duration, Instant};
+use log::debug;
 
 pub struct Timer {
     deadline: Option<Instant>,
+    triggered: bool,
 }
 
 impl Timer {
     pub fn new(duration: Duration) -> Self {
         Self {
             deadline: Instant::now().checked_add(duration),
+            triggered: false,
         }
     }
 
     /// Push the deadline out to `duration` from now.
     pub fn reset(&mut self, duration: Duration) {
         self.deadline = Instant::now().checked_add(duration);
+        self.triggered = false;
     }
 
     /// Resolves once the current deadline elapses.
     pub async fn wait(&mut self) {
-        match self.deadline.take() {
-            Some(deadline) => sleep(deadline.saturating_duration_since(Instant::now())).await,
-            None => future::pending().await,
+        let deadline = match (self.triggered, self.deadline) {
+            (false, Some(deadline)) => Some(deadline),
+            _ => None,
+        };
+
+        match deadline {
+            Some(deadline) => {
+                sleep(deadline.saturating_duration_since(Instant::now())).await;
+                self.triggered = true;
+            },
+            None => {
+                future::pending().await
+            },
         }
     }
 }
