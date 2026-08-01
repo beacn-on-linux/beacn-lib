@@ -50,7 +50,7 @@ pub trait BeacnControlAPI:
             .await
             .map_err(Error::from)?;
 
-        rx.recv().map_err(Error::from)?;
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
@@ -60,7 +60,8 @@ pub trait BeacnControlAPI:
             .send_async(KeepAlive(tx))
             .await
             .map_err(Error::from)?;
-        rx.recv().map_err(Error::from)?;
+
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
@@ -108,7 +109,7 @@ pub trait BeacnControlAPI:
             .await
             .map_err(Error::from)?;
 
-        rx.recv().map_err(Error::from)?;
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
@@ -123,7 +124,7 @@ pub trait BeacnControlAPI:
             .await
             .map_err(Error::from)?;
 
-        rx.recv().map_err(Error::from)?;
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
@@ -138,7 +139,7 @@ pub trait BeacnControlAPI:
             .await
             .map_err(Error::from)?;
 
-        rx.recv().map_err(Error::from)?;
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
@@ -155,7 +156,7 @@ pub trait BeacnControlAPI:
             .await
             .map_err(Error::from)?;
 
-        rx.recv().map_err(Error::from)?;
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
@@ -168,7 +169,7 @@ pub trait BeacnControlAPI:
             .await
             .map_err(Error::from)?;
 
-        rx.recv().map_err(Error::from)?;
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 }
