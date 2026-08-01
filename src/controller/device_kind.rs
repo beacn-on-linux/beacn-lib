@@ -5,7 +5,9 @@ use crate::controller::common::{
 };
 use crate::controller::device::runner::BeacnControlDeviceRunner;
 use crate::controller::{BeacnControlDevice, ControlThreadSender, Interactions};
+use crate::manager::DeviceType;
 use crate::sealed::Sealed;
+use crate::timers::sleep;
 use crate::version::VersionNumber;
 use anyhow::Result;
 use anyhow::bail;
@@ -18,7 +20,6 @@ use std::panic::RefUnwindSafe;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use std::thread::sleep;
 use std::time::Duration;
 
 #[derive(Debug)]
@@ -77,10 +78,11 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnControlDeviceInternal for BeacnDev
         let control: Arc<Box<dyn BeacnControlDevice>> = Arc::new(Box::new(control_attach));
         let control_inner = control.clone();
 
-        thread::spawn(move || {
-            use crate::MaybeFuture;
-            Self::spawn_event_handler(control_inner, receiver, handle, interaction).wait();
-            sleep(Duration::from_millis(500));
+        spawn_background(K::TYPE, async move {
+            debug!("Starting {} control thread", K::TYPE);
+            Self::spawn_event_handler(control_inner, receiver, handle, interaction).await;
+            debug!("{} control thread exited", K::TYPE);
+            sleep(Duration::from_millis(500)).await;
             let _ = health_tx.send(());
         });
         Ok(control)
@@ -107,4 +109,33 @@ impl<K: BeacnDeviceKind> Drop for BeacnDevice<K> {
         debug!("Dropping {}", K::TYPE);
         let _ = self.sender.send(ControlThreadSender::Stop);
     }
+}
+
+fn spawn_background<F>(kind: DeviceType, future: F)
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    #[cfg(feature = "tokio")]
+    {
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.spawn(future);
+            return;
+        }
+    }
+
+    let device_type = match kind {
+        DeviceType::BeacnMixCreate => "mix-create",
+        DeviceType::BeacnMix => "mix",
+        _ => unreachable!(),
+    };
+
+    // If we're not already inside a supported runtime, create an async-io context.
+    debug!("Spawning background thread for {}", device_type);
+    let name = format!("{}-task", device_type);
+    thread::Builder::new()
+        .name(name)
+        .spawn(move || {
+            async_io::block_on(future);
+        })
+        .expect("failed to spawn background thread");
 }
