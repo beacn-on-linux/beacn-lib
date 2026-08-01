@@ -38,30 +38,33 @@ pub(crate) trait BeacnControlDeviceInternal: Sealed {
 // mix has fewer buttons, but the firmware seems to do a decent job of handling that, so we
 // can simply use the same behaviour between the two
 #[allow(private_bounds)]
+#[async_trait]
 pub trait BeacnControlAPI:
     BeacnControlDeviceInfo + BeacnControlDeviceInternal + BeacnControlDeviceRunner + Sealed
 {
-    fn set_enabled(&self, enabled: bool) -> BResult<()> {
+    async fn set_enabled(&self, enabled: bool) -> BResult<()> {
         let (tx, rx) = oneshot::channel();
 
         self.get_sender()?
-            .send(SetEnabled(enabled, tx))
+            .send_async(SetEnabled(enabled, tx))
+            .await
             .map_err(Error::from)?;
 
         rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
-    fn send_keepalive(&self) -> BResult<()> {
+    async fn send_keepalive(&self) -> BResult<()> {
         let (tx, rx) = oneshot::channel();
         self.get_sender()?
-            .send(KeepAlive(tx))
+            .send_async(KeepAlive(tx))
+            .await
             .map_err(Error::from)?;
         rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_image(&self, x: u32, y: u32, jpeg_image: &[u8]) -> BResult<()> {
+    async fn set_image(&self, x: u32, y: u32, jpeg_image: &[u8]) -> BResult<()> {
         // TODO: This might be too heavy for a frequent update check (for example, metering)
 
         // All we do here is validate the image and make sure it fits inside the window
@@ -101,42 +104,45 @@ pub trait BeacnControlAPI:
         let (tx, rx) = oneshot::channel();
 
         self.get_sender()?
-            .send(SetImage(x, y, Vec::from(jpeg_image), tx))
+            .send_async(SetImage(x, y, Vec::from(jpeg_image), tx))
+            .await
             .map_err(Error::from)?;
 
         rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_display_brightness(&self, brightness: u8) -> BResult<()> {
+    async fn set_display_brightness(&self, brightness: u8) -> BResult<()> {
         if !(1..=100).contains(&brightness) {
             beacn_bail!("Display Brightness must be a percentage");
         }
 
         let (tx, rx) = oneshot::channel();
         self.get_sender()?
-            .send(SetActiveBrightness(brightness, tx))
+            .send_async(SetActiveBrightness(brightness, tx))
+            .await
             .map_err(Error::from)?;
 
         rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_button_brightness(&self, brightness: u8) -> BResult<()> {
+    async fn set_button_brightness(&self, brightness: u8) -> BResult<()> {
         if !(0..=10).contains(&brightness) {
             beacn_bail!("Button Brightness must be between 0 and 10");
         }
 
         let (tx, rx) = oneshot::channel();
         self.get_sender()?
-            .send(SetButtonBrightness(brightness, tx))
+            .send_async(SetButtonBrightness(brightness, tx))
+            .await
             .map_err(Error::from)?;
 
         rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_dim_timeout(&self, timeout: Duration) -> BResult<()> {
+    async fn set_dim_timeout(&self, timeout: Duration) -> BResult<()> {
         if timeout > Duration::from_secs(300) || timeout < Duration::from_secs(30) {
             beacn_bail!(
                 "For display safety, dim timeout must be lower than 5 minutes, and greater than 30 seconds"
@@ -145,19 +151,21 @@ pub trait BeacnControlAPI:
 
         let (tx, rx) = oneshot::channel();
         self.get_sender()?
-            .send(SetDimTimeout(timeout, tx))
+            .send_async(SetDimTimeout(timeout, tx))
+            .await
             .map_err(Error::from)?;
 
         rx.recv().map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_button_colour(&self, button: ButtonLighting, colour: RGBA) -> BResult<()> {
+    async fn set_button_colour(&self, button: ButtonLighting, colour: RGBA) -> BResult<()> {
         let button = button as u8;
 
         let (tx, rx) = oneshot::channel();
         self.get_sender()?
-            .send(SetButtonColour(button, colour, tx))
+            .send_async(SetButtonColour(button, colour, tx))
+            .await
             .map_err(Error::from)?;
 
         rx.recv().map_err(Error::from)?;
