@@ -1,6 +1,5 @@
 use std::future;
 use std::time::{Duration, Instant};
-use log::debug;
 
 pub struct Timer {
     deadline: Option<Instant>,
