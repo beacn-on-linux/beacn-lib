@@ -26,13 +26,15 @@ impl Timer {
 pub struct Ticker {
     duration: Duration,
     deadline: Instant,
+    fixed_rate: bool,
 }
 
 impl Ticker {
-    pub fn new(duration: Duration) -> Self {
+    pub fn new(duration: Duration, fixed_rate: bool) -> Self {
         Self {
             duration,
             deadline: Instant::now() + duration,
+            fixed_rate,
         }
     }
 
@@ -41,7 +43,11 @@ impl Ticker {
         let wait = self.deadline.saturating_duration_since(Instant::now());
         sleep(wait).await;
 
-        self.deadline += self.duration;
+        if self.fixed_rate {
+            self.deadline += self.duration;
+        } else {
+            self.deadline = Instant::now() + self.duration;
+        }
     }
 }
 

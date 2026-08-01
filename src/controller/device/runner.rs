@@ -94,7 +94,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
 
         let mut poll_tick = match is_notify {
             true => PollTick::Disabled,
-            false => PollTick::Interval(Ticker::new(Duration::from_millis(50))),
+            false => PollTick::Interval(Ticker::new(Duration::from_millis(50), false)),
         };
 
         // This tracks the button states (so we can message on Send / Receive)

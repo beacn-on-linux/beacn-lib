@@ -239,7 +239,7 @@ pub async fn watch_hotplug_devices(
     // Periodic health-check tick, replacing the old poll-with-timeout loop -- this is
     // just another branch in the select below now that we're not restricted to blocking
     // primitives.
-    let mut health_tick = Ticker::new(Duration::from_millis(100));
+    let mut health_tick = Ticker::new(Duration::from_millis(100), false);
 
     loop {
         let event = or(
