@@ -6,7 +6,7 @@ use crate::controller::ControlThreadSender::{
     SetEnabled, SetImage,
 };
 use crate::controller::device::messenger::Messenger;
-use crate::controller::device::timers::{never, tick, Timer};
+use crate::controller::device::timers::{Timer, never, tick};
 use crate::controller::{BeacnControlDevice, Buttons, ControlThreadSender, Dials, Interactions};
 use crate::sealed::Sealed;
 use crate::version::VersionNumber;

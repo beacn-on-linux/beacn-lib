@@ -11,7 +11,7 @@ use crate::{BResult, beacn_bail};
 use anyhow::Error;
 use anyhow::Result;
 use async_trait::async_trait;
-use flume::{Sender};
+use flume::Sender;
 use jpeg_decoder::Decoder;
 use std::sync::Arc;
 use std::time::Duration;

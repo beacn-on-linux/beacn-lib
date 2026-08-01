@@ -1,8 +1,8 @@
 use flume::select::SelectError;
 use flume::{Receiver, Sender, bounded};
-use std::{mem, thread};
 use std::thread::sleep;
 use std::time::Duration;
+use std::{mem, thread};
 
 pub struct Timer {
     reset: Sender<Duration>,
@@ -83,4 +83,3 @@ pub fn never<T>() -> Receiver<T> {
     mem::forget(tx);
     rx
 }
-

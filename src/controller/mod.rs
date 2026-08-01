@@ -1,8 +1,8 @@
-use crate::common::{BeacnDeviceInfo, find_device, BeacnDeviceKind};
+use crate::common::{BeacnDeviceInfo, BeacnDeviceKind, find_device};
 use crate::controller::common::{
     BeacnControlAPI, BeacnControlDeviceInfo, BeacnControlDeviceInternal,
 };
-use crate::controller::device_kind::{BeacnDevice};
+use crate::controller::device_kind::BeacnDevice;
 use crate::manager::{DeviceLocation, DeviceType, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
 use crate::sealed::Sealed;
 use crate::types::RGBA;
