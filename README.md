@@ -35,6 +35,11 @@ beacn-lib = { git = "https://github.com/beacn-on-linux/beacn-lib", tag = "v0.2.0
 If you're using `tokio` or `smol` they should be included as features otherwise tasks such as listing and
 opening devices will fall back to regular blocking calls.
 
+## Warnings
+When used against a Beacn Mix and Mix Create, termination of an application while an image is mid-send may cause
+the firmware to lock up and require a power cycle. Ensure your apps have proper and clean shutdown handling to ensure
+the connection to the device is closed.
+
 #### Examples
 The [`examples/`](examples) directory contains a number of examples which demonstrate all of the features
 and concepts of this library, provided in both sync and async flavours.
