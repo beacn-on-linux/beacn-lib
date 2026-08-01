@@ -1,25 +1,28 @@
+use std::future;
 use std::time::{Duration, Instant};
 
 pub struct Timer {
-    deadline: Instant,
+    deadline: Option<Instant>,
 }
 
 impl Timer {
     pub fn new(duration: Duration) -> Self {
         Self {
-            deadline: Instant::now() + duration,
+            deadline: Instant::now().checked_add(duration),
         }
     }
 
     /// Push the deadline out to `duration` from now.
     pub fn reset(&mut self, duration: Duration) {
-        self.deadline = Instant::now() + duration;
+        self.deadline = Instant::now().checked_add(duration);
     }
 
     /// Resolves once the current deadline elapses.
     pub async fn wait(&mut self) {
-        // This is basically for if wait gets called a small amount of time after reset / new
-        sleep(self.deadline.saturating_duration_since(Instant::now())).await;
+        match self.deadline.take() {
+            Some(deadline) => sleep(deadline.saturating_duration_since(Instant::now())).await,
+            None => future::pending().await,
+        }
     }
 }
 
