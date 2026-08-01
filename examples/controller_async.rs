@@ -88,11 +88,11 @@ async fn main() {
                 for device in &device_maps {
                     let (x, y, image) = test_pattern(step);
                     for (button, colour) in test_buttons(step) {
-                        let _ = device.device.set_button_colour(button, colour);
+                        let _ = device.device.set_button_colour(button, colour).await;
                     }
 
-                    let _ = device.device.send_keepalive();
-                    let _ = device.device.set_image(x, y, &image);
+                    let _ = device.device.send_keepalive().await;
+                    let _ = device.device.set_image(x, y, &image).await;
 
                     step += 1;
 
@@ -117,7 +117,7 @@ async fn main() {
     }
 
     for device in device_maps {
-        let _ = device.device.set_enabled(false);
+        let _ = device.device.set_enabled(false).await;
     }
 }
 
