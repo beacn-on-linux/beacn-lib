@@ -8,6 +8,7 @@ mod sync;
 mod transfer;
 pub mod types;
 pub mod version;
+mod timers;
 
 pub use flume;
 use log::debug;
