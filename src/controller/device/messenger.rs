@@ -1,10 +1,10 @@
 use crate::controller::device::writer::UsbWriter;
+use crate::timers::sleep;
 use crate::types::RGBA;
 use byteorder::{ByteOrder, LittleEndian};
 use log::error;
 use nusb::transfer::{Interrupt, Out, TransferError};
 use std::time::{Duration, Instant};
-use crate::timers::sleep;
 
 pub struct Messenger<'a> {
     usb: UsbWriter<'a>,

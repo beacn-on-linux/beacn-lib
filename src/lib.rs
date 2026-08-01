@@ -5,10 +5,10 @@ pub mod controller;
 pub mod manager;
 mod setup;
 mod sync;
+mod timers;
 mod transfer;
 pub mod types;
 pub mod version;
-mod timers;
 
 pub use flume;
 use log::debug;

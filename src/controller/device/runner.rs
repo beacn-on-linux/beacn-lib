@@ -7,6 +7,7 @@ use crate::controller::ControlThreadSender::{
 use crate::controller::device::messenger::Messenger;
 use crate::controller::{BeacnControlDevice, Buttons, ControlThreadSender, Dials, Interactions};
 use crate::sealed::Sealed;
+use crate::timers::{Ticker, Timer, sleep};
 use crate::transfer::transfer;
 use crate::version::VersionNumber;
 use byteorder::{BigEndian, ByteOrder};
@@ -20,7 +21,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use strum::IntoEnumIterator;
-use crate::timers::{sleep, Ticker, Timer};
 
 // Default Display 'Active' and 'Dimmed' brightness, and the default dim time
 static DISPLAY_DEFAULT_FULL_BRIGHTNESS: u8 = 40;

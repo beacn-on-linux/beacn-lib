@@ -31,10 +31,8 @@ impl Timer {
             Some(deadline) => {
                 sleep(deadline.saturating_duration_since(Instant::now())).await;
                 self.triggered = true;
-            },
-            None => {
-                future::pending().await
-            },
+            }
+            None => future::pending().await,
         }
     }
 }
