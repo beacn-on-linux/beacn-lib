@@ -24,7 +24,7 @@ use thiserror::Error;
 pub trait MaybeFuture: Future + Sized {
     /// Block the current thread until this operation completes.
     fn wait(self) -> Self::Output {
-        futures_lite::future::block_on(self)
+        async_io::block_on(self)
     }
 }
 
