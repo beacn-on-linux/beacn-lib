@@ -1,22 +1,24 @@
+use crate::common::BeacnDeviceHandle;
 use crate::controller::device::writer::UsbWriter;
 use crate::timers::sleep;
 use crate::types::RGBA;
+use anyhow::Result;
 use byteorder::{ByteOrder, LittleEndian};
 use log::error;
-use nusb::transfer::{Interrupt, Out, TransferError};
+use nusb::transfer::{TransferError};
 use std::time::{Duration, Instant};
 
-pub struct Messenger<'a> {
-    usb: UsbWriter<'a>,
+pub struct Messenger {
+    usb: UsbWriter,
     enabled: bool,
 }
 
-impl<'a> Messenger<'a> {
-    pub(crate) fn new(endpoint: &'a mut nusb::Endpoint<Interrupt, Out>, timeout: Duration) -> Self {
-        Self {
-            usb: UsbWriter::new(endpoint, timeout),
+impl Messenger {
+    pub(crate) fn new(handler: BeacnDeviceHandle, timeout: Duration) -> Result<Self> {
+        Ok(Self {
+            usb: UsbWriter::new(handler, timeout)?,
             enabled: false,
-        }
+        })
     }
 
     pub async fn send(&mut self, data: &[u8]) -> Result<(), TransferError> {

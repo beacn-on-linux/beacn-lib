@@ -1,20 +1,35 @@
+use crate::common::BeacnDeviceHandle;
 use crate::transfer::transfer;
+use anyhow::{bail, Result};
 use log::warn;
 use nusb::transfer::{Buffer, Interrupt, Out, TransferError};
 use std::time::Duration;
 
-pub(crate) struct UsbWriter<'a> {
-    endpoint: &'a mut nusb::Endpoint<Interrupt, Out>,
+#[allow(dead_code)]
+pub(crate) struct UsbWriter {
+    handler: BeacnDeviceHandle,
+    endpoint: nusb::Endpoint<Interrupt, Out>,
     timeout: Duration,
 }
 
-impl<'a> UsbWriter<'a> {
-    pub(crate) fn new(endpoint: &'a mut nusb::Endpoint<Interrupt, Out>, timeout: Duration) -> Self {
-        Self { endpoint, timeout }
+impl UsbWriter{
+    pub(crate) fn new(handler: BeacnDeviceHandle, timeout: Duration) -> Result<Self> {
+        let endpoint = match handler.interface.endpoint::<Interrupt, Out>(0x03) {
+            Ok(ep) => ep,
+            Err(e) => {
+                bail!("Failed to open Interrupt OUT endpoint: {}", e);
+            }
+        };
+
+        Ok(Self {
+            handler,
+            endpoint,
+            timeout,
+        })
     }
 
     pub(crate) async fn clear_halt(&mut self) -> Result<(), TransferError> {
-        crate::setup::clear_halt(self.endpoint)
+        crate::setup::clear_halt(&mut self.endpoint)
             .await
             .map_err(|_| TransferError::Disconnected)
     }
@@ -47,7 +62,7 @@ impl<'a> UsbWriter<'a> {
     /// This deliberately does not handle recovery. Recovery belongs in send()
     /// so every caller gets identical behaviour.
     async fn send_once(&mut self, data: &[u8], timeout: Duration) -> Result<(), TransferError> {
-        transfer(self.endpoint, Buffer::from(data.to_vec()), timeout)
+        transfer(&mut self.endpoint, Buffer::from(data.to_vec()), timeout)
             .await
             .map(|_| ())
     }

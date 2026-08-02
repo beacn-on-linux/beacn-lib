@@ -15,7 +15,7 @@ use flume::{Receiver, Sender};
 use futures_lite::future::or;
 use futures_lite::stream::{self, Stream, StreamExt};
 use log::{debug, error, warn};
-use nusb::transfer::{Buffer, In, Interrupt, Out, TransferError};
+use nusb::transfer::{Buffer, In, Interrupt, TransferError};
 use std::future::pending;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -63,17 +63,6 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
         // when needed (for example, the two different interaction methods can feed into a single
         // handler with the same data).
         let (event_tx, event_rx) = flume::unbounded::<Event>();
-
-        // Claim the endpoints we need. The OUT endpoint is always used from this task.
-        // The IN endpoint is used either by a persistent background read (older "notify"
-        // firmware) or polled from this task's event loop (newer firmware).
-        let mut out_ep = match handler.interface.endpoint::<Interrupt, Out>(0x03) {
-            Ok(ep) => ep,
-            Err(e) => {
-                error!("Failed to open Interrupt OUT endpoint: {}", e);
-                return;
-            }
-        };
         let in_ep = match handler.interface.endpoint::<Interrupt, In>(0x83) {
             Ok(ep) => ep,
             Err(e) => {
@@ -82,7 +71,14 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
             }
         };
 
-        let mut messenger = Messenger::new(&mut out_ep, timeout);
+        let serial = handler.serial.clone();
+        let mut messenger = match Messenger::new(handler, timeout) {
+            Ok(messenger) => messenger,
+            Err(e) => {
+                error!("Failed to create Messenger: {}", e);
+                return;
+            }
+        };
 
         let mut polled_in_ep: Option<nusb::Endpoint<Interrupt, In>> = None;
         let mut notify_reads: Pin<Box<dyn Stream<Item = [u8; 64]> + Send>> = if is_notify {
@@ -135,7 +131,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
 
         // TODO: I should probably use a Macro or a closure to handle the recv
         // In all cases, if a channel has closed, we should abort.
-        debug!("Spawning Event Handler for {}", handler.serial);
+        debug!("Spawning Event Handler for {}", serial);
 
         'primary: loop {
             // We're using this because we have futures-lite available as an agnostic handler,
