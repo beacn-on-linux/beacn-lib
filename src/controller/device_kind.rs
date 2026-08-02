@@ -19,7 +19,6 @@ use std::marker::PhantomData;
 use std::panic::RefUnwindSafe;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
 use web_time::Duration;
 
 #[derive(Debug)]
@@ -134,6 +133,8 @@ where
     // If we're not already inside a supported runtime, create an async-io context.
     #[cfg(not(target_arch = "wasm32"))]
     {
+        use std::thread;
+
         debug!("Spawning background thread for {}", device_type);
         let name = format!("{}-task", device_type);
         thread::Builder::new()
