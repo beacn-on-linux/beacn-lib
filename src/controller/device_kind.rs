@@ -111,6 +111,7 @@ impl<K: BeacnDeviceKind> Drop for BeacnDevice<K> {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn spawn_background<F>(kind: DeviceType, future: F)
 where
     F: Future<Output = ()> + Send + 'static,
@@ -142,11 +143,13 @@ where
             })
             .expect("failed to spawn background thread");
     }
+}
 
-    // Can't block in wasm mode, so spawn inside a wasm future
-    #[cfg(target_arch = "wasm32")]
-    {
-        debug!("Spawning background task for {}", device_type);
-        wasm_bindgen_futures::spawn_local(future);
-    }
+// Split wasm off completely as it has a different, incompatible, return type
+#[cfg(target_arch = "wasm32")]
+fn spawn_background<F>(_: DeviceType, future: F)
+where
+    F: Future<Output = ()> + 'static,
+{
+    wasm_bindgen_futures::spawn_local(future);
 }
