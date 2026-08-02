@@ -1,13 +1,18 @@
+use crate::timers::{Ticker, sleep};
 use anyhow::Result;
-use crossbeam::channel::{Receiver, Sender, TryRecvError, bounded};
+use flume::{Receiver, Sender, bounded};
+use futures_lite::StreamExt;
+use futures_lite::future::or;
 use log::{debug, error, warn};
-use rusb::{Device, GlobalContext, Hotplug, HotplugBuilder, UsbContext, has_hotplug};
+use nusb::hotplug::HotplugEvent;
+use nusb::{DeviceId, DeviceInfo};
 use std::cmp::PartialEq;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::sync::{Arc, Mutex};
 use std::thread;
-use std::thread::sleep;
+use std::thread::JoinHandle;
 use std::time::Duration;
+use strum::Display;
 
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
 pub(crate) const PID_BEACN_MIC: &[u16] = &[0x0001, 0x8001];
@@ -15,13 +20,13 @@ pub(crate) const PID_BEACN_STUDIO: &[u16] = &[0x0003];
 pub(crate) const PID_BEACN_MIX: &[u16] = &[0x0004];
 pub(crate) const PID_BEACN_MIX_CREATE: &[u16] = &[0x0007];
 
-#[derive(Debug, Default, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Display, Default, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DeviceType {
     #[default]
     BeacnMic,
     BeacnStudio,
-    BeacnMix,
     BeacnMixCreate,
+    BeacnMix,
 }
 
 struct KnownDevice {
@@ -30,293 +35,251 @@ struct KnownDevice {
     health_rx: Receiver<()>,
 }
 
-pub fn spawn_hotplug_handler(
-    sender: Sender<HotPlugMessage>,
-    receiver: Receiver<HotPlugThreadManagement>,
-) -> Result<()> {
-    debug!("Spawning Beacn Mic Hot Plug Handler");
-
-    // Create the object for managing devices
-    let manager = BeacnMicManager::new(sender.clone());
-
-    // Create a libusb context
-    let context = GlobalContext::default();
-
-    // Work out which type of hot plug handler we need to create
-    if has_hotplug() {
-        thread::spawn(move || hotplug_notify(context, manager, receiver, sender));
-    } else {
-        thread::spawn(move || hotplug_poll(context, manager, receiver));
-    }
-
-    Ok(())
-}
-
-struct BeacnMicManager {
-    inner: Arc<Mutex<BeacnMicManagerInner>>,
-}
-
-struct BeacnMicManagerInner {
-    known_devices: Vec<KnownDevice>,
+struct HotPlugManager {
+    known_devices: HashMap<DeviceId, KnownDevice>,
     sender: Sender<HotPlugMessage>,
 }
 
-impl BeacnMicManager {
-    fn new(sender: Sender<HotPlugMessage>) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(BeacnMicManagerInner {
-                sender,
-                known_devices: vec![],
-            })),
-        }
-    }
-}
-
-impl BeacnMicManagerInner {
+impl HotPlugManager {
     fn thread_stopped(&self) {
         let _ = self.sender.send(HotPlugMessage::ThreadStopped);
     }
 
-    fn device_connected(&mut self, device: DeviceLocation, device_type: DeviceType) {
-        //let mut inner = self.inner.lock().unwrap();
-
-        if self.known_devices.iter().any(|k| k.location == device) {
+    async fn device_connected(&mut self, device: &DeviceInfo, device_type: DeviceType) {
+        let location = DeviceLocation::from(device);
+        if self.known_devices.values().any(|k| k.location == location) {
             warn!("Received 'Arrived' Message for already present device!");
             return;
         }
 
-        debug!("Device Connected at {}", device);
+        debug!("Device Connected at {}", location);
 
         // Create a health channel, this will be triggered if something goes wrong
         let (health_tx, health_rx) = bounded(1);
-        self.known_devices.push(KnownDevice {
-            location: device,
-            device_type,
-            health_rx,
-        });
+        self.known_devices.insert(
+            device.id(),
+            KnownDevice {
+                location: location.clone(),
+                device_type,
+                health_rx,
+            },
+        );
 
-        // We're actually going to sleep on this for a quarter of a second because there appears
-        // to be situations where if we run through this too quickly, the udev rules may not have
-        // finished being setup when we attempt to connect to the device. This results in a
-        // Permission Denied error, even if we have permission!
+        // We're actually going to wait on this for a quarter of a second because there
+        // appears to be situations where if we run through this too quickly, the udev
+        // rules may not have finished being setup when we attempt to connect to the
+        // device. This results in a Permission Denied error, even if we have permission!
         //
         // Shoutout to Jordahn on Discord for helping diagnose this issue.
-        sleep(Duration::from_millis(250));
+        sleep(Duration::from_millis(250)).await;
 
         let _ = self.sender.send(HotPlugMessage::DeviceAttached(
-            device,
+            location,
             device_type,
             health_tx,
         ));
     }
 
-    fn device_removed(&mut self, device: DeviceLocation) {
-        debug!("Device Removed from {}", device);
-        self.known_devices.retain(|e| e.location != device);
-        let _ = self.sender.send(HotPlugMessage::DeviceRemoved(device));
-    }
-
-    fn check_device_health(&mut self) {
-        for known in &mut self.known_devices {
-            if known.health_rx.try_recv().is_ok() {
-                // We're going to do a rusb iteration to see if the device is still here, this
-                // makes sure that if a device is unplugged but the removal callback hasn't fired
-                // yet, we don't double-up the removal messages.
-                let still_present = rusb::devices()
-                    .ok()
-                    .map(|devices| {
-                        devices
-                            .iter()
-                            .any(|d| DeviceLocation::from(d) == known.location)
-                    })
-                    .unwrap_or(false);
-
-                if still_present {
-                    warn!(
-                        "Device {} health failed, but still present, sending faux reconnect",
-                        known.location
-                    );
-
-                    // The device is still present, so we'll 'fake' a disconnect / reconnect cycle
-                    // so that upstream code can recreate the connection to the device.
-                    let (health_tx, health_rx) = bounded(1);
-                    known.health_rx = health_rx;
-                    let _ = self
-                        .sender
-                        .send(HotPlugMessage::DeviceRemoved(known.location));
-
-                    // Sleep for a moment, just to give things time to settle
-                    sleep(Duration::from_millis(250));
-                    let _ = self.sender.send(HotPlugMessage::DeviceAttached(
-                        known.location,
-                        known.device_type,
-                        health_tx,
-                    ));
-                }
-            }
-        }
-    }
-}
-
-impl Hotplug<GlobalContext> for BeacnMicManager {
-    fn device_arrived(&mut self, device: Device<GlobalContext>) {
-        let location = DeviceLocation::from(device.clone());
-
-        let mut inner = self.inner.lock().unwrap();
-
-        // We need to work out what kind of device this is
-        if let Ok(desc) = device.device_descriptor() {
-            if PID_BEACN_MIC.contains(&desc.product_id()) {
-                debug!("Found Beacn Mic!");
-                inner.device_connected(location, DeviceType::BeacnMic);
-            }
-            if PID_BEACN_STUDIO.contains(&desc.product_id()) {
-                debug!("Found Beacn Studio!");
-                inner.device_connected(location, DeviceType::BeacnStudio);
-            }
-            if PID_BEACN_MIX.contains(&desc.product_id()) {
-                debug!("Found Beacn Mix!");
-                inner.device_connected(location, DeviceType::BeacnMix)
-            }
-            if PID_BEACN_MIX_CREATE.contains(&desc.product_id()) {
-                debug!("Found Beacn Mix Create!");
-                inner.device_connected(location, DeviceType::BeacnMixCreate)
-            }
+    fn device_removed(&mut self, id: DeviceId) {
+        if let Some(dev) = self.known_devices.remove(&id) {
+            debug!("Device Removed from {}", dev.location);
+            let _ = self
+                .sender
+                .send(HotPlugMessage::DeviceRemoved(dev.location));
         }
     }
 
-    #[allow(clippy::collapsible_if)]
-    fn device_left(&mut self, device: Device<GlobalContext>) {
-        // Only flag a device removal if it's a Mic or Studio
-        if let Ok(desc) = device.device_descriptor() {
-            if PID_BEACN_MIC.contains(&desc.product_id())
-                || PID_BEACN_STUDIO.contains(&desc.product_id())
-                || PID_BEACN_MIX.contains(&desc.product_id())
-                || PID_BEACN_MIX_CREATE.contains(&desc.product_id())
+    async fn check_device_health(&mut self) {
+        // Check the health reciever of all devices for pings, indicating that the device messaging
+        // has failed.
+        let failing: Vec<(DeviceLocation, DeviceType)> = self
+            .known_devices
+            .values_mut()
+            .filter(|known| known.health_rx.try_recv().is_ok())
+            .map(|known| (known.location.clone(), known.device_type))
+            .collect();
+
+        for (location, device_type) in failing {
+            // We're going to do a fresh enumeration to see if the device is still here,
+            // this makes sure that if a device is unplugged but the removal callback
+            // hasn't fired yet, we don't double-up the removal messages.
+            let still_present = crate::setup::list_devices()
+                .await
+                .ok()
+                .map(|devices| {
+                    devices
+                        .into_iter()
+                        .any(|d| DeviceLocation::from(&d) == location)
+                })
+                .unwrap_or(false);
+
+            if !still_present {
+                continue;
+            }
+
+            warn!(
+                "Device {} health failed, but still present, sending faux reconnect",
+                location
+            );
+
+            // The device is still present, so we'll 'fake' a disconnect / reconnect cycle
+            // so that upstream code can recreate the connection to the device.
+            let (health_tx, health_rx) = bounded(1);
+            if let Some(known) = self
+                .known_devices
+                .values_mut()
+                .find(|k| k.location == location)
             {
-                let location = DeviceLocation::from(device.clone());
-                self.inner.lock().unwrap().device_removed(location);
+                known.health_rx = health_rx;
             }
+            let _ = self
+                .sender
+                .send(HotPlugMessage::DeviceRemoved(location.clone()));
+
+            // Wait a moment, just to give things time to settle
+            sleep(Duration::from_millis(250)).await;
+            let _ = self.sender.send(HotPlugMessage::DeviceAttached(
+                location,
+                device_type,
+                health_tx,
+            ));
         }
     }
 }
 
-fn hotplug_notify(
-    context: GlobalContext,
-    manager: BeacnMicManager,
-    receiver: Receiver<HotPlugThreadManagement>,
+/// Work out if a device is a Beacn device we care about, and if so what type it is.
+fn identify_beacn_device(info: &DeviceInfo) -> Option<DeviceType> {
+    if info.vendor_id() != VENDOR_BEACN {
+        return None;
+    }
+    if PID_BEACN_MIC.contains(&info.product_id()) {
+        Some(DeviceType::BeacnMic)
+    } else if PID_BEACN_STUDIO.contains(&info.product_id()) {
+        Some(DeviceType::BeacnStudio)
+    } else if PID_BEACN_MIX.contains(&info.product_id()) {
+        Some(DeviceType::BeacnMix)
+    } else if PID_BEACN_MIX_CREATE.contains(&info.product_id()) {
+        Some(DeviceType::BeacnMixCreate)
+    } else {
+        None
+    }
+}
+
+enum HotplugLoopEvent {
+    Management(Result<HotPlugThreadManagement, flume::RecvError>),
+    Hotplug(Option<HotplugEvent>),
+    HealthCheck,
+}
+
+/// Spawn an OS thread and Watch for Beacn device hot-plug events and report them on `sender`.
+///
+/// If you're running in an async context, instead take a look at `watch_hotplug_devices` which
+/// can instead be used directly in your runtime.
+///
+/// Runs until `receiver` gets `HotPlugThreadManagement::Quit`, `sender`'s corresponding
+/// receiver is dropped, or the underlying hotplug watch itself fails.
+pub fn spawn_hotplug_handler(
     sender: Sender<HotPlugMessage>,
-) {
-    let inner = manager.inner.clone();
+    receiver: Receiver<HotPlugThreadManagement>,
+) -> JoinHandle<()> {
+    debug!("Running Beacn Mic Hot Plug Handler");
 
-    let _handler = HotplugBuilder::new()
-        .vendor_id(VENDOR_BEACN)
-        .enumerate(true)
-        .register(context, Box::new(manager))
-        .expect("Cannot Register hot plug Handler");
-
-    let loop_duration = Some(Duration::from_millis(100));
-    loop {
-        let message = receiver.try_recv();
-        if should_stop(message) {
-            break;
-        }
-
-        inner.lock().unwrap().check_device_health();
-        context.handle_events(loop_duration).unwrap();
-    }
-
-    // We need to send this ourselves, manager has been moved into the handler
-    let _ = sender.send(HotPlugMessage::ThreadStopped);
+    use crate::MaybeFuture;
+    thread::spawn(|| watch_hotplug_devices(sender, receiver).wait())
 }
 
-fn hotplug_poll(
-    context: GlobalContext,
-    manager: BeacnMicManager,
+/// Watch for Beacn device hot-plug events and report them on `sender`, without spawning
+/// any OS thread of our own.
+///
+/// Await this directly from your own async runtime (or hand it to `tokio::spawn` /
+/// `smol::spawn` / etc. to run it in the background), or drive it with `.wait()`
+/// (`beacn_lib::MaybeFuture`) to block the current thread for as long as you want to
+/// watch. `spawn_hotplug_handler` is a thin convenience wrapper around the latter, for
+/// classic thread-per-task usage where you don't want to manage the thread yourself.
+///
+/// Runs until `receiver` gets `HotPlugThreadManagement::Quit`, `sender`'s corresponding
+/// receiver is dropped, or the underlying hotplug watch itself fails.
+pub async fn watch_hotplug_devices(
+    sender: Sender<HotPlugMessage>,
     receiver: Receiver<HotPlugThreadManagement>,
 ) {
-    loop {
-        let message = receiver.try_recv();
-        if should_stop(message) {
-            break;
+    let mut inner = HotPlugManager {
+        sender: sender.clone(),
+        known_devices: HashMap::new(),
+    };
+
+    // Create the nusb watcher, and start looking for device events. Unlike list_devices,
+    // open, etc., watch_devices() itself doesn't need a blocking syscall to set up, so we
+    // can call it directly without going through `crate::setup`.
+    let mut watch = match nusb::watch_devices() {
+        Ok(watch) => watch,
+        Err(e) => {
+            error!("Unable to start USB hotplug watch: {}", e);
+            let _ = sender.send(HotPlugMessage::ThreadStopped);
+            return;
         }
+    };
 
-        let mut inner = manager.inner.lock().unwrap();
+    // watch_devices says to populate from list_devices after it's called, so we can
+    // grab and handle devices which already exist.
+    if let Ok(devices) = crate::setup::list_devices().await {
+        // Locate all Beacn Devices
+        let mut devices: Vec<_> = devices
+            .filter_map(|info| identify_beacn_device(&info).map(|ty| (info, ty)))
+            .collect();
 
-        let mut found_devices = vec![];
-        if let Ok(devices) = context.devices() {
-            for dev in devices.iter() {
-                #[allow(clippy::collapsible_if)]
-                if let Ok(desc) = dev.device_descriptor() {
-                    if desc.vendor_id() == VENDOR_BEACN {
-                        let device = DeviceLocation::from(dev);
+        // Order them by startup order
+        devices.sort_by_key(|(_, ty)| *ty);
 
-                        #[allow(clippy::collapsible_if)]
-                        if PID_BEACN_MIC.contains(&desc.product_id()) {
-                            if !inner.known_devices.iter().any(|k| k.location == device) {
-                                found_devices.push(device);
-                                inner.device_connected(device, DeviceType::BeacnMic);
-                            }
-                        }
+        for (info, device_type) in devices {
+            inner.device_connected(&info, device_type).await;
+        }
+    }
 
-                        #[allow(clippy::collapsible_if)]
-                        if PID_BEACN_STUDIO.contains(&desc.product_id()) {
-                            if !inner.known_devices.iter().any(|k| k.location == device) {
-                                found_devices.push(device);
-                                inner.device_connected(device, DeviceType::BeacnStudio);
-                            }
-                        }
+    // Periodic health-check tick, replacing the old poll-with-timeout loop -- this is
+    // just another branch in the select below now that we're not restricted to blocking
+    // primitives.
+    let mut health_tick = Ticker::new(Duration::from_millis(100), false);
 
-                        #[allow(clippy::collapsible_if)]
-                        if PID_BEACN_MIX.contains(&desc.product_id()) {
-                            if !inner.known_devices.iter().any(|k| k.location == device) {
-                                found_devices.push(device);
-                                inner.device_connected(device, DeviceType::BeacnMix);
-                            }
-                        }
+    loop {
+        let event = or(
+            or(
+                async { HotplugLoopEvent::Management(receiver.recv_async().await) },
+                async { HotplugLoopEvent::Hotplug(watch.next().await) },
+            ),
+            async {
+                health_tick.tick().await;
+                HotplugLoopEvent::HealthCheck
+            },
+        )
+        .await;
 
-                        #[allow(clippy::collapsible_if)]
-                        if PID_BEACN_MIX_CREATE.contains(&desc.product_id()) {
-                            if !inner.known_devices.iter().any(|k| k.location == device) {
-                                found_devices.push(device);
-                                inner.device_connected(device, DeviceType::BeacnMixCreate);
-                            }
-                        }
-                    }
+        match event {
+            HotplugLoopEvent::Management(Ok(HotPlugThreadManagement::Quit)) => break,
+            HotplugLoopEvent::Management(Err(_)) => {
+                error!("Receiver has Disconnected, terminating hot plug watcher");
+                break;
+            }
+            HotplugLoopEvent::Hotplug(Some(HotplugEvent::Connected(info))) => {
+                if let Some(device_type) = identify_beacn_device(&info) {
+                    debug!("Found Beacn Device (type {:?})", device_type);
+                    inner.device_connected(&info, device_type).await;
                 }
             }
-        }
-
-        let known_locations: Vec<DeviceLocation> =
-            inner.known_devices.iter().map(|k| k.location).collect();
-        for location in known_locations {
-            if !found_devices.contains(&location) {
-                inner.device_removed(location);
+            HotplugLoopEvent::Hotplug(Some(HotplugEvent::Disconnected(info))) => {
+                inner.device_removed(info);
+            }
+            HotplugLoopEvent::Hotplug(None) => {
+                error!("Hotplug watch stream ended, terminating hot plug watcher");
+                break;
+            }
+            HotplugLoopEvent::HealthCheck => {
+                inner.check_device_health().await;
             }
         }
-
-        // We're done, sleep for now
-        inner.check_device_health();
-        sleep(Duration::from_millis(100));
     }
 
-    let inner = manager.inner.lock().unwrap();
     inner.thread_stopped();
-}
-
-fn should_stop(message: Result<HotPlugThreadManagement, TryRecvError>) -> bool {
-    match message {
-        Ok(message) => match message {
-            HotPlugThreadManagement::Quit => true,
-        },
-        Err(error) => match error {
-            TryRecvError::Empty => false,
-            TryRecvError::Disconnected => {
-                error!("Receiver has Disconnected, terminating hot plug Thread");
-                true
-            }
-        },
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -331,57 +294,57 @@ pub enum HotPlugThreadManagement {
     Quit,
 }
 
-#[derive(Debug, Default, Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
 pub struct DeviceLocation {
-    pub bus_number: u8,
-    pub address: u8,
+    pub bus_id: String,
+    pub device_address: u8,
 }
 
 impl Display for DeviceLocation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{}", self.bus_number, self.address)
+        write!(f, "{}.{}", self.bus_id, self.device_address)
     }
 }
 
-impl<T: UsbContext> From<Device<T>> for DeviceLocation {
-    fn from(value: Device<T>) -> Self {
+impl From<&DeviceInfo> for DeviceLocation {
+    fn from(value: &DeviceInfo) -> Self {
         Self {
-            bus_number: value.bus_number(),
-            address: value.address(),
+            bus_id: value.bus_id().to_string(),
+            device_address: value.device_address(),
         }
     }
 }
 
-/// This is a generic function that will just return a list of Beacn Mic's attached to your
-/// system for situations where you want to handle hot plugging yourself.
-///
-/// This function is useful during prototyping, but shouldn't be used long term, instead
-/// use the regular hot plug thread.
-pub fn get_beacn_mic_devices() -> Vec<DeviceLocation> {
-    get_beacn_device(PID_BEACN_MIC)
+/// This is a generic function that will just return a list of USB Locations of Beacn Mic devices
+/// attached to your system for situations where you want to handle hot plugging yourself.
+pub async fn get_beacn_mic_devices() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_MIC).await
 }
 
-pub fn get_beacn_studio_devices() -> Vec<DeviceLocation> {
-    get_beacn_device(PID_BEACN_STUDIO)
+/// This is a generic function that will just return a list of USB Locations of Beacn Studio
+/// devices attached to your system for situations where you want to handle hot plugging yourself.
+pub async fn get_beacn_studio_devices() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_STUDIO).await
 }
 
-pub fn get_beacn_mix_device() -> Vec<DeviceLocation> {
-    get_beacn_device(PID_BEACN_MIX)
+/// This is a generic function that will just return a list USB Locations of Beacn Mix devices
+/// attached to your system for situations where you want to handle hot plugging yourself.
+pub async fn get_beacn_mix_device() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_MIX).await
 }
 
-pub fn get_beacn_mix_create_device() -> Vec<DeviceLocation> {
-    get_beacn_device(PID_BEACN_MIX_CREATE)
+/// This is a generic function that will just return a list USB Locations of Beacn Mix Create
+/// devices attached to your system for situations where you want to handle hot plugging yourself.
+pub async fn get_beacn_mix_create_device() -> Vec<DeviceLocation> {
+    get_beacn_device(PID_BEACN_MIX_CREATE).await
 }
 
-#[allow(clippy::collapsible_if)]
-fn get_beacn_device(pid: &[u16]) -> Vec<DeviceLocation> {
+async fn get_beacn_device(pid: &[u16]) -> Vec<DeviceLocation> {
     let mut devices = vec![];
-    if let Ok(devs) = rusb::devices() {
-        for dev in devs.iter() {
-            if let Ok(desc) = dev.device_descriptor() {
-                if desc.vendor_id() == VENDOR_BEACN && pid.contains(&desc.product_id()) {
-                    devices.push(DeviceLocation::from(dev));
-                }
+    if let Ok(devs) = crate::setup::list_devices().await {
+        for info in devs {
+            if info.vendor_id() == VENDOR_BEACN && pid.contains(&info.product_id()) {
+                devices.push(DeviceLocation::from(&info));
             }
         }
     }

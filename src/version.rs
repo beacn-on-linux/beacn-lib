@@ -53,35 +53,34 @@ impl std::fmt::Debug for VersionNumber {
 }
 
 impl From<String> for VersionNumber {
-    #[allow(clippy::collapsible_if)]
     fn from(value: String) -> Self {
         let mut version = VersionNumber::default();
 
         let mut parts = value.split('.');
 
         // We can't iterate over a tuple, so we need to do this 4 times..
-        if let Some(part) = parts.next() {
-            if let Ok(part) = part.parse() {
-                version.0 = part;
-            }
+        if let Some(part) = parts.next()
+            && let Ok(part) = part.parse()
+        {
+            version.0 = part;
         }
 
-        if let Some(part) = parts.next() {
-            if let Ok(part) = part.parse() {
-                version.1 = part;
-            }
+        if let Some(part) = parts.next()
+            && let Ok(part) = part.parse()
+        {
+            version.1 = part;
         }
 
-        if let Some(part) = parts.next() {
-            if let Ok(part) = part.parse() {
-                version.2 = part;
-            }
+        if let Some(part) = parts.next()
+            && let Ok(part) = part.parse()
+        {
+            version.2 = part;
         }
 
-        if let Some(part) = parts.next() {
-            if let Ok(part) = part.parse() {
-                version.3 = part;
-            }
+        if let Some(part) = parts.next()
+            && let Ok(part) = part.parse()
+        {
+            version.3 = part;
         }
 
         version

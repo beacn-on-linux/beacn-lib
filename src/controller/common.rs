@@ -1,499 +1,71 @@
-use crate::common::{BeacnDeviceHandle, DeviceDefinition, get_device_info};
-use crate::controller::ButtonState::{Press, Release};
+use crate::common::DeviceDefinition;
 use crate::controller::ControlThreadSender::{
     KeepAlive, SetActiveBrightness, SetButtonBrightness, SetButtonColour, SetDimTimeout,
     SetEnabled, SetImage,
 };
-use crate::controller::{
-    BeacnControlDevice, ButtonLighting, Buttons, ControlThreadSender, Dials, Interactions,
-};
+use crate::controller::device::runner::BeacnControlDeviceRunner;
+use crate::controller::{BeacnControlDevice, ButtonLighting, ControlThreadSender, Interactions};
+use crate::sealed::Sealed;
 use crate::types::RGBA;
-use crate::version::VersionNumber;
 use crate::{BResult, beacn_bail};
 use anyhow::Error;
-use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use crossbeam::channel::{Receiver, Sender, after, bounded, never, tick};
-use crossbeam::select;
+use anyhow::Result;
+use async_trait::async_trait;
+use flume::Sender;
 use jpeg_decoder::Decoder;
-use log::{debug, error, warn};
 use std::sync::Arc;
-use std::thread;
-use std::thread::sleep;
-use std::time::{Duration, Instant};
-use strum::IntoEnumIterator;
+use std::time::Duration;
 
-// Default Display 'Active' and 'Dimmed' brightness, and the default dim time
-static DISPLAY_DEFAULT_FULL_BRIGHTNESS: u8 = 40;
-static DISPLAY_DEFAULT_DIM_BRIGHTNESS: u8 = 1;
-static DISPLAY_DEFAULT_DIM_TIME: u64 = 180;
+#[async_trait]
+pub trait BeacnControlDeviceInfo: Sealed {
+    fn get_display_size(&self) -> (u32, u32);
+}
 
-// Default button brightness
-static BUTTONS_DEFAULT_BRIGHTNESS: u8 = 8;
-
-pub trait BeacnControlDeviceAttach {
-    // We're specifically allowing the DeviceDefinition to be a private interface, as it's
-    // simply used internally for connection up a device, and shouldn't have any visibility
-    // from the outside. This also prevents external code from attempting to call connect.
-    #[allow(private_interfaces)]
-    fn connect(
+pub(crate) trait BeacnControlDeviceInternal: Sealed {
+    async fn connect(
         definition: DeviceDefinition,
         interaction: Option<Sender<Interactions>>,
         health_tx: Sender<()>,
-    ) -> BResult<Box<dyn BeacnControlDevice>>
+    ) -> BResult<Arc<Box<dyn BeacnControlDevice>>>
     where
         Self: Sized;
 
-    fn get_product_id(&self) -> u16;
-    fn get_serial(&self) -> String;
-    fn get_version(&self) -> String;
-
-    #[allow(private_interfaces)]
-    fn get_sender(&self) -> &Sender<ControlThreadSender>;
-    fn get_display_size(&self) -> (u32, u32);
+    fn get_sender(&self) -> Result<&Sender<ControlThreadSender>>;
+    fn set_sender_enabled(&self, enabled: bool);
 }
 
 // For the most part, the Mix and Mix Create handle interactions identically, obviously the
 // mix has fewer buttons, but the firmware seems to do a decent job of handling that, so we
-// can simply use the same behaviour between the
-pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
-    #[allow(private_interfaces)]
-    fn spawn_event_handler(
-        rx: Receiver<ControlThreadSender>,
-        handler: BeacnDeviceHandle,
-        interaction: Option<Sender<Interactions>>,
-    ) where
-        Self: Sized,
-    {
-        // In 1.2.0 build 81+ the Beacn Mix and Mix Create shifted to a 'polling' method
-        // of interaction checks. For versions older we need to use the original notify
-        let notify_version = VersionNumber(1, 2, 0, 80);
-        let is_notify = handler.version <= notify_version;
+// can simply use the same behaviour between the two
+#[allow(private_bounds)]
+#[async_trait]
+pub trait BeacnControlAPI:
+    BeacnControlDeviceInfo + BeacnControlDeviceInternal + BeacnControlDeviceRunner + Sealed
+{
+    async fn set_enabled(&self, enabled: bool) -> BResult<()> {
+        let (tx, rx) = oneshot::channel();
 
-        // We need a message queue for handling when inputs have been received for parsing, given
-        // they can come from one of two places, we'll handle them once. 64 might be a little big.
-        let (input_tx, input_rx) = bounded(64);
-        let mut input_buffer = [0; 64];
-
-        // Timeout Handlers
-        let timeout = Duration::from_millis(2000);
-
-        // At this point, we need to pull out the USB handler and wrap it up
-        let handle = Arc::new(handler.handle);
-        let poll = if is_notify {
-            let handler_clone = handle.clone();
-            let tx_clone = input_tx.clone();
-            thread::spawn(move || {
-                debug!("Spawning Event Listener");
-
-                // Input buffer for messages
-                let mut input = [0; 64];
-
-                let handle = handler_clone;
-                let input_tx = tx_clone;
-                let read = Duration::from_millis(100);
-
-                // These are just defensive checks
-                const MAX_NO_DEVICE_RETRIES: u32 = 10;
-                let mut no_device_retries = 0;
-
-                loop {
-                    // Firstly, we need to fire off a message saying we're ready for buttons
-                    match handle.read_interrupt(0x83, &mut input, read) {
-                        Ok(_) => {
-                            no_device_retries = 0;
-                            if let Err(e) = input_tx.send(input) {
-                                // Our channel is gone or closed, bail.
-                                warn!("Message Channel Closed, Terminating: {}", e);
-                                break;
-                            }
-                        }
-                        Err(rusb::Error::NoDevice) => {
-                            no_device_retries += 1;
-                            if no_device_retries > MAX_NO_DEVICE_RETRIES {
-                                warn!(
-                                    "Device not recovering after {} retries, assuming dead",
-                                    MAX_NO_DEVICE_RETRIES
-                                );
-
-                                // TODO: We need to actually fully teardown the device
-                                // If we get here, then the handle is gone, and that's not been detected
-                                // upstream anywhere, which should cause a teardown / reconnect
-                                break;
-                            }
-
-                            // The assumption here is that when waking from sleep, the interrupt
-                            // on the read has been cancelled, and we can safely retry.
-                            thread::sleep(Duration::from_millis(100));
-                        }
-                        Err(rusb::Error::Timeout) => {
-                            // Timeout is a completely acceptable error to have, it just means
-                            // the user hasn't moved a dial or pressed a button in the last
-                            // `read` seconds, and we're good to wait again.
-                            no_device_retries = 0;
-                        }
-                        Err(usb_error) => {
-                            warn!("USB Error while receiving inputs: {}", usb_error);
-                            break;
-                        }
-                    }
-                }
-
-                debug!("Event Listener Terminated");
-            });
-            never()
-        } else {
-            tick(Duration::from_millis(50))
-        };
-
-        // This tracks the button states (so we can message on Send / Receive)
-        let mut last_button_state = 0;
-
-        let mut is_dimmed = false;
-        let mut active_brightness = DISPLAY_DEFAULT_FULL_BRIGHTNESS;
-        let mut button_brightness = BUTTONS_DEFAULT_BRIGHTNESS;
-
-        let enable = [0, 1, 0, 4, 0, 0, 0, 0];
-        let brightness = [0, 0, 0, 4, active_brightness, 0, 0, 0];
-        let buttons = [1, 7, 0, 4, button_brightness, 0, 0, 0];
-
-        // Message to instruct the screen to turn on (default to off after a few seconds)
-        if let Err(e) = handle.write_interrupt(0x03, &enable, timeout) {
-            error!("Unable to Turn the Screen on: {}", e);
-            return;
-        }
-
-        // Set the default display brightness
-        if let Err(e) = handle.write_interrupt(0x03, &brightness, timeout) {
-            error!("Failed to Set Default Brightness: {}", e);
-            return;
-        }
-
-        // Set the default button brightness
-        if let Err(e) = handle.write_interrupt(0x03, &buttons, timeout) {
-            error!("Unable to Set Default Button Brightness: {}", e);
-            return;
-        }
-
-        // Force the device into a 'wake' state if it's currently sleeping
-        let wake = [00, 00, 00, 0xf1];
-        if let Err(e) = handle.write_interrupt(0x03, &wake, timeout) {
-            error!("Unable to Wake Device: {}", e);
-            return;
-        }
-
-        sleep(Duration::from_millis(250));
-
-        let mut dim_duration = Duration::from_secs(DISPLAY_DEFAULT_DIM_TIME);
-
-        // Create some timers for processing
-        let mut dim_timeout = after(dim_duration);
-        let mut device_enabled = true;
-
-        // TODO: I should probably use a Macro or a closure to handle the recv
-        // In all cases, if a channel has closed, we should abort.
-        debug!("Spawning Event Handler for {}", handler.serial);
-        'primary: loop {
-            select! {
-                recv(rx) -> msg => {
-                    match msg {
-                        Ok(msg) => {
-                            match msg {
-                                ControlThreadSender::Stop => {
-                                    debug!("Stopping Event Handler");
-                                    break;
-                                }
-                                KeepAlive => {
-                                    if let Err(e) = handle.write_interrupt(0x03, &[00, 00, 00, 0xf1], timeout) {
-                                        error!("Error Sending Keep-Alive Request: {}", e);
-                                        break;
-                                    }
-                                }
-                                SetEnabled(enabled) => {
-                                    let byte = if enabled { 0 } else { 1 };
-                                    let message = [0, 1, 0, 4, byte, 0, 0, 0];
-
-                                    if let Err(e) = handle.write_interrupt(0x03, &message, timeout) {
-                                        error!("Failed to Send Enabled Message: {}", e);
-                                        break 'primary;
-                                    }
-
-                                    device_enabled = enabled;
-                                }
-                                SetImage(x, y, img) => {
-                                    let chunk_timeout = Duration::from_millis(100);
-                                    let chunk_retry_budget = Duration::from_millis(300);
-                                    let overall_budget = Duration::from_secs(10);
-
-                                    if !device_enabled {
-                                        if let Err(e) = handle.write_interrupt(0x03, &enable, chunk_timeout) {
-                                            warn!("Failed to enable device, attempting to clear halt: {e}");
-
-                                            let retry = handle.clear_halt(0x83).is_ok()
-                                                && handle.write_interrupt(0x03, &enable, chunk_timeout).is_ok();
-
-                                            if !retry {
-                                                warn!("Failed to enable device, dropping frame");
-                                                continue 'primary;
-                                            }
-                                        }
-
-                                        sleep(Duration::from_millis(100));
-                                        device_enabled = true;
-                                    }
-
-                                    let send_chunk = |output: &[u8; 1024]| -> Result<(), rusb::Error> {
-                                        let started = Instant::now();
-                                        let mut retry_count = 0;
-                                        loop {
-                                            match handle.write_interrupt(0x03, output, chunk_timeout) {
-                                                Ok(_) => return Ok(()),
-                                                Err(rusb::Error::Timeout) if started.elapsed() < chunk_retry_budget => {
-                                                    retry_count += 1;
-                                                    debug!("Chunk write timed out ({:?} waiting, retry {}), retrying", started.elapsed(), retry_count);
-                                                    sleep(Duration::from_millis(20));
-                                                }
-
-                                                Err(e) => return Err(e),
-                                            }
-                                        }
-                                    };
-
-                                    'image: {
-                                        let overall_started = Instant::now();
-                                        let mut success = false;
-                                        let mut attempt = 0;
-
-                                        while overall_started.elapsed() < overall_budget {
-                                            attempt += 1;
-                                            let mut iter = img.chunks(1020).enumerate().peekable();
-                                            let mut output = [0; 1024];
-                                            let mut attempt_ok = true;
-
-                                            while let Some((index, value)) = iter.next() {
-                                                LittleEndian::write_u24(&mut output[0..3], index as u32);
-                                                output[3] = 0x50;
-                                                output[4..value.len() + 4].copy_from_slice(value);
-
-                                                match send_chunk(&output) {
-                                                    Ok(_) => {}
-                                                    Err(rusb::Error::Timeout) => {
-                                                        warn!("Chunk {} failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0", index, attempt, overall_started.elapsed());
-                                                        attempt_ok = false;
-                                                        break;
-                                                    }
-                                                    Err(e) => {
-                                                        warn!("Unknown Error Received: {:?}, bailing..", e);
-                                                        continue 'primary;
-                                                    }
-                                                }
-
-                                                if iter.peek().is_none() {
-                                                    output[0] = 0xff;
-                                                    output[1] = 0xff;
-                                                    output[2] = 0xff;
-                                                    output[3] = 0x50;
-                                                    LittleEndian::write_u32(&mut output[4..8], img.len() as u32 - 1);
-                                                    LittleEndian::write_u32(&mut output[8..12], x);
-                                                    LittleEndian::write_u32(&mut output[12..16], y);
-
-                                                    match send_chunk(&output) {
-                                                        Ok(_) => {}
-                                                        Err(rusb::Error::Timeout) => {
-                                                            warn!("Final chunk failed on attempt {} ({:?} elapsed), restarting transfer from chunk 0", attempt, overall_started.elapsed());
-                                                            attempt_ok = false;
-                                                            break;
-                                                        }
-                                                        Err(e) => {
-                                                            warn!("Unknown Error Received: {:?}, bailing..", e);
-                                                            continue 'primary;
-                                                        }
-                                                    }
-
-                                                }
-                                            }
-
-                                            if attempt_ok {
-                                                success = true;
-                                                break;
-                                            }
-                                        }
-
-                                        if !success {
-                                            error!("Failed to send image after {} attempts over {:?}, dropping frame", attempt, overall_started.elapsed());
-                                            break 'image;
-                                        }
-
-                                        sleep(Duration::from_millis(10));
-                                    }
-                                }
-                                SetDimTimeout(timeout) => {
-                                    dim_duration = timeout;
-                                    if !is_dimmed {
-                                        // If we're not already dimmed, reset the timer
-                                        dim_timeout = after(timeout);
-                                    }
-                                }
-                                SetActiveBrightness(percent) => {
-                                    if is_dimmed {
-                                        is_dimmed = false;
-                                        dim_timeout = after(dim_duration);
-                                    }
-                                    active_brightness = percent;
-                                    if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, active_brightness, 0, 0, 0], timeout) {
-                                        error!("Failed to Set Brightness: {}", e);
-                                        break;
-                                    }
-                                }
-                                SetButtonBrightness(value) => {
-                                    button_brightness = value;
-                                    if let Err(e) = handle.write_interrupt(0x03, &[1, 7, 0, 4, button_brightness, 0, 0, 0], timeout) {
-                                        error!("Failed to Set Button Brightness: {}", e);
-                                        break;
-                                    }
-                                }
-                                SetButtonColour(button, colour) => {
-                                    let message = [1, button, 0, 4, colour.blue, colour.green, colour.red, colour.alpha];
-                                    if let Err(e) = handle.write_interrupt(0x03,&message,timeout) {
-                                        error!("Failed to Set Button Colour: {}", e);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            error!("Main Event Receiver Error: {}", e);
-                            break;
-                        }
-                    }
-                }
-                recv(dim_timeout) -> msg => {
-                    match msg {
-                        Ok(_) => {
-                            is_dimmed = true;
-                            if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, DISPLAY_DEFAULT_DIM_BRIGHTNESS, 0, 0, 0], timeout) {
-                                error!("Failed to Set DIM brightness: {}", e);
-                                break;
-                            }
-                        }
-                        Err(e) => {
-                            error!("DIM Timeout Receiver broken {}", e);
-                            break;
-                        }
-                    }
-                }
-                recv(input_rx) -> msg => {
-                    match msg {
-                        Ok(input) => {
-                            let (changed, button_state) = Self::handle_interaction(input, last_button_state, &interaction);
-                            last_button_state = button_state;
-
-                            if changed {
-                                if is_dimmed {
-                                    // We need to wake up screen
-                                    is_dimmed = false;
-                                    if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 4, active_brightness, 0, 0, 0], timeout) {
-                                        error!("Failed to Set DIM brightness: {}", e);
-                                        break;
-                                    }
-                                }
-
-                                // Set a new Dim timeout
-                                dim_timeout = after(dim_duration);
-                            }
-                        },
-                        Err(e) => {
-                            error!("Input Receiver Terminated: {:?}", e);
-                            break;
-                        }
-                    }
-                }
-                recv(poll) -> msg => {
-                    // Ok, we're at a poll interval, we need to fetch changes to inputs
-                    match msg {
-                        Ok(_) => {
-                            if let Err(e) = handle.write_interrupt(0x03, &[0, 0, 0, 5], timeout) {
-                                debug!("Error Sending Poll Request: {}", e);
-                                break;
-                            }
-                            if let Err(e) = handle.read_interrupt(0x83, &mut input_buffer, timeout) {
-                                debug!("Error Reading Poll Response: {}", e);
-                                break;
-                            } else {
-                                if let Err(e) = input_tx.send(input_buffer) {
-                                    debug!("Failed to Send Poll Response Data: {}", e);
-                                    break;
-                                };
-                            }
-                        }
-                        Err(e) => {
-                            error!("Poll Receiver Terminated: {:?}", e);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        debug!("Event Handler Terminated");
-    }
-
-    fn handle_interaction(
-        message: [u8; 64],
-        last: u16,
-        tx: &Option<Sender<Interactions>>,
-    ) -> (bool, u16)
-    where
-        Self: Sized,
-    {
-        let mut has_interacted = false;
-
-        let dials = &message[4..8];
-        for dial in Dials::iter() {
-            if dials[dial as usize] != 0 {
-                let change = dials[dial as usize] as i8;
-                if let Some(tx) = tx {
-                    let _ = tx.send(Interactions::DialChanged(dial, change));
-                }
-                debug!("Dial Moved: {} - {}", dial, change);
-                has_interacted = true;
-            }
-        }
-
-        let buttons = BigEndian::read_u16(&message[8..10]);
-        for button in Buttons::iter() {
-            let button_pressed = (buttons >> button as u8) & 1;
-            if ((last >> button as u8) & 1) != button_pressed {
-                if (buttons >> button as u8) & 1 == 1 {
-                    if let Some(tx) = tx {
-                        let _ = tx.send(Interactions::ButtonPress(button, Press));
-                    }
-                    debug!("Button Pressed: {}", button);
-                    has_interacted = true;
-                } else {
-                    if let Some(tx) = tx {
-                        let _ = tx.send(Interactions::ButtonPress(button, Release));
-                    }
-                    debug!("Button Released: {}", button);
-                    has_interacted = true;
-                }
-            }
-        }
-        (has_interacted, buttons)
-    }
-
-    fn set_enabled(&self, enabled: bool) -> BResult<()> {
-        self.get_sender()
-            .send(SetEnabled(enabled))
+        self.get_sender()?
+            .send_async(SetEnabled(enabled, tx))
+            .await
             .map_err(Error::from)?;
+
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
-    fn send_keepalive(&self) -> BResult<()> {
-        self.get_sender().send(KeepAlive).map_err(Error::from)?;
+    async fn send_keepalive(&self) -> BResult<()> {
+        let (tx, rx) = oneshot::channel();
+        self.get_sender()?
+            .send_async(KeepAlive(tx))
+            .await
+            .map_err(Error::from)?;
+
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_image(&self, x: u32, y: u32, jpeg_image: &[u8]) -> BResult<()> {
+    async fn set_image(&self, x: u32, y: u32, jpeg_image: &[u8]) -> BResult<()> {
         // TODO: This might be too heavy for a frequent update check (for example, metering)
 
         // All we do here is validate the image and make sure it fits inside the window
@@ -522,7 +94,7 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             if (y + info.height as u32) > display_size.1 {
                 beacn_bail!(
                     "Image overflows display height, {}>{}",
-                    x + info.height as u32,
+                    y + info.height as u32,
                     display_size.1
                 );
             }
@@ -530,93 +102,74 @@ pub trait BeacnControlInteraction: BeacnControlDeviceAttach {
             beacn_bail!("Unable to Fetch Image Info");
         }
 
-        self.get_sender()
-            .send(SetImage(x, y, Vec::from(jpeg_image)))
+        let (tx, rx) = oneshot::channel();
+
+        self.get_sender()?
+            .send_async(SetImage(x, y, Vec::from(jpeg_image), tx))
+            .await
             .map_err(Error::from)?;
+
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_display_brightness(&self, brightness: u8) -> BResult<()> {
+    async fn set_display_brightness(&self, brightness: u8) -> BResult<()> {
         if !(1..=100).contains(&brightness) {
             beacn_bail!("Display Brightness must be a percentage");
         }
 
-        self.get_sender()
-            .send(SetActiveBrightness(brightness))
+        let (tx, rx) = oneshot::channel();
+        self.get_sender()?
+            .send_async(SetActiveBrightness(brightness, tx))
+            .await
             .map_err(Error::from)?;
+
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_button_brightness(&self, brightness: u8) -> BResult<()> {
+    async fn set_button_brightness(&self, brightness: u8) -> BResult<()> {
         if !(0..=10).contains(&brightness) {
             beacn_bail!("Button Brightness must be between 0 and 10");
         }
-        self.get_sender()
-            .send(SetButtonBrightness(brightness))
+
+        let (tx, rx) = oneshot::channel();
+        self.get_sender()?
+            .send_async(SetButtonBrightness(brightness, tx))
+            .await
             .map_err(Error::from)?;
+
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_dim_timeout(&self, timeout: Duration) -> BResult<()> {
+    async fn set_dim_timeout(&self, timeout: Duration) -> BResult<()> {
         if timeout > Duration::from_secs(300) || timeout < Duration::from_secs(30) {
             beacn_bail!(
                 "For display safety, dim timeout must be lower than 5 minutes, and greater than 30 seconds"
             );
         }
 
-        self.get_sender()
-            .send(SetDimTimeout(timeout))
+        let (tx, rx) = oneshot::channel();
+        self.get_sender()?
+            .send_async(SetDimTimeout(timeout, tx))
+            .await
             .map_err(Error::from)?;
+
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
 
-    fn set_button_colour(&self, button: ButtonLighting, colour: RGBA) -> BResult<()> {
+    async fn set_button_colour(&self, button: ButtonLighting, colour: RGBA) -> BResult<()> {
         let button = button as u8;
-        self.get_sender()
-            .send(SetButtonColour(button, colour))
+
+        let (tx, rx) = oneshot::channel();
+        self.get_sender()?
+            .send_async(SetButtonColour(button, colour, tx))
+            .await
             .map_err(Error::from)?;
+
+        rx.await.map_err(Error::from)?;
         Ok(())
     }
-}
-
-/// Simple function to Open a libusb connection to a Beacn Audio device, do initial setup and
-/// grab the firmware version from the device.
-pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<BeacnDeviceHandle> {
-    if !product_id.contains(&def.descriptor.product_id()) {
-        beacn_bail!(
-            "Expecting PIDs {:?} but got {}",
-            product_id,
-            def.descriptor.product_id()
-        );
-    }
-
-    let handle = def.device.open()?;
-    handle.claim_interface(0)?;
-    handle.set_alternate_setting(0, 1)?;
-    handle.clear_halt(0x83)?;
-
-    let setup_timeout = Duration::from_millis(2000);
-
-    // Unlike the Mic and Studio, we use an interrupt, rather a bulk read
-    let mut input = [0; 64];
-    handle.write_interrupt(0x03, &[00, 00, 00, 1], setup_timeout)?;
-    handle.read_interrupt(0x83, &mut input, setup_timeout)?;
-
-    let (version, serial) = get_device_info(&input)?;
-
-    debug!(
-        "Loaded Device, Location: {}.{}, Serial: {}, Version: {}",
-        def.device.bus_number(),
-        def.device.address(),
-        serial.clone(),
-        version
-    );
-
-    Ok(BeacnDeviceHandle {
-        descriptor: def.descriptor,
-        device: def.device,
-        handle,
-        version,
-        serial,
-    })
 }

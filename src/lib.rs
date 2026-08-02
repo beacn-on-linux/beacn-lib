@@ -3,14 +3,32 @@ pub mod audio;
 mod common;
 pub mod controller;
 pub mod manager;
+mod setup;
+mod sync;
+mod timers;
+mod transfer;
 pub mod types;
 pub mod version;
 
-pub use crossbeam;
-pub use rusb::Error as UsbError;
+pub use flume;
+use log::debug;
+pub use nusb::ErrorKind as UsbError;
+pub use nusb::transfer::TransferError as UsbTransferError;
 
 use crate::version::VersionNumber;
+use std::future::Future;
 use thiserror::Error;
+
+/// We try to support async everywhere, but for blocking environments this trait uses futures-lite
+/// to allow calling .wait() instead of .await as a blocking call inside a non-async context.
+pub trait MaybeFuture: Future + Sized {
+    /// Block the current thread until this operation completes.
+    fn wait(self) -> Self::Output {
+        async_io::block_on(self)
+    }
+}
+
+impl<F: Future> MaybeFuture for F {}
 
 // These are some helper versions, which can be used to determine feature availability
 const MIC_CLASS_COMPLIANT_VERSION: VersionNumber = VersionNumber(1, 2, 0, 188);
@@ -20,11 +38,25 @@ pub type BResult<T> = Result<T, BeacnError>;
 // This is a general error handler for the entire library, we might need to reexport rusb::Error
 #[derive(Debug, Error)]
 pub enum BeacnError {
-    #[error(transparent)]
-    Usb(#[from] UsbError),
+    #[error("USB error: {0:?}")]
+    Usb(UsbError),
 
     #[error(transparent)]
     Other(#[from] anyhow::Error),
+}
+
+impl From<nusb::Error> for BeacnError {
+    fn from(err: nusb::Error) -> Self {
+        debug!("Received nusb Error: {}", err);
+        BeacnError::Usb(err.kind())
+    }
+}
+
+// Convert a nusb::transfer::TransferError into an anyhow::Error
+impl From<UsbTransferError> for BeacnError {
+    fn from(err: UsbTransferError) -> Self {
+        BeacnError::Other(err.into())
+    }
 }
 
 #[macro_export]
@@ -37,4 +69,8 @@ macro_rules! beacn_bail {
     ($err:expr) => {
         return Err($crate::BeacnError::Other(anyhow::Error::from($err)))
     };
+}
+
+mod sealed {
+    pub trait Sealed {}
 }

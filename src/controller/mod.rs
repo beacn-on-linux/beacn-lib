@@ -1,40 +1,71 @@
-use crate::common::find_device;
-use crate::controller::common::{BeacnControlDeviceAttach, BeacnControlInteraction};
-use crate::controller::mix::BeacnMix;
-use crate::controller::mix_create::BeacnMixCreate;
-use crate::manager::{DeviceLocation, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
+use crate::common::{BeacnDeviceInfo, BeacnDeviceKind, find_device};
+use crate::controller::common::{
+    BeacnControlAPI, BeacnControlDeviceInfo, BeacnControlDeviceInternal,
+};
+use crate::controller::device_kind::BeacnDevice;
+use crate::manager::{DeviceLocation, DeviceType, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
+use crate::sealed::Sealed;
 use crate::types::RGBA;
 use crate::{BResult, beacn_bail};
-use crossbeam::channel::Sender;
 use enum_map::Enum;
+use flume::Sender;
 use std::panic::RefUnwindSafe;
+use std::sync::Arc;
 use std::time::Duration;
 use strum::{Display, EnumIter};
 
 mod common;
-mod mix;
-mod mix_create;
+mod device;
+pub mod device_kind;
 
+#[allow(private_interfaces)]
+pub type BeacnMix = BeacnDevice<BeacnMixKind>;
+pub struct BeacnMixKind;
+impl BeacnDeviceKind for BeacnMixKind {
+    const PID: &[u16] = PID_BEACN_MIX;
+    const TYPE: DeviceType = DeviceType::BeacnMix;
+}
+
+#[allow(private_interfaces)]
+pub type BeacnMixCreate = BeacnDevice<BeacnMixCreateKind>;
+pub struct BeacnMixCreateKind;
+impl BeacnDeviceKind for BeacnMixCreateKind {
+    const PID: &[u16] = PID_BEACN_MIX_CREATE;
+    const TYPE: DeviceType = DeviceType::BeacnMixCreate;
+}
+
+#[allow(private_bounds)]
 pub trait BeacnControlDevice:
-    BeacnControlDeviceAttach + BeacnControlInteraction + RefUnwindSafe
+    BeacnDeviceInfo
+    + BeacnControlDeviceInfo
+    + BeacnControlDeviceInternal
+    + BeacnControlAPI
+    + Sealed
+    + RefUnwindSafe
+    + Sync
+    + Send
 {
 }
 
-pub fn open_control_device(
+pub async fn open_control_device(
     location: DeviceLocation,
     interaction: Option<Sender<Interactions>>,
     health_tx: Sender<()>,
-) -> BResult<Box<dyn BeacnControlDevice>> {
-    if let Some(device) = find_device(location) {
-        return if PID_BEACN_MIX.contains(&device.descriptor.product_id()) {
-            BeacnMix::connect(device, interaction, health_tx)
-        } else if PID_BEACN_MIX_CREATE.contains(&device.descriptor.product_id()) {
-            BeacnMixCreate::connect(device, interaction, health_tx)
-        } else {
-            beacn_bail!("Unknown Device");
-        };
+) -> BResult<Arc<Box<dyn BeacnControlDevice>>> {
+    let Some(device) = find_device(location).await else {
+        beacn_bail!("Device not found");
+    };
+
+    let pid = device.descriptor.product_id();
+    match pid {
+        _ if PID_BEACN_MIX.contains(&pid) => {
+            BeacnMix::connect(device, interaction, health_tx).await
+        }
+        _ if PID_BEACN_MIX_CREATE.contains(&pid) => {
+            BeacnMixCreate::connect(device, interaction, health_tx).await
+        }
+        _ => beacn_bail!("Unknown Device"),
     }
-    beacn_bail!("Unknown Device")
 }
 
 // These are some helper enums, generally used in messaging :)
@@ -88,14 +119,14 @@ pub enum ButtonLighting {
     Right = 6,
 }
 
-#[derive(Display, Debug, Clone, PartialEq)]
+#[derive(Display, Debug)]
 pub enum ControlThreadSender {
     Stop,
-    KeepAlive,
-    SetEnabled(bool),
-    SetImage(u32, u32, Vec<u8>),
-    SetDimTimeout(Duration),
-    SetActiveBrightness(u8),
-    SetButtonBrightness(u8),
-    SetButtonColour(u8, RGBA),
+    KeepAlive(oneshot::Sender<()>),
+    SetEnabled(bool, oneshot::Sender<()>),
+    SetImage(u32, u32, Vec<u8>, oneshot::Sender<()>),
+    SetDimTimeout(Duration, oneshot::Sender<()>),
+    SetActiveBrightness(u8, oneshot::Sender<()>),
+    SetButtonBrightness(u8, oneshot::Sender<()>),
+    SetButtonColour(u8, RGBA, oneshot::Sender<()>),
 }

@@ -3,22 +3,72 @@ name = "beacn-lib"
 version = "0.1.11"
 edition = "2024"
 
+[features]
+default = []
+
+# These two get passed forward to nusb for use in async environments
+tokio = ["dep:tokio", "nusb/tokio"]
+smol = ["nusb/smol"]
+
 [dependencies]
-strum = { version = "0.28.0", features = ["strum_macros", "derive"] }
-enum-map = "2.7.3"
+strum = { version = "0.28", features = ["strum_macros", "derive"] }
+enum-map = "2.7"
 
 byteorder = "1.5.0"
 
 log = "0.4.33"
-anyhow = "1.0.103"
+anyhow = "1"
 
-rusb = "0.9.4"
+nusb = "0.2"
+
+async-trait = "0.1"
+async-io = "2.6"
+async-lock = "3.4"
+
+oneshot = { version = "0.2", features = ["std", "async"] }
+
+futures-lite = "2.6"
 
 # Used for Managing Interaction threads
-crossbeam = "0.8.4"
+flume = "0.12"
 
 # Used to verify Mix / Mix Create image data
-jpeg-decoder = "0.3.2"
+jpeg-decoder = "0.3"
 
 # Easier Error Handling
-thiserror = "2.0.18"
+thiserror = "2.0"
+
+# Tokio Spawner
+tokio = { version = "1", optional = true, features = ["rt", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "time", "sync", "macros"] }
+image = { version = "0.25", features = ["jpeg"] }
+
+[[example]]
+name = "enumerate"
+
+[[example]]
+name = "enumerate_async"
+required-features = ["tokio"]
+
+[[example]]
+name = "hotplug"
+
+[[example]]
+name = "hotplug_async"
+required-features = ["tokio"]
+
+[[example]]
+name = "audio"
+
+[[example]]
+name = "audio_async"
+required-features = ["tokio"]
+
+[[example]]
+name = "controller"
+
+[[example]]
+name = "controller_async"
+required-features = ["tokio"]

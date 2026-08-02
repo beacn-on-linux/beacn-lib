@@ -1,57 +1,63 @@
 use crate::audio::messages::{DeviceMessageType, Message};
 use crate::audio::{BeacnAudioDevice, DeviceDefinition, LinkChannel, LinkedApp};
-use crate::common::{BeacnDeviceHandle, get_device_info};
+use crate::common::BeacnDeviceInfo;
 use crate::manager::DeviceType;
-use crate::version::VersionNumber;
+use crate::sealed::Sealed;
+use crate::sync::AsyncMutex as Mutex;
+use crate::transfer::transfer;
 use crate::{BResult, beacn_bail};
+use async_trait::async_trait;
 use byteorder::{ByteOrder, LittleEndian};
-use log::{debug, warn};
-use rusb::{DeviceHandle, GlobalContext};
+use log::warn;
+use nusb::transfer::{Buffer, Bulk, In, Out};
 use std::time::Duration;
 
-// This defines the code needed for connecting to a Beacn Audio Device, it's currently consistent
-// between the Mic and Studio, so we'll have a common base implementation for open()
-pub trait BeacnAudioDeviceAttach {
+/// This is a bulk endpoint pair. These are mutexed together to prevent
+/// the potential of different threads (or async tasks) attempting to interact with
+/// the device at the same time; access is treated one at a time.
+pub struct AudioEndpoints {
+    pub(crate) out_ep: nusb::Endpoint<Bulk, Out>,
+    pub(crate) in_ep: nusb::Endpoint<Bulk, In>,
+}
+
+#[async_trait]
+pub(crate) trait BeacnAudioDeviceInternal: Sealed {
     // We're specifically allowing the DeviceDefinition to be a private interface, as it's
     // simply used internally for connection up a device, and shouldn't have any visibility
     // from the outside. This also prevents external code from attempting to call connect.
-    #[allow(private_interfaces)]
-    fn connect(device: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>>
+
+    async fn connect(definition: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>>
     where
         Self: Sized;
 
-    fn get_product_id(&self) -> u16;
-    fn get_serial(&self) -> String;
-    fn get_version(&self) -> VersionNumber;
-}
-
-pub trait BeacnAudioMessageExecute {
     fn get_device_type(&self) -> DeviceType;
-    fn get_usb_handle(&self) -> &DeviceHandle<GlobalContext>;
+    fn get_endpoints(&self) -> &Mutex<AudioEndpoints>;
 }
 
 // Trait for Sending and Receiving Messages
+#[async_trait]
 #[allow(private_bounds)]
-pub trait BeacnAudioMessaging: BeacnAudioMessageExecute + BeacnAudioMessageLocal {
-    fn handle_message(&self, message: Message) -> BResult<Message> {
+pub trait BeacnAudioAPI: BeacnAudioDeviceInternal + BeacnAudioMessageLocal + Sealed {
+    async fn handle_message(&self, message: Message) -> BResult<Message> {
         if message.is_device_message_set() {
-            self.set_value(message)
+            self.set_value(message).await
         } else {
-            self.fetch_value(message)
+            self.fetch_value(message).await
         }
     }
 
-    fn get_linked_app_list(&self) -> BResult<Option<Vec<LinkedApp>>> {
-        self.get_linked_apps()
+    async fn get_linked_apps(&self) -> BResult<Option<Vec<LinkedApp>>> {
+        self.get_app_links().await
     }
-    fn set_linked_app(&self, app: LinkedApp) -> BResult<()> {
-        self.set_app_link(app)
+    async fn set_linked_app(&self, app: LinkedApp) -> BResult<()> {
+        self.set_app_link(app).await
     }
 }
 
 // Stuff that is local to this instance
+#[async_trait]
 pub(crate) trait BeacnAudioMessageLocal:
-    BeacnAudioMessageExecute + BeacnAudioDeviceAttach
+    BeacnAudioDeviceInternal + BeacnDeviceInfo + Sealed
 {
     fn is_command_valid(&self, message: &Message) -> bool {
         let message_type = message.get_device_message_type();
@@ -82,12 +88,12 @@ pub(crate) trait BeacnAudioMessageLocal:
         }
     }
 
-    fn fetch_value(&self, message: Message) -> BResult<Message> {
+    async fn fetch_value(&self, message: Message) -> BResult<Message> {
         // Before we do anything, we need to make sure this message is valid on our device
         if !self.is_command_valid(&message) {
-            warn!("Command Sent not valid for this device:");
+            warn!("Cannot Fetch, Message not valid for this device:");
             warn!("{:?}", message);
-            beacn_bail!("Command is not valid for this device");
+            beacn_bail!("Cannot Fetch, Message not valid for this device.");
         }
 
         if !self.is_command_firmware_valid(&message) {
@@ -98,16 +104,16 @@ pub(crate) trait BeacnAudioMessageLocal:
         let key = message.to_beacn_key();
 
         // Lookup the Parameter on the Mic
-        let param = self.param_lookup(key)?;
+        let param = self.param_lookup(key).await?;
 
         Ok(Message::from_beacn_message(param, self.get_device_type()))
     }
 
-    fn set_value(&self, message: Message) -> BResult<Message> {
+    async fn set_value(&self, message: Message) -> BResult<Message> {
         if !self.is_command_valid(&message) {
-            warn!("Command Sent not valid for this device:");
+            warn!("Command Sent, Message not valid for this device:");
             warn!("{:?}", message);
-            beacn_bail!("Command is not valid for this device");
+            beacn_bail!("Command Sent, Message not valid for this device");
         }
 
         if !self.is_command_firmware_valid(&message) {
@@ -117,26 +123,35 @@ pub(crate) trait BeacnAudioMessageLocal:
         let key = message.to_beacn_key();
         let value = message.to_beacn_value();
 
-        let result = self.param_set(key, value)?;
+        let result = self.param_set(key, value).await?;
 
         // This can generally be ignored, because in most cases it'll be identical to the
         // original request (except fed from the Mic), but passing back anyway just in case.
         Ok(Message::from_beacn_message(result, self.get_device_type()))
     }
 
-    fn param_lookup(&self, key: [u8; 3]) -> BResult<[u8; 8]> {
+    async fn param_lookup(&self, key: [u8; 3]) -> BResult<[u8; 8]> {
         let timeout = Duration::from_secs(3);
 
         let mut request = [0; 4];
         request[0..3].copy_from_slice(&key);
         request[3] = 0xa3;
 
+        let mut ep = self.get_endpoints().lock().await;
+
         // Write out the command request
-        self.get_usb_handle().write_bulk(0x03, &request, timeout)?;
+        transfer(&mut ep.out_ep, request.into(), timeout).await?;
 
         // Grab the response into a buffer
-        let mut buf = [0; 8];
-        self.get_usb_handle().read_bulk(0x83, &mut buf, timeout)?;
+        let max_packet_size = ep.in_ep.max_packet_size();
+        let completion = transfer(&mut ep.in_ep, Buffer::new(max_packet_size), timeout).await?;
+
+        if completion.len() != 8 {
+            beacn_bail!("Invalid Response Length Received");
+        }
+
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(&completion[0..8]);
 
         // Validate the header...
         if buf[0..2] != request[0..2] || buf[3] != 0xa4 {
@@ -146,7 +161,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         Ok(buf)
     }
 
-    fn param_set(&self, key: [u8; 3], value: [u8; 4]) -> BResult<[u8; 8]> {
+    async fn param_set(&self, key: [u8; 3], value: [u8; 4]) -> BResult<[u8; 8]> {
         let timeout = Duration::from_millis(200);
 
         // Build the Set Request
@@ -155,11 +170,13 @@ pub(crate) trait BeacnAudioMessageLocal:
         request[3] = 0xa4;
         request[4..].copy_from_slice(&value);
 
-        // Write out the command request
-        self.get_usb_handle().write_bulk(0x03, &request, timeout)?;
+        {
+            let mut endpoints = self.get_endpoints().lock().await;
+            transfer(&mut endpoints.out_ep, request.into(), timeout).await?;
+        }
 
         // Check whether the value has changed
-        let new_value = self.param_lookup(key)?;
+        let new_value = self.param_lookup(key).await?;
 
         let old = &request[4..8];
         let new = &new_value[4..8];
@@ -176,7 +193,7 @@ pub(crate) trait BeacnAudioMessageLocal:
     }
 
     /// Returns the Apps and their link configuration from PC2
-    fn get_linked_apps(&self) -> BResult<Option<Vec<LinkedApp>>> {
+    async fn get_app_links(&self) -> BResult<Option<Vec<LinkedApp>>> {
         let mut apps = vec![];
 
         if self.get_device_type() != DeviceType::BeacnStudio {
@@ -187,11 +204,13 @@ pub(crate) trait BeacnAudioMessageLocal:
 
         // Build the request
         let request = [0x00, 0x00, 0x01, 0xAC];
-        self.get_usb_handle().write_bulk(0x03, &request, timeout)?;
+
+        let mut endpoints = self.get_endpoints().lock().await;
+        transfer(&mut endpoints.out_ep, request.into(), timeout).await?;
 
         // TODO: Assuming max length of 1024, it might be higher
-        let mut buf = [0; 1024];
-        self.get_usb_handle().read_bulk(0x83, &mut buf, timeout)?;
+        let completion = transfer(&mut endpoints.in_ep, Buffer::new(1024), timeout).await?;
+        let buf = &completion[..];
 
         // Extract the header
         let data_length = LittleEndian::read_u24(&buf[0..3]) as usize;
@@ -231,7 +250,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         Ok(Some(apps))
     }
 
-    fn set_app_link(&self, link: LinkedApp) -> BResult<()> {
+    async fn set_app_link(&self, link: LinkedApp) -> BResult<()> {
         if self.get_device_type() != DeviceType::BeacnStudio {
             beacn_bail!("This can only be executed on a Beacn Studio")
         }
@@ -255,55 +274,9 @@ pub(crate) trait BeacnAudioMessageLocal:
         message.extend_from_slice(&packet);
 
         let timeout = Duration::from_secs(3);
-        self.get_usb_handle().write_bulk(0x03, &message, timeout)?;
+        let mut endpoints = self.get_endpoints().lock().await;
+        transfer(&mut endpoints.out_ep, message.into(), timeout).await?;
 
         Ok(())
     }
-}
-
-/// Simple function to Open a libusb connection to a Beacn Audio device, do initial setup and
-/// grab the firmware version from the device.
-pub(crate) fn open_beacn(def: DeviceDefinition, product_id: &[u16]) -> BResult<BeacnDeviceHandle> {
-    if !product_id.contains(&def.descriptor.product_id()) {
-        beacn_bail!(
-            "Expecting PIDs {:?} but got {}",
-            product_id,
-            def.descriptor.product_id()
-        );
-    }
-
-    let handle = def.device.open()?;
-    handle.claim_interface(3)?;
-    handle.set_alternate_setting(3, 1)?;
-    handle.clear_halt(0x83)?;
-
-    let setup_timeout = Duration::from_millis(2000);
-
-    let request = [0x00, 0x00, 0x00, 0xa0];
-    handle.write_bulk(0x03, &request, setup_timeout)?;
-
-    // Mic and Studio use bulk reads to get this data
-    let mut input = [0; 512];
-    let request = [0x00, 0x00, 0x00, 0xa1];
-    handle.write_bulk(0x03, &request, setup_timeout)?;
-    handle.read_bulk(0x83, &mut input, setup_timeout)?;
-
-    // So, this is consistent between the Mix Create and the Mic :D
-    let (version, serial) = get_device_info(&input)?;
-
-    debug!(
-        "Loaded Device, Location: {}.{}, Serial: {}, Version: {}",
-        def.device.bus_number(),
-        def.device.address(),
-        serial.clone(),
-        version
-    );
-
-    Ok(BeacnDeviceHandle {
-        descriptor: def.descriptor,
-        device: def.device,
-        handle,
-        version,
-        serial,
-    })
 }
