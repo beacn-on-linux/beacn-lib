@@ -20,7 +20,8 @@ pub struct AudioEndpoints {
     pub(crate) in_ep: nusb::Endpoint<Bulk, In>,
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub(crate) trait BeacnAudioDeviceInternal: Sealed {
     // We're specifically allowing the DeviceDefinition to be a private interface, as it's
     // simply used internally for connection up a device, and shouldn't have any visibility
