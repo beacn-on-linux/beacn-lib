@@ -23,8 +23,15 @@ use thiserror::Error;
 /// to allow calling .wait() instead of .await as a blocking call inside a non-async context.
 pub trait MaybeFuture: Future + Sized {
     /// Block the current thread until this operation completes.
+    #[cfg(not(target_arch = "wasm32"))]
     fn wait(self) -> Self::Output {
         async_io::block_on(self)
+    }
+
+    // Per the error, this is not supported in wasm.
+    #[cfg(target_arch = "wasm32")]
+    fn wait(self) -> Self::Output {
+        unimplemented!("Cannot block thread in wasm, .await the future instead")
     }
 }
 

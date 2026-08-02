@@ -22,7 +22,6 @@ anyhow = "1"
 nusb = "0.2"
 
 async-trait = "0.1"
-async-io = "2.6"
 async-lock = "3.4"
 
 oneshot = { version = "0.2", features = ["std", "async"] }
@@ -43,6 +42,16 @@ tokio = { version = "1", optional = true, features = ["rt", "time"] }
 
 # This replaces std::time in all environments
 web-time = "1.1.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# async-io include errno and polling, neither of which are wasm compatible, so we
+# exclude it on wasm, and reimplement it with more appropriate crates
+async-io = "2.6"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4"
+gloo-timers = { version = "0.4", features = ["futures"] }
+
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "time", "sync", "macros"] }

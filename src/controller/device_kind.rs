@@ -129,13 +129,24 @@ where
         _ => unreachable!(),
     };
 
+
     // If we're not already inside a supported runtime, create an async-io context.
-    debug!("Spawning background thread for {}", device_type);
-    let name = format!("{}-task", device_type);
-    thread::Builder::new()
-        .name(name)
-        .spawn(move || {
-            async_io::block_on(future);
-        })
-        .expect("failed to spawn background thread");
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        debug!("Spawning background thread for {}", device_type);
+        let name = format!("{}-task", device_type);
+        thread::Builder::new()
+            .name(name)
+            .spawn(move || {
+                async_io::block_on(future);
+            })
+            .expect("failed to spawn background thread");
+    }
+
+    // Can't block in wasm mode, so spawn inside a wasm future
+    #[cfg(target_arch = "wasm32")]
+    {
+        debug!("Spawning background task for {}", device_type);
+        wasm_bindgen_futures::spawn_local(future);
+    }
 }
