@@ -320,11 +320,11 @@ impl From<&DeviceInfo> for DeviceLocation {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            return Self {
+            Self {
                 hash,
                 bus_id: value.bus_id().to_string(),
                 device_address: value.device_address(),
-            };
+            }
         }
 
         #[cfg(target_arch = "wasm32")]
