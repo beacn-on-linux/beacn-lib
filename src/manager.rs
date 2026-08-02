@@ -9,6 +9,7 @@ use nusb::{DeviceId, DeviceInfo};
 use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::thread;
 use std::thread::JoinHandle;
 use strum::Display;
@@ -296,6 +297,7 @@ pub enum HotPlugThreadManagement {
 
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
 pub struct DeviceLocation {
+    pub hash: String,
     pub bus_id: String,
     pub device_address: u8,
 }
@@ -308,7 +310,16 @@ impl Display for DeviceLocation {
 
 impl From<&DeviceInfo> for DeviceLocation {
     fn from(value: &DeviceInfo) -> Self {
+        // In 0.2.6, a 'DeviceId' opaque type was introduced which is a guaranteed locator, so on
+        // OS's or distros which don't support bus/device numbers, we can still find the device.
+        let hash = {
+            let mut hasher = DefaultHasher::new();
+            value.id().hash(&mut hasher);
+            format!("{:016x}", hasher.finish())
+        };
+
         Self {
+            hash,
             bus_id: value.bus_id().to_string(),
             device_address: value.device_address(),
         }
