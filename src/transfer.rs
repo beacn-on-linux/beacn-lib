@@ -29,10 +29,30 @@ where
     match outcome {
         Some(completion) => completion,
         None => {
-            // Timed out. Request cancellation, then wait so we never leave a dangling pending
-            // transfer on the endpoint for the next caller to trip over.
-            endpoint.cancel_all();
-            endpoint.next_complete().await
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                // Timed out. Request cancellation, then wait so we never leave a dangling pending
+                // transfer on the endpoint for the next caller to trip over.
+                endpoint.cancel_all();
+                endpoint.next_complete().await
+            }
+
+            #[cfg(target_arch = "wasm32")]
+            {
+                use nusb::transfer::TransferError;
+
+                // So here's stupid time. wasm doesn't have a way to cancel an in-flight transfer, so
+                // when we get here, all we can realistically do is return a cancelled completion, and
+                // hope whatever is calling this is able to sort it out.
+                //
+                // As far as I can tell, the only way to stop an in-flight transfer is to completely
+                // drop the endpoint, then recreate it. GL;HF
+                Completion {
+                    buffer: Buffer::new(0),
+                    status: Err(TransferError::Cancelled),
+                    actual_len: 0,
+                }
+            }
         }
     }
 }
