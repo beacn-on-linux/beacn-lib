@@ -1,4 +1,5 @@
 /target
 /.idea/
 /beacn-mic-lib.iml
+/Cargo.lock
 
