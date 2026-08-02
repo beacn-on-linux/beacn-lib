@@ -19,8 +19,8 @@ use nusb::transfer::{Buffer, In, Interrupt, TransferError};
 use std::future::pending;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 use strum::IntoEnumIterator;
+use web_time::Duration;
 
 // Default Display 'Active' and 'Dimmed' brightness, and the default dim time
 static DISPLAY_DEFAULT_FULL_BRIGHTNESS: u8 = 40;

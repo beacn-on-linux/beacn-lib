@@ -20,7 +20,7 @@ use std::panic::RefUnwindSafe;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use std::time::Duration;
+use web_time::Duration;
 
 #[derive(Debug)]
 pub(crate) struct BeacnDevice<K: BeacnDeviceKind> {

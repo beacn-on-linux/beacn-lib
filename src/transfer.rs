@@ -2,7 +2,7 @@ use crate::timers::sleep;
 use futures_lite::future::or;
 use nusb::Endpoint;
 use nusb::transfer::{Buffer, BulkOrInterrupt, Completion, EndpointDirection};
-use std::time::Duration;
+use web_time::Duration;
 
 /// This is basically a drop-in replacement for nusb::transfer::transfer_with_timeout designed
 /// to be run in a non-blocking async environment. For now, it's functionally identical, but

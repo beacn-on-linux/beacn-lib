@@ -5,8 +5,8 @@ use crate::types::RGBA;
 use anyhow::Result;
 use byteorder::{ByteOrder, LittleEndian};
 use log::error;
-use nusb::transfer::{TransferError};
-use std::time::{Duration, Instant};
+use nusb::transfer::TransferError;
+use web_time::{Duration, Instant};
 
 pub struct Messenger {
     usb: UsbWriter,

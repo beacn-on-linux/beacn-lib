@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::thread;
 use std::thread::JoinHandle;
-use std::time::Duration;
 use strum::Display;
+use web_time::Duration;
 
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
 pub(crate) const PID_BEACN_MIC: &[u16] = &[0x0001, 0x8001];

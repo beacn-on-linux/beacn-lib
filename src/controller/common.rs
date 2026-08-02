@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use flume::Sender;
 use jpeg_decoder::Decoder;
 use std::sync::Arc;
-use std::time::Duration;
+use web_time::Duration;
 
 #[async_trait]
 pub trait BeacnControlDeviceInfo: Sealed {

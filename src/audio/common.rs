@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use byteorder::{ByteOrder, LittleEndian};
 use log::warn;
 use nusb::transfer::{Buffer, Bulk, In, Out};
-use std::time::Duration;
+use web_time::Duration;
 
 /// This is a bulk endpoint pair. These are mutexed together to prevent
 /// the potential of different threads (or async tasks) attempting to interact with

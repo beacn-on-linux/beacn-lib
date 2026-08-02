@@ -10,7 +10,7 @@ use log::{debug, warn};
 use nusb::transfer::{Buffer, BulkOrInterrupt, EndpointType, In, Out, TransferError};
 use nusb::{Device, DeviceInfo, Interface};
 use std::io::{Cursor, Read, Seek};
-use std::time::Duration;
+use web_time::Duration;
 
 pub struct DeviceDefinition {
     pub(crate) descriptor: DeviceInfo,

@@ -1,5 +1,5 @@
 use std::future;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 pub struct Timer {
     deadline: Option<Instant>,

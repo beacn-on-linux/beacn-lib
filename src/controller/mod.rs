@@ -11,8 +11,8 @@ use enum_map::Enum;
 use flume::Sender;
 use std::panic::RefUnwindSafe;
 use std::sync::Arc;
-use std::time::Duration;
 use strum::{Display, EnumIter};
+use web_time::Duration;
 
 mod common;
 mod device;

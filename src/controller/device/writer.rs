@@ -1,9 +1,9 @@
 use crate::common::BeacnDeviceHandle;
 use crate::transfer::transfer;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use log::warn;
 use nusb::transfer::{Buffer, Interrupt, Out, TransferError};
-use std::time::Duration;
+use web_time::Duration;
 
 #[allow(dead_code)]
 pub(crate) struct UsbWriter {
@@ -12,7 +12,7 @@ pub(crate) struct UsbWriter {
     timeout: Duration,
 }
 
-impl UsbWriter{
+impl UsbWriter {
     pub(crate) fn new(handler: BeacnDeviceHandle, timeout: Duration) -> Result<Self> {
         let endpoint = match handler.interface.endpoint::<Interrupt, Out>(0x03) {
             Ok(ep) => ep,
