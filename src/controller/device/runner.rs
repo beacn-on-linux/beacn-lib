@@ -80,8 +80,14 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
             }
         };
 
+        #[cfg(target_arch = "wasm32")]
+        type NotifyType = Pin<Box<dyn Stream<Item = [u8; 64]>>>;
+
+        #[cfg(not(target_arch = "wasm32"))]
+        type NotifyType = Pin<Box<dyn Stream<Item = [u8; 64]> + Send>>;
+
         let mut polled_in_ep: Option<nusb::Endpoint<Interrupt, In>> = None;
-        let mut notify_reads: Pin<Box<dyn Stream<Item = [u8; 64]> + Send>> = if is_notify {
+        let mut notify_reads: NotifyType = if is_notify {
             Box::pin(build_notify_read_stream(in_ep))
         } else {
             polled_in_ep = Some(in_ep);
