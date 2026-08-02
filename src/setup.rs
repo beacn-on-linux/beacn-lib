@@ -63,7 +63,9 @@ where
 {
     #[cfg(any(feature = "tokio", feature = "smol", target_arch = "wasm32"))]
     {
+        #[cfg(not(target_arch = "wasm32"))]
         endpoint.cancel_all();
+
         endpoint.clear_halt().await
     }
     #[cfg(not(any(feature = "tokio", feature = "smol", target_arch = "wasm32")))]
