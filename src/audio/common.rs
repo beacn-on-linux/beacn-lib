@@ -36,8 +36,9 @@ pub(crate) trait BeacnAudioDeviceInternal: Sealed {
 }
 
 // Trait for Sending and Receiving Messages
-#[async_trait]
 #[allow(private_bounds)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait BeacnAudioAPI: BeacnAudioDeviceInternal + BeacnAudioMessageLocal + Sealed {
     async fn handle_message(&self, message: Message) -> BResult<Message> {
         if message.is_device_message_set() {
@@ -56,7 +57,8 @@ pub trait BeacnAudioAPI: BeacnAudioDeviceInternal + BeacnAudioMessageLocal + Sea
 }
 
 // Stuff that is local to this instance
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub(crate) trait BeacnAudioMessageLocal:
     BeacnAudioDeviceInternal + BeacnDeviceInfo + Sealed
 {
