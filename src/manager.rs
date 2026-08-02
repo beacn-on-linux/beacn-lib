@@ -318,10 +318,22 @@ impl From<&DeviceInfo> for DeviceLocation {
             format!("{:016x}", hasher.finish())
         };
 
-        Self {
-            hash,
-            bus_id: value.bus_id().to_string(),
-            device_address: value.device_address(),
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            return Self {
+                hash,
+                bus_id: value.bus_id().to_string(),
+                device_address: value.device_address(),
+            };
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            Self {
+                hash,
+                bus_id: "NotSupported".to_string(),
+                device_address: 0,
+            }
         }
     }
 }

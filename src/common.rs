@@ -92,10 +92,18 @@ where
 
     let (version, serial) = get_device_info(&completion[..])?;
 
+    #[cfg(not(target_arch = "wasm32"))]
     debug!(
         "Loaded Device, Location: {}.{}, Serial: {}, Version: {}",
         definition.descriptor.bus_id(),
         definition.descriptor.device_address(),
+        serial.clone(),
+        version
+    );
+
+    #[cfg(target_arch = "wasm32")]
+    debug!(
+        "Loaded Device, Serial: {}, Version: {}",
         serial.clone(),
         version
     );
