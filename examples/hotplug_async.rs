@@ -1,23 +1,39 @@
 use crate::common::logging::configure_logging;
 use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, watch_hotplug_devices};
 use log::info;
-use web_time::Duration;
-use tokio::time::sleep;
 use tokio::{join, select, task};
+use web_time::Duration;
+use crate::common::sleep;
 
 #[path = "common/mod.rs"]
 mod common;
 
-#[tokio::main(flavor = "local")]
-async fn main() {
+beacn_main!(flavor = "local", {
+    app_main().await;
+});
+
+async fn app_main() {
     configure_logging();
 
+    info!("Starting Hotplug Example");
+
+    // std::panic::set_hook(Box::new(|info| {
+    //     log::error!("PANIC: {}", info);
+    //
+    //     if let Some(location) = info.location() {
+    //         log::error!("at {}:{}", location.file(), location.line());
+    //     }
+    // }));
+
+    info!("Generating hotplug channels: (hotplug_tx, hotplug_rx) = (flume::unbounded(), flume::unbounded())");
     let (hotplug_tx, hotplug_rx) = flume::unbounded();
     let (mgmt_tx, mgmt_rx) = flume::unbounded();
 
+    info!("Spawning hotplug thread");
     // Spawn up a hotplug thread, this will announce all existing devices and watch for new ones.
     let handle = task::spawn_local(watch_hotplug_devices(hotplug_tx, mgmt_rx));
 
+    info!("Thread Spawned");
     // Listen for messages coming from the hotplug thread for 10 seconds, then exit.
     loop {
         select! {

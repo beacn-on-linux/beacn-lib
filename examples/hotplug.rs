@@ -8,6 +8,9 @@ use web_time::{Duration, Instant};
 #[path = "common/mod.rs"]
 mod common;
 
+#[cfg(target_arch = "wasm32")]
+compile_error!("Sync Examples are not supported under WASM, use the async variant instead.");
+
 fn main() {
     configure_logging();
 

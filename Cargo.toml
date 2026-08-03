@@ -38,7 +38,7 @@ jpeg-decoder = "0.3"
 thiserror = "2.0"
 
 # Tokio Spawner
-tokio = { version = "1", optional = true, features = ["rt", "time"] }
+tokio = { version = "1", optional = true, default-features = false, features = ["rt", "time"] }
 
 # This replaces std::time in all environments
 web-time = "1.1.0"
@@ -56,33 +56,48 @@ gloo-timers = { version = "0.4", features = ["futures"] }
 
 [dev-dependencies]
 env_logger = "0.11.11"
-tokio = { version = "1", features = ["rt", "time", "sync", "macros"] }
+
+# We don't use rt-multi-thread in the examples, but we do have a runtime wrapper that needs
+tokio = { version = "1", default-features = false, features = ["rt", "sync", "macros"] }
 image = { version = "0.25", features = ["jpeg"] }
+
+# Used in the wasm_example to compile wasm
+wasm-bindgen-cli-support = "=0.2.126"
+
+# Used in the wasm_example to serve files
+tiny_http = "0.12"
+webbrowser = "1.0"
+tempfile = "3"
+
+# WASM Features
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+web-sys = { version = "0.3.103", features = ["console"] }
+
 
 [[example]]
 name = "enumerate"
 
 [[example]]
 name = "enumerate_async"
-required-features = ["tokio"]
+required-features = ["smol"]
 
 [[example]]
 name = "hotplug"
 
 [[example]]
 name = "hotplug_async"
-required-features = ["tokio"]
+required-features = ["smol"]
 
 [[example]]
 name = "audio"
 
 [[example]]
 name = "audio_async"
-required-features = ["tokio"]
+required-features = ["smol"]
 
 [[example]]
 name = "controller"
 
 [[example]]
 name = "controller_async"
-required-features = ["tokio"]
+required-features = ["smol"]

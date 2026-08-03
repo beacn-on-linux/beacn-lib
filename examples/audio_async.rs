@@ -9,8 +9,11 @@ use log::{error, info};
 #[path = "common/mod.rs"]
 mod common;
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
+beacn_main!(flavor = "current_thread", {
+    app_main().await;
+});
+
+async fn app_main() {
     configure_logging();
 
     // Firstly, find any Mix and Mix Create devices
