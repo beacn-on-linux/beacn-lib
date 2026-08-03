@@ -1,23 +1,20 @@
 use beacn_lib::MaybeFuture;
-use beacn_lib::controller::{
-    BeacnControlDevice, ButtonLighting, Interactions, open_control_device,
-};
+use beacn_lib::controller::{BeacnControlDevice, Interactions, open_control_device};
 use beacn_lib::manager::{DeviceLocation, get_beacn_mix_create_device, get_beacn_mix_device};
-use beacn_lib::types::RGBA;
+
+use crate::common::controller::{test_buttons, test_pattern};
+use env_logger::Env;
 use flume::Receiver;
-use image::codecs::jpeg::JpegEncoder;
-use image::{ImageBuffer, Rgb};
 use std::sync::Arc;
 use std::time::Duration;
-use env_logger::Env;
-use crate::common::controller::{test_buttons, test_pattern};
+use log::{error, info, warn};
 
 #[path = "common/mod.rs"]
 mod common;
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-    
+
     // Firstly, find any Mix and Mix Create devices
     let mut devices = get_beacn_mix_device().wait();
     devices.extend(get_beacn_mix_create_device().wait());
@@ -32,7 +29,7 @@ fn main() {
         let dev = match dev {
             Ok(dev) => dev,
             Err(e) => {
-                println!("Failed to open device: {:?}", e);
+                error!("Failed to open device: {:?}", e);
                 continue;
             }
         };
@@ -46,7 +43,7 @@ fn main() {
     }
 
     if device_maps.is_empty() {
-        println!("No usable devices found!");
+        warn!("No usable devices found!");
         return;
     }
 
@@ -69,13 +66,13 @@ fn main() {
         for device in &device_maps {
             let location = device.location.clone();
             selector = selector.recv(&device.interactions, move |msg| {
-                println!("[{}] {:?}", location, msg);
+                info!("[{}] {:?}", location, msg);
                 false
             });
 
             let location = device.location.clone();
             selector = selector.recv(&device.health, move |_| {
-                println!("[{}] Error on Device Handler!", location);
+                error!("[{}] Error on Device Handler!", location);
                 false
             });
         }

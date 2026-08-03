@@ -1,16 +1,15 @@
+use crate::common::controller::{test_buttons, test_pattern};
 use beacn_lib::controller::{
-    BeacnControlDevice, ButtonLighting, Interactions, open_control_device,
+    open_control_device, BeacnControlDevice, Interactions,
 };
-use beacn_lib::manager::{DeviceLocation, get_beacn_mix_create_device, get_beacn_mix_device};
-use beacn_lib::types::RGBA;
+use beacn_lib::manager::{get_beacn_mix_create_device, get_beacn_mix_device, DeviceLocation};
+
+use env_logger::Env;
 use flume::Receiver;
-use image::codecs::jpeg::JpegEncoder;
-use image::{ImageBuffer, Rgb};
+use log::{error, info};
 use std::sync::Arc;
 use std::time::Duration;
-use env_logger::Env;
 use tokio::sync::mpsc;
-use crate::common::controller::{test_buttons, test_pattern};
 
 #[path = "common/mod.rs"]
 mod common;
@@ -18,7 +17,8 @@ mod common;
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-    
+
+    // Firstly, find any Mix and Mix Create devices
     let mut devices = get_beacn_mix_device().await;
     devices.extend(get_beacn_mix_create_device().await);
 
@@ -32,7 +32,7 @@ async fn main() {
         let dev = match dev {
             Ok(dev) => dev,
             Err(e) => {
-                println!("Failed to open device: {:?}", e);
+                error!("Failed to open device: {:?}", e);
                 continue;
             }
         };
@@ -46,7 +46,7 @@ async fn main() {
     }
 
     if device_maps.is_empty() {
-        println!("No usable devices found!");
+        error!("No usable devices found!");
         return;
     }
 
@@ -112,11 +112,11 @@ async fn main() {
             Some(event) = event_rx.recv() => {
                 match event {
                     DeviceEvent::Interaction(location, msg) => {
-                        println!("[{}] {:?}", location, msg);
+                        info!("[{}] {:?}", location, msg);
                     }
 
                     DeviceEvent::Health(location) => {
-                        println!("[{}] Error on Device Handler!", location);
+                        error!("[{}] Error on Device Handler!", location);
                     }
                 }
             }

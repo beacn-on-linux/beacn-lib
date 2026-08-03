@@ -1,6 +1,7 @@
 use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, watch_hotplug_devices};
 use std::time::Duration;
 use env_logger::Env;
+use log::info;
 use tokio::time::sleep;
 use tokio::{join, select, task};
 
@@ -29,10 +30,10 @@ async fn main() {
                         // the device.
                         //
                         // In this example, we're just going to ignore the health channel.
-                        println!("{:?} Device Attached: {:?}", device_type, location);
+                        info!("{:?} Device Attached: {:?}", device_type, location);
                     }
                     HotPlugMessage::DeviceRemoved(location) => {
-                        println!("Device Removed: {:?}", location);
+                        info!("Device Removed: {:?}", location);
                     }
                     HotPlugMessage::ThreadStopped => {
                         break;

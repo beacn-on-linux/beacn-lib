@@ -3,6 +3,7 @@ use flume::TryRecvError;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use env_logger::Env;
+use log::info;
 
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
@@ -28,10 +29,10 @@ fn main() {
                     // the device.
                     //
                     // In this example, we're just going to ignore the health channel.
-                    println!("{:?} Device Attached: {:?}", device_type, location);
+                    info!("{:?} Device Attached: {:?}", device_type, location);
                 }
                 HotPlugMessage::DeviceRemoved(location) => {
-                    println!("Device Removed: {:?}", location);
+                    info!("Device Removed: {:?}", location);
                 }
                 HotPlugMessage::ThreadStopped => {
                     break;

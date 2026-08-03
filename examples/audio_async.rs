@@ -1,4 +1,5 @@
 use env_logger::Env;
+use log::{error, info};
 use beacn_lib::audio::messages::Message;
 use beacn_lib::audio::messages::lighting::{Lighting, LightingBrightness};
 use beacn_lib::audio::{BeacnAudioDevice, open_audio_device};
@@ -24,7 +25,7 @@ async fn main() {
                     device: dev,
                     device_type,
                 }),
-                Err(e) => println!("Failed to open device: {:?}", e),
+                Err(e) => error!("Failed to open device: {:?}", e),
             }
         }
     }
@@ -33,17 +34,17 @@ async fn main() {
     for dev in &device_maps {
         let messages = Message::generate_fetch_message(dev.device_type);
         for message in messages {
-            println!("Request {:?}", message);
+            info!("Request {:?}", message);
 
             let result = dev.device.handle_message(message).await;
             match result {
                 Ok(msg) => {
                     // This response actually works as a setter on the device as well, you can
                     // handle_message(msg).await to set the value back to the device.
-                    println!("Response: {:?}", msg);
-                    println!("---");
+                    info!("Response: {:?}", msg);
+                    info!("---");
                 }
-                Err(e) => println!("Failed to send message: {:?}", e),
+                Err(e) => error!("Failed to send message: {:?}", e),
             }
         }
     }
@@ -51,11 +52,11 @@ async fn main() {
     // Lets send a lighting brightness message to the device
     let message = Message::Lighting(Lighting::Brightness(LightingBrightness(50)));
     for dev in &device_maps {
-        println!("Request {:?}", message);
+        info!("Request {:?}", message);
         let result = dev.device.handle_message(message).await;
         match result {
-            Ok(msg) => println!("Response: {:?}", msg),
-            Err(e) => println!("Failed to send message: {:?}", e),
+            Ok(msg) => info!("Response: {:?}", msg),
+            Err(e) => error!("Failed to send message: {:?}", e),
         }
     }
 }
