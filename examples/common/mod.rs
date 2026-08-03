@@ -86,25 +86,58 @@ macro_rules! beacn_main {
     };
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[allow(unused)]
-pub fn spawn_local<F>(future: F) -> tokio::task::JoinHandle<F::Output>
-where
-    F: Future + 'static,
-{
-    tokio::task::spawn_local(future)
-}
-
-#[cfg(target_arch = "wasm32")]
-#[allow(unused)]
-pub fn spawn_local<F>(future: F)
+pub fn spawn_local<F>(future: F) -> TaskHandle
 where
     F: Future<Output = ()> + 'static,
 {
-    wasm_bindgen_futures::spawn_local(future)
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        TaskHandle {
+            inner: tokio::task::spawn_local(future),
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        let (tx, rx) = flume::unbounded();
+
+        wasm_bindgen_futures::spawn_local(async move {
+            future.await;
+            let _ = tx.send(());
+        });
+
+        TaskHandle {
+            done: rx,
+        }
+    }
 }
 
-#[allow(dead_code)]
+#[allow(unused)]
+pub struct TaskHandle {
+    #[cfg(not(target_arch = "wasm32"))]
+    inner: tokio::task::JoinHandle<()>,
+
+    #[cfg(target_arch = "wasm32")]
+    done: flume::Receiver<()>,
+}
+
+impl TaskHandle {
+    #[allow(unused)]
+    pub async fn join(self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = self.inner.await;
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = self.done.recv_async().await;
+        }
+    }
+}
+
+#[allow(unused)]
 pub mod interval {
     use futures_timer::Delay;
     use web_time::Duration;
