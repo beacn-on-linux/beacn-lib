@@ -7,6 +7,7 @@ edition = "2024"
 default = []
 
 # These two get passed forward to nusb for use in async environments
+async = []
 tokio = ["dep:tokio", "nusb/tokio"]
 smol = ["nusb/smol"]
 
