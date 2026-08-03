@@ -6,8 +6,8 @@ use crate::{BResult, beacn_bail, setup};
 use anyhow::Result;
 use async_trait::async_trait;
 use byteorder::{LittleEndian, ReadBytesExt};
-use log::{debug, warn};
-use nusb::transfer::{BulkOrInterrupt, EndpointType, In, Out, TransferError};
+use log::debug;
+use nusb::transfer::{BulkOrInterrupt, EndpointType, In, Out};
 use nusb::{Device, DeviceInfo, Interface};
 use std::io::{Cursor, Read, Seek};
 use web_time::Duration;
@@ -73,23 +73,7 @@ where
         transfer(&mut out_ep, [0, 0, 0, *byte].into(), setup_timeout).await?;
     }
 
-    let completion = {
-        match transfer(&mut in_ep, Vec::with_capacity(read_len), setup_timeout).await {
-            Ok(buf) => buf,
-            Err(e) => {
-                if e == TransferError::Stall {
-                    warn!("Stall on interface, attempting to Clear..");
-                    in_ep.clear_halt().await?;
-
-                    // Try it again..
-                    transfer(&mut in_ep, Vec::with_capacity(read_len), setup_timeout).await?
-                } else {
-                    beacn_bail!("Failed to read firmware version: {}", e);
-                }
-            }
-        }
-    };
-
+    let completion = transfer(&mut in_ep, Vec::with_capacity(read_len), setup_timeout).await?;
     let (version, serial) = get_device_info(&completion[..])?;
 
     #[cfg(not(target_arch = "wasm32"))]
