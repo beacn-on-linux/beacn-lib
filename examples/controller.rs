@@ -7,7 +7,7 @@ use crate::common::logging::configure_logging;
 use flume::Receiver;
 use log::{error, info, warn};
 use std::sync::Arc;
-use std::time::Duration;
+use web_time::Duration;
 
 #[path = "common/mod.rs"]
 mod common;

@@ -3,7 +3,7 @@ use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, spawn_hotplug_
 use flume::TryRecvError;
 use log::info;
 use std::thread::sleep;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 #[path = "common/mod.rs"]
 mod common;

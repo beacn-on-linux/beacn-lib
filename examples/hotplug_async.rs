@@ -1,7 +1,7 @@
 use crate::common::logging::configure_logging;
 use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, watch_hotplug_devices};
 use log::info;
-use std::time::Duration;
+use web_time::Duration;
 use tokio::time::sleep;
 use tokio::{join, select, task};
 
