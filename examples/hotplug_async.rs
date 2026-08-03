@@ -12,7 +12,7 @@ async fn main() {
     let (mgmt_tx, mgmt_rx) = flume::unbounded();
 
     // Spawn up a hotplug thread, this will announce all existing devices and watch for new ones.
-    let handle = task::spawn(watch_hotplug_devices(hotplug_tx, mgmt_rx));
+    let handle = task::spawn_local(watch_hotplug_devices(hotplug_tx, mgmt_rx));
 
     // Listen for messages coming from the hotplug thread for 10 seconds, then exit.
     loop {
