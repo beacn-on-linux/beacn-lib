@@ -8,6 +8,7 @@ use log::{error, info};
 use std::sync::Arc;
 use web_time::Duration;
 use tokio::sync::mpsc;
+use crate::common::interval;
 
 #[path = "common/mod.rs"]
 mod common;
@@ -87,7 +88,7 @@ async fn app_main() {
     }
     drop(event_tx);
 
-    let mut ticker = tokio::time::interval(Duration::from_secs(1));
+    let mut ticker = interval::Interval::new(Duration::from_secs(1));
     let mut step = 0;
 
     'primary: loop {

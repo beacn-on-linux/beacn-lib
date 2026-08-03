@@ -62,6 +62,9 @@ env_logger = "0.11.11"
 tokio = { version = "1", default-features = false, features = ["rt", "sync", "macros"] }
 image = { version = "0.25", features = ["jpeg"] }
 
+# Used for general timers
+futures-timer = "3.0.4"
+
 # Used in the wasm_example to compile wasm
 wasm-bindgen-cli-support = "=0.2.126"
 
