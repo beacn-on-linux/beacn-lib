@@ -1,7 +1,7 @@
 use crate::timers::sleep;
 use futures_lite::future::or;
 use log::error;
-use nusb::transfer::{Buffer, BulkOrInterrupt, Completion, EndpointDirection, TransferError};
+use nusb::transfer::{Buffer, BulkOrInterrupt, Completion, Direction, EndpointDirection, TransferError};
 use nusb::{Endpoint, Interface};
 use web_time::Duration;
 
@@ -79,8 +79,12 @@ where
     EpType: BulkOrInterrupt,
     Dir: EndpointDirection,
 {
-    // We clone this before we send it, Buffer will consume and modify it.
-    let mut buffer = Buffer::from(buf.clone());
+    // Match on the direction, as creating a Buffer from a Vec doesn't account for capacity
+    let mut buffer = match Dir::DIR {
+        // We clone this before we send it, Buffer will consume and modify it.
+        Direction::Out => Buffer::from(buf.clone()),
+        Direction::In => Buffer::new(buf.capacity())
+    };
 
     // We'll only retry this once, so we can stall clear
     for attempt in 0..=1 {
@@ -134,7 +138,11 @@ where
                 }
 
                 // Create a fresh buffer in case the original has been modified
-                buffer = Buffer::from(buf.clone());
+                buffer = match Dir::DIR {
+                    // We clone this before we send it, Buffer will consume and modify it.
+                    Direction::Out => Buffer::from(buf.clone()),
+                    Direction::In => Buffer::new(buf.capacity())
+                };
                 continue;
             }
 
