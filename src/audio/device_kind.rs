@@ -9,13 +9,13 @@ use crate::common::{
 use crate::manager::DeviceType;
 use crate::sealed::Sealed;
 use crate::sync::AsyncMutex;
+use crate::transfer::EndpointHandle;
 use crate::version::VersionNumber;
 use async_trait::async_trait;
 use log::debug;
 use nusb::transfer::{Bulk, In, Out};
 use std::marker::PhantomData;
 use std::panic::RefUnwindSafe;
-use crate::transfer::EndpointHandle;
 
 pub(crate) struct BeacnDevice<K: BeacnDeviceKind> {
     handle: BeacnDeviceHandle,

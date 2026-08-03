@@ -129,7 +129,6 @@ where
         _ => unreachable!(),
     };
 
-
     // If we're not already inside a supported runtime, create an async-io context.
     #[cfg(not(target_arch = "wasm32"))]
     {

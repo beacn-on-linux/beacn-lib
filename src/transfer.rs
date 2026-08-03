@@ -1,7 +1,9 @@
 use crate::timers::sleep;
 use futures_lite::future::or;
 use log::error;
-use nusb::transfer::{Buffer, BulkOrInterrupt, Completion, Direction, EndpointDirection, TransferError};
+use nusb::transfer::{
+    Buffer, BulkOrInterrupt, Completion, Direction, EndpointDirection, TransferError,
+};
 use nusb::{Endpoint, Interface};
 use web_time::Duration;
 
@@ -83,7 +85,7 @@ where
     let mut buffer = match Dir::DIR {
         // We clone this before we send it, Buffer will consume and modify it.
         Direction::Out => Buffer::from(buf.clone()),
-        Direction::In => Buffer::new(buf.capacity())
+        Direction::In => Buffer::new(buf.capacity()),
     };
 
     // We'll only retry this once, so we can stall clear
@@ -98,14 +100,14 @@ where
             };
         };
 
-
         ep.submit(buffer);
 
         // Race the transfer with the timeout, whichever completes first wins.
         let outcome = or(async { Some(ep.next_complete().await) }, async {
             sleep(timeout).await;
             None
-        }).await;
+        })
+        .await;
 
         let completion = match outcome {
             Some(completion) => completion,
@@ -141,7 +143,7 @@ where
                 buffer = match Dir::DIR {
                     // We clone this before we send it, Buffer will consume and modify it.
                     Direction::Out => Buffer::from(buf.clone()),
-                    Direction::In => Buffer::new(buf.capacity())
+                    Direction::In => Buffer::new(buf.capacity()),
                 };
                 continue;
             }
