@@ -8,8 +8,8 @@ default = []
 
 # These two get passed forward to nusb for use in async environments
 async = []
-tokio = ["dep:tokio", "nusb/tokio"]
-smol = ["nusb/smol"]
+tokio = ["dep:tokio", "nusb/tokio", "async"]
+smol = ["nusb/smol", "async"]
 
 [dependencies]
 strum = { version = "0.28", features = ["strum_macros", "derive"] }
@@ -80,25 +80,25 @@ name = "enumerate"
 
 [[example]]
 name = "enumerate_async"
-required-features = ["smol"]
+required-features = ["async"]
 
 [[example]]
 name = "hotplug"
 
 [[example]]
 name = "hotplug_async"
-required-features = ["smol"]
+required-features = ["async"]
 
 [[example]]
 name = "audio"
 
 [[example]]
 name = "audio_async"
-required-features = ["smol"]
+required-features = ["async"]
 
 [[example]]
 name = "controller"
 
 [[example]]
 name = "controller_async"
-required-features = ["smol"]
+required-features = ["async"]
