@@ -1,5 +1,6 @@
 use crate::timers::sleep;
 use futures_lite::future::or;
+use log::error;
 use nusb::transfer::{Buffer, BulkOrInterrupt, Completion, EndpointDirection, TransferError};
 use nusb::{Endpoint, Interface};
 use web_time::Duration;
@@ -78,59 +79,70 @@ where
     EpType: BulkOrInterrupt,
     Dir: EndpointDirection,
 {
-    // Grab a copy of the outbound data, before it's sent
-    let buf = Buffer::from(buf);
+    // We clone this before we send it, Buffer will consume and modify it.
+    let mut buffer = Buffer::from(buf.clone());
 
-    // Get the Endpoint
-    let Ok(ep) = endpoint.get_mut() else {
-        // We can't get or open the endpoint. Report it the same was as it would if the
-        // endpoint went missing mis-stream.
-        return Completion {
-            buffer: buf,
-            status: Err(TransferError::Disconnected),
-            actual_len: 0,
+    // We'll only retry this once, so we can stall clear
+    for attempt in 0..=1 {
+        let Ok(ep) = endpoint.get_mut() else {
+            // We can't get or open the endpoint. Report it the same was as it would if the
+            // endpoint went missing mis-stream.
+            return Completion {
+                buffer,
+                status: Err(TransferError::Disconnected),
+                actual_len: 0,
+            };
         };
-    };
 
-    ep.submit(buf);
 
-    // Race the transfer with the timeout, whichever completes first wins.
-    let outcome = or(async { Some(ep.next_complete().await) }, async {
-        sleep(timeout).await;
-        None
-    })
-    .await;
+        ep.submit(buffer);
 
-    match outcome {
-        Some(completion) => completion,
-        None => {
-            // The sleep won the race, we need to cancel the request and return.
+        // Race the transfer with the timeout, whichever completes first wins.
+        let outcome = or(async { Some(ep.next_complete().await) }, async {
+            sleep(timeout).await;
+            None
+        }).await;
 
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                // Use the built-in cancel functionality
-                ep.cancel_all();
+        let completion = match outcome {
+            Some(completion) => completion,
+            None => {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    ep.cancel_all();
+                    ep.next_complete().await
+                }
 
-                // Want for the cancel to complete and return the completion
-                ep.next_complete().await
-            }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    endpoint.drop_endpoint();
 
-            #[cfg(target_arch = "wasm32")]
-            {
-                use nusb::transfer::TransferError;
-
-                // The only way to cancel a transfer in wasm is to drop the endpoint, so we'll
-                // do that here, and return a cancelled completion.
-                endpoint.drop_endpoint();
-
-                Completion {
-                    buffer: Buffer::new(0),
-                    status: Err(TransferError::Cancelled),
-                    actual_len: 0,
+                    Completion {
+                        buffer: Buffer::new(0),
+                        status: Err(TransferError::Cancelled),
+                        actual_len: 0,
+                    }
                 }
             }
+        };
+
+        match completion.status {
+            // Have we stalled on our first try? If so, clear and retry.
+            Err(TransferError::Stall) if attempt == 0 => {
+                if let Err(e) = endpoint.clear_halt().await {
+                    error!("Failed to clear endpoint halt state: {}", e);
+                    return completion;
+                }
+
+                // Create a fresh buffer in case the original has been modified
+                buffer = Buffer::from(buf.clone());
+                continue;
+            }
+
+            _ => return completion,
         }
     }
+
+    unreachable!("Transfer loop exited without completing, this should never happen!");
 }
 
 /// Same as transfer_with_timeout, but returns a Result<Buffer, TransferError> instead of a
