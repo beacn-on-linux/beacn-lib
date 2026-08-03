@@ -15,6 +15,7 @@ use log::debug;
 use nusb::transfer::{Bulk, In, Out};
 use std::marker::PhantomData;
 use std::panic::RefUnwindSafe;
+use crate::transfer::EndpointHandle;
 
 pub(crate) struct BeacnDevice<K: BeacnDeviceKind> {
     handle: BeacnDeviceHandle,
@@ -50,8 +51,8 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioDeviceInternal for BeacnDevic
         let handle = open_device::<Bulk>(K::PID, definition, 3, &[0xa0, 0xa1]).await?;
 
         // Grab the Endpoints
-        let out_ep = handle.interface.endpoint::<Bulk, Out>(0x03)?;
-        let in_ep = handle.interface.endpoint::<Bulk, In>(0x83)?;
+        let out_ep = EndpointHandle::<Bulk, Out>::new(handle.interface.clone(), 0x03)?;
+        let in_ep = EndpointHandle::<Bulk, In>::new(handle.interface.clone(), 0x83)?;
 
         let endpoints = AudioEndpoints { in_ep, out_ep };
 

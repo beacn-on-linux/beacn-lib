@@ -1,10 +1,10 @@
-use crate::common::BeacnDeviceHandle;
 use crate::controller::device::writer::UsbWriter;
 use crate::timers::sleep;
 use crate::types::RGBA;
 use anyhow::Result;
 use byteorder::{ByteOrder, LittleEndian};
 use log::error;
+use nusb::Interface;
 use nusb::transfer::TransferError;
 use web_time::{Duration, Instant};
 
@@ -14,9 +14,9 @@ pub struct Messenger {
 }
 
 impl Messenger {
-    pub(crate) fn new(handler: BeacnDeviceHandle, timeout: Duration) -> Result<Self> {
+    pub(crate) fn new(interface: Interface, timeout: Duration) -> Result<Self> {
         Ok(Self {
-            usb: UsbWriter::new(handler, timeout)?,
+            usb: UsbWriter::new(interface, timeout)?,
             enabled: false,
         })
     }

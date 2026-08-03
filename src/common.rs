@@ -1,6 +1,6 @@
 use crate::manager::{DeviceLocation, DeviceType, VENDOR_BEACN};
 use crate::sealed::Sealed;
-use crate::transfer::transfer;
+use crate::transfer::{EndpointHandle, transfer};
 use crate::version::VersionNumber;
 use crate::{BResult, beacn_bail, setup};
 use anyhow::Result;
@@ -63,11 +63,11 @@ where
     setup::set_alt_setting(&interface, 1).await?;
 
     // Create some endpoints, caller tells us the type
-    let mut out_ep = interface.endpoint::<T, Out>(0x03)?;
-    let mut in_ep = interface.endpoint::<T, In>(0x83)?;
+    let mut out_ep = EndpointHandle::<T, Out>::new(interface.clone(), 0x03)?;
+    let mut in_ep = EndpointHandle::<T, In>::new(interface.clone(), 0x83)?;
 
     let setup_timeout = Duration::from_millis(2000);
-    let read_len = in_ep.max_packet_size().max(64);
+    let read_len = in_ep.get_mut()?.max_packet_size().max(64);
 
     for byte in firmware_bytes {
         transfer(&mut out_ep, [0, 0, 0, *byte].into(), setup_timeout).await?;
@@ -79,7 +79,7 @@ where
             Err(e) => {
                 if e == TransferError::Stall {
                     warn!("Stall on interface, attempting to Clear..");
-                    setup::clear_halt(&mut in_ep).await?;
+                    in_ep.clear_halt().await?;
 
                     // Try it again..
                     transfer(&mut in_ep, Buffer::new(read_len), setup_timeout).await?

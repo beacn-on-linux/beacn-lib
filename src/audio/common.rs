@@ -4,7 +4,7 @@ use crate::common::BeacnDeviceInfo;
 use crate::manager::DeviceType;
 use crate::sealed::Sealed;
 use crate::sync::AsyncMutex as Mutex;
-use crate::transfer::transfer;
+use crate::transfer::{transfer, EndpointHandle};
 use crate::{BResult, beacn_bail};
 use async_trait::async_trait;
 use byteorder::{ByteOrder, LittleEndian};
@@ -16,8 +16,8 @@ use web_time::Duration;
 /// the potential of different threads (or async tasks) attempting to interact with
 /// the device at the same time; access is treated one at a time.
 pub struct AudioEndpoints {
-    pub(crate) out_ep: nusb::Endpoint<Bulk, Out>,
-    pub(crate) in_ep: nusb::Endpoint<Bulk, In>,
+    pub(crate) out_ep: EndpointHandle<Bulk, Out>,
+    pub(crate) in_ep: EndpointHandle<Bulk, In>,
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
@@ -146,7 +146,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         transfer(&mut ep.out_ep, request.into(), timeout).await?;
 
         // Grab the response into a buffer
-        let max_packet_size = ep.in_ep.max_packet_size();
+        let max_packet_size = ep.in_ep.get_mut()?.max_packet_size();
         let completion = transfer(&mut ep.in_ep, Buffer::new(max_packet_size), timeout).await?;
 
         if completion.len() != 8 {

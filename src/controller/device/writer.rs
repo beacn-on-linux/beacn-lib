@@ -1,35 +1,32 @@
-use crate::common::BeacnDeviceHandle;
-use crate::transfer::transfer;
+use crate::transfer::{EndpointHandle, transfer};
 use anyhow::{Result, bail};
 use log::warn;
+use nusb::Interface;
 use nusb::transfer::{Buffer, Interrupt, Out, TransferError};
 use web_time::Duration;
 
 #[allow(dead_code)]
 pub(crate) struct UsbWriter {
-    handler: BeacnDeviceHandle,
-    endpoint: nusb::Endpoint<Interrupt, Out>,
+    endpoint: EndpointHandle<Interrupt, Out>,
     timeout: Duration,
 }
 
 impl UsbWriter {
-    pub(crate) fn new(handler: BeacnDeviceHandle, timeout: Duration) -> Result<Self> {
-        let endpoint = match handler.interface.endpoint::<Interrupt, Out>(0x03) {
+    pub(crate) fn new(interface: Interface, timeout: Duration) -> Result<Self> {
+        let endpoint = EndpointHandle::<Interrupt, Out>::new(interface, 0x03);
+        let endpoint = match endpoint {
             Ok(ep) => ep,
             Err(e) => {
                 bail!("Failed to open Interrupt OUT endpoint: {}", e);
             }
         };
 
-        Ok(Self {
-            handler,
-            endpoint,
-            timeout,
-        })
+        Ok(Self { endpoint, timeout })
     }
 
     pub(crate) async fn clear_halt(&mut self) -> Result<(), TransferError> {
-        crate::setup::clear_halt(&mut self.endpoint)
+        self.endpoint
+            .clear_halt()
             .await
             .map_err(|_| TransferError::Disconnected)
     }

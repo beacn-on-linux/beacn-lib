@@ -1,6 +1,5 @@
 //! Thin wrappers around nusb's *connection-setup* calls: `list_devices`, `DeviceInfo::open`,
-//! `Device::claim_interface`, `Interface::set_alt_setting`, `Endpoint::clear_halt`.
-use nusb::transfer::{BulkOrInterrupt, EndpointDirection};
+//! `Device::claim_interface`, `Interface::set_alt_setting`.
 use nusb::{Device, DeviceInfo, Interface};
 
 pub(crate) async fn list_devices() -> Result<impl Iterator<Item = DeviceInfo>, nusb::Error> {
@@ -51,27 +50,5 @@ pub(crate) async fn set_alt_setting(interface: &Interface, alt: u8) -> Result<()
     {
         use nusb::MaybeFuture;
         interface.set_alt_setting(alt).wait()
-    }
-}
-
-pub(crate) async fn clear_halt<EpType, Dir>(
-    endpoint: &mut nusb::Endpoint<EpType, Dir>,
-) -> Result<(), nusb::Error>
-where
-    EpType: BulkOrInterrupt,
-    Dir: EndpointDirection,
-{
-    #[cfg(any(feature = "tokio", feature = "smol", target_arch = "wasm32"))]
-    {
-        #[cfg(not(target_arch = "wasm32"))]
-        endpoint.cancel_all();
-
-        endpoint.clear_halt().await
-    }
-    #[cfg(not(any(feature = "tokio", feature = "smol", target_arch = "wasm32")))]
-    {
-        use nusb::MaybeFuture;
-        endpoint.cancel_all();
-        endpoint.clear_halt().wait()
     }
 }
