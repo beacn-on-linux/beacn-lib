@@ -22,7 +22,7 @@ pub trait BeacnDeviceKind: Send + Sync + 'static {
     const TYPE: DeviceType;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct BeacnDeviceHandle {
     pub(crate) descriptor: DeviceInfo,
