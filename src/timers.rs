@@ -68,7 +68,7 @@ impl Ticker {
 /// This is a runtime agnostic sleep function, it'll use tokio if inside a tokio runtime, otherwise
 /// it'll fall back to asyncio
 pub(crate) async fn sleep(duration: Duration) {
-    #[cfg(feature = "tokio")]
+    #[cfg(all(feature = "tokio", not(target_arch = "wasm32")))]
     {
         if tokio::runtime::Handle::try_current().is_ok() {
             tokio::time::sleep(duration).await;
