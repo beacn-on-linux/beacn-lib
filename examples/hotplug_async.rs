@@ -5,7 +5,7 @@ use log::info;
 use tokio::time::sleep;
 use tokio::{join, select, task};
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "local")]
 async fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     
