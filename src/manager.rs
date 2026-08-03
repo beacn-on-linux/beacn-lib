@@ -179,6 +179,7 @@ enum HotplugLoopEvent {
 ///
 /// Runs until `receiver` gets `HotPlugThreadManagement::Quit`, `sender`'s corresponding
 /// receiver is dropped, or the underlying hotplug watch itself fails.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn spawn_hotplug_handler(
     sender: Sender<HotPlugMessage>,
     receiver: Receiver<HotPlugThreadManagement>,
@@ -187,6 +188,16 @@ pub fn spawn_hotplug_handler(
 
     use crate::MaybeFuture;
     thread::spawn(|| watch_hotplug_devices(sender, receiver).wait())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn spawn_hotplug_handler(
+    _: Sender<HotPlugMessage>,
+    _: Receiver<HotPlugThreadManagement>,
+) -> JoinHandle<()> {
+    panic!(
+        "spawn_hotplug_handler is not supported on WASM - Use async and watch_hotplug_devices instead"
+    );
 }
 
 /// Watch for Beacn device hot-plug events and report them on `sender`, without spawning
