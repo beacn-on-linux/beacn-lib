@@ -9,8 +9,11 @@ use image::codecs::jpeg::JpegEncoder;
 use image::{ImageBuffer, Rgb};
 use std::sync::Arc;
 use std::time::Duration;
+use env_logger::Env;
 
 fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    
     // Firstly, find any Mix and Mix Create devices
     let mut devices = get_beacn_mix_device().wait();
     devices.extend(get_beacn_mix_create_device().wait());

@@ -8,10 +8,13 @@ use image::codecs::jpeg::JpegEncoder;
 use image::{ImageBuffer, Rgb};
 use std::sync::Arc;
 use std::time::Duration;
+use env_logger::Env;
 use tokio::sync::mpsc;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    
     let mut devices = get_beacn_mix_device().await;
     devices.extend(get_beacn_mix_create_device().await);
 

@@ -2,8 +2,11 @@ use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, spawn_hotplug_
 use flume::TryRecvError;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
+use env_logger::Env;
 
 fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    
     let (hotplug_tx, hotplug_rx) = flume::unbounded();
     let (mgmt_tx, mgmt_rx) = flume::unbounded();
     let start = Instant::now();
