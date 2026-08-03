@@ -15,7 +15,7 @@ use flume::{Receiver, Sender};
 use futures_lite::future::or;
 use futures_lite::stream::{self, Stream, StreamExt};
 use log::{debug, error, warn};
-use nusb::transfer::{Buffer, In, Interrupt, TransferError};
+use nusb::transfer::{In, Interrupt, TransferError};
 use std::future::pending;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -265,7 +265,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                         break;
                     };
 
-                    match transfer(in_ep, Buffer::new(64), timeout).await {
+                    match transfer(in_ep, Vec::with_capacity(64), timeout).await {
                         Err(e) => {
                             debug!("Error Reading Poll Response: {}", e);
                             break;
@@ -372,7 +372,7 @@ fn build_notify_read_stream(in_ep: EndpointHandle<Interrupt, In>) -> impl Stream
         (in_ep, 0u32),
         move |(mut ep, mut device_retries)| async move {
             loop {
-                match transfer(&mut ep, Buffer::new(64), read_timeout).await {
+                match transfer(&mut ep, Vec::with_capacity(64), read_timeout).await {
                     Ok(buf) => {
                         device_retries = 0;
                         let mut input = [0u8; 64];

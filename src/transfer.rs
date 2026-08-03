@@ -71,19 +71,22 @@ where
 /// that may end up changing depending on internal use cases :D
 pub(crate) async fn transfer_with_timeout<EpType, Dir>(
     endpoint: &mut EndpointHandle<EpType, Dir>,
-    buf: Buffer,
+    buf: Vec<u8>,
     timeout: Duration,
 ) -> Completion
 where
     EpType: BulkOrInterrupt,
     Dir: EndpointDirection,
 {
+    // Grab a copy of the outbound data, before it's sent
+    let buf = Buffer::from(buf);
+
     // Get the Endpoint
     let Ok(ep) = endpoint.get_mut() else {
         // We can't get or open the endpoint. Report it the same was as it would if the
         // endpoint went missing mis-stream.
         return Completion {
-            buffer: Buffer::new(0),
+            buffer: buf,
             status: Err(TransferError::Disconnected),
             actual_len: 0,
         };
@@ -135,7 +138,7 @@ where
 /// success case, and you don't want to have to deal with the Completion type.
 pub(crate) async fn transfer<EpType, Dir>(
     endpoint: &mut EndpointHandle<EpType, Dir>,
-    buf: Buffer,
+    buf: Vec<u8>,
     timeout: Duration,
 ) -> Result<Buffer, TransferError>
 where

@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use byteorder::{LittleEndian, ReadBytesExt};
 use log::{debug, warn};
-use nusb::transfer::{Buffer, BulkOrInterrupt, EndpointType, In, Out, TransferError};
+use nusb::transfer::{BulkOrInterrupt, EndpointType, In, Out, TransferError};
 use nusb::{Device, DeviceInfo, Interface};
 use std::io::{Cursor, Read, Seek};
 use web_time::Duration;
@@ -74,7 +74,7 @@ where
     }
 
     let completion = {
-        match transfer(&mut in_ep, Buffer::new(read_len), setup_timeout).await {
+        match transfer(&mut in_ep, Vec::with_capacity(read_len), setup_timeout).await {
             Ok(buf) => buf,
             Err(e) => {
                 if e == TransferError::Stall {
@@ -82,7 +82,7 @@ where
                     in_ep.clear_halt().await?;
 
                     // Try it again..
-                    transfer(&mut in_ep, Buffer::new(read_len), setup_timeout).await?
+                    transfer(&mut in_ep, Vec::with_capacity(read_len), setup_timeout).await?
                 } else {
                     beacn_bail!("Failed to read firmware version: {}", e);
                 }
