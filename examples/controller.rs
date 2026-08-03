@@ -3,17 +3,17 @@ use beacn_lib::controller::{BeacnControlDevice, Interactions, open_control_devic
 use beacn_lib::manager::{DeviceLocation, get_beacn_mix_create_device, get_beacn_mix_device};
 
 use crate::common::controller::{test_buttons, test_pattern};
-use env_logger::Env;
+use crate::common::logging::configure_logging;
 use flume::Receiver;
+use log::{error, info, warn};
 use std::sync::Arc;
 use std::time::Duration;
-use log::{error, info, warn};
 
 #[path = "common/mod.rs"]
 mod common;
 
 fn main() {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    configure_logging();
 
     // Firstly, find any Mix and Mix Create devices
     let mut devices = get_beacn_mix_device().wait();

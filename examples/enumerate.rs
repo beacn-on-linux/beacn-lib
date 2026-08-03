@@ -1,14 +1,17 @@
-use env_logger::Env;
-use log::info;
+use crate::common::logging::configure_logging;
 use beacn_lib::MaybeFuture;
 use beacn_lib::manager::{
     get_beacn_mic_devices, get_beacn_mix_create_device, get_beacn_mix_device,
     get_beacn_studio_devices,
 };
+use log::info;
+
+#[path = "common/mod.rs"]
+mod common;
 
 fn main() {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-    
+    configure_logging();
+
     // Simply enumerate all devices
     for device in get_beacn_mic_devices().wait() {
         info!("Mic Found At: {:?}", device);

@@ -1,13 +1,16 @@
+use crate::common::logging::configure_logging;
 use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, spawn_hotplug_handler};
 use flume::TryRecvError;
+use log::info;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-use env_logger::Env;
-use log::info;
+
+#[path = "common/mod.rs"]
+mod common;
 
 fn main() {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-    
+    configure_logging();
+
     let (hotplug_tx, hotplug_rx) = flume::unbounded();
     let (mgmt_tx, mgmt_rx) = flume::unbounded();
     let start = Instant::now();

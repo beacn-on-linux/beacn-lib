@@ -1,13 +1,16 @@
-use env_logger::Env;
-use log::{error, info};
+use crate::common::logging::configure_logging;
 use beacn_lib::MaybeFuture;
 use beacn_lib::audio::messages::Message;
 use beacn_lib::audio::messages::lighting::{Lighting, LightingBrightness};
 use beacn_lib::audio::{BeacnAudioDevice, open_audio_device};
 use beacn_lib::manager::{DeviceType, get_beacn_mic_devices, get_beacn_studio_devices};
+use log::{error, info};
+
+#[path = "common/mod.rs"]
+mod common;
 
 fn main() {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    configure_logging();
 
     // Firstly, find any Mix and Mix Create devices
     let mics = get_beacn_mic_devices().wait();

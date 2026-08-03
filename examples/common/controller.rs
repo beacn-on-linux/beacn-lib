@@ -1,10 +1,14 @@
-use image::codecs::jpeg::JpegEncoder;
-use image::{ImageBuffer, Rgb};
 use beacn_lib::controller::ButtonLighting;
 use beacn_lib::types::RGBA;
+use image::codecs::jpeg::JpegEncoder;
+use image::{ImageBuffer, Rgb};
+
+// Clippy gets weirdly pissy about these, they're used inside examples, but it doesn't seem
+// to trace them in any meaningful way, so believes they're not used.
 
 /// This test pattern is a simple 4 colour stepper, that demonstrates how to create images that
 /// can be used on the devices. It specifically uses overlays, and not full draws.
+#[allow(unused)]
 pub(crate) fn test_pattern(step: usize) -> (u32, u32, Vec<u8>) {
     let width = 800;
     let height = 480;
@@ -34,6 +38,7 @@ pub(crate) fn test_pattern(step: usize) -> (u32, u32, Vec<u8>) {
     (x, 0, jpeg)
 }
 
+#[allow(unused)]
 pub(crate) fn test_buttons(step: usize) -> Vec<(ButtonLighting, RGBA)> {
     let black = RGBA::from([0, 0, 0, 255]);
     let red = RGBA::from([255, 0, 0, 255]);
