@@ -1,9 +1,21 @@
 pub(crate) fn configure_logging() {
     #[cfg(not(target_arch = "wasm32"))]
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    {
+        use env_logger::{Builder, Env};
+        Builder::from_env(Env::default().default_filter_or("info")).init();
+    }
 
     #[cfg(target_arch = "wasm32")]
-    wasm_console_log::init_with_level(log::Level::Debug).unwrap();
+    wasm_console_log::init_with_level(log::Level::Info).unwrap();
+
+    std::panic::set_hook(Box::new(|info| {
+        log::error!("PANIC: {}", info);
+
+        if let Some(location) = info.location() {
+            log::error!("at {}:{}", location.file(), location.line());
+        }
+    }));
+
 }
 
 // Portions of this code are derived from console_log and are covered by its
