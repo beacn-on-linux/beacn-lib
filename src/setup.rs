@@ -1,13 +1,11 @@
 //! Thin wrappers around nusb's *connection-setup* calls: `list_devices`, `DeviceInfo::open`,
 //! `Device::claim_interface`, `Interface::set_alt_setting`.
 
-use log::info;
 use nusb::{Device, DeviceInfo, Interface};
 
 pub(crate) async fn list_devices() -> Result<impl Iterator<Item = DeviceInfo>, nusb::Error> {
     #[cfg(any(feature = "async", target_arch = "wasm32"))]
     {
-        info!("Hi There");
         nusb::list_devices().await
     }
     #[cfg(not(any(feature = "async", target_arch = "wasm32")))]

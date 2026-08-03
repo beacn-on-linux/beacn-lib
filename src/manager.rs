@@ -216,7 +216,6 @@ pub async fn watch_hotplug_devices(
     sender: Sender<HotPlugMessage>,
     receiver: Receiver<HotPlugThreadManagement>,
 ) {
-    debug!("Starting");
     let mut inner = HotPlugManager {
         sender: sender.clone(),
         known_devices: HashMap::new(),
@@ -234,30 +233,22 @@ pub async fn watch_hotplug_devices(
         }
     };
 
-    debug!("Block 1..");
-
     // watch_devices says to populate from list_devices after it's called, so we can
     // grab and handle devices which already exist.
     if let Ok(devices) = crate::setup::list_devices().await {
-        debug!("Found existing devices");
-
         // Locate all Beacn Devices
         let mut devices: Vec<_> = devices
             .filter_map(|info| identify_beacn_device(&info).map(|ty| (info, ty)))
             .collect();
 
         // Order them by startup order
-        debug!("Sorting devices");
         devices.sort_by_key(|(_, ty)| *ty);
 
-        debug!("Connecting Devices");
         for (info, device_type) in devices {
             debug!("Found Beacn Device (type {:?})", device_type);
             inner.device_connected(&info, device_type).await;
         }
     }
-
-    debug!("Block 2..");
 
     // Periodic health-check tick, replacing the old poll-with-timeout loop -- this is
     // just another branch in the select below now that we're not restricted to blocking
@@ -265,8 +256,6 @@ pub async fn watch_hotplug_devices(
     let mut health_tick = Ticker::new(Duration::from_millis(100), false);
 
     loop {
-        debug!("Looping..");
-
         let event = or(
             or(
                 async { HotplugLoopEvent::Management(receiver.recv_async().await) },
@@ -278,8 +267,6 @@ pub async fn watch_hotplug_devices(
             },
         )
         .await;
-
-        debug!("Matching");
         match event {
             HotplugLoopEvent::Management(Ok(HotPlugThreadManagement::Quit)) => break,
             HotplugLoopEvent::Management(Err(_)) => {
@@ -304,8 +291,6 @@ pub async fn watch_hotplug_devices(
             }
         }
     }
-
-    debug!("Stopping");
     inner.thread_stopped();
 }
 
@@ -367,6 +352,7 @@ impl From<&DeviceInfo> for DeviceLocation {
 /// This is a generic function that will just return a list of USB Locations of Beacn Mic devices
 /// attached to your system for situations where you want to handle hot plugging yourself.
 pub async fn get_beacn_mic_devices() -> Vec<DeviceLocation> {
+    debug!("DOING IT");
     get_beacn_device(PID_BEACN_MIC).await
 }
 
