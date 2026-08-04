@@ -30,10 +30,18 @@ which may occur from its use. Please read the LICENSE for more information.
 ## Usage
 ```toml
 [dependencies]
-beacn-lib = { git = "https://github.com/beacn-on-linux/beacn-lib", tag = "v0.2.0", features = [] }
+beacn-lib = { git = "https://github.com/beacn-on-linux/beacn-lib", tag = "v0.2.1", features = [] }
 ```
-If you're using `tokio` or `smol` they should be included as features otherwise tasks such as listing and
-opening devices will fall back to regular blocking calls.
+
+Crate Feature Table
+
+| Feature    | Description                                   |
+|------------|-----------------------------------------------|
+| `async`    | Use async / await internally                  |
+| `tokio`    | Async support with tokio                      |
+| `async-rt` | Async support with other runtimes (e.g. smol) |
+
+If you are compiling for WASM, you sould only use the `async` feature.
 
 ## Warnings
 When used against a Beacn Mix and Mix Create, termination of an application while an image is mid-send may cause

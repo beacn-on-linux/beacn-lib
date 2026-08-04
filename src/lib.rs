@@ -22,11 +22,20 @@ use thiserror::Error;
 #[cfg(all(target_arch = "wasm32", feature = "tokio"))]
 compile_error!("Cannot use the tokio feature on wasm, use async instead");
 
-#[cfg(all(target_arch = "wasm32", feature = "smol"))]
+#[cfg(all(target_arch = "wasm32", feature = "async-rt"))]
 compile_error!("Cannot use the smol feature on wasm, use async instead");
 
 #[cfg(all(target_arch = "wasm32", not(feature = "async")))]
 compile_error!("The async feature is required for wasm");
+
+#[cfg(all(
+    feature = "async",
+    not(target_arch = "wasm32"),
+    not(any(feature = "tokio", feature = "async-rt"))
+))]
+compile_error!(
+    "The `async` feature on non-WASM targets requires either the `tokio` or `async-rt` feature."
+);
 
 /// We try to support async everywhere, but for blocking environments this trait uses futures-lite
 /// to allow calling .wait() instead of .await as a blocking call inside a non-async context.

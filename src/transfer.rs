@@ -42,7 +42,7 @@ where
 
     pub(crate) async fn clear_halt(&mut self) -> Result<(), nusb::Error> {
         if let Some(ep) = self.endpoint.as_mut() {
-            #[cfg(any(feature = "tokio", feature = "smol", target_arch = "wasm32"))]
+            #[cfg(feature = "async")]
             {
                 #[cfg(not(target_arch = "wasm32"))]
                 ep.cancel_all();
@@ -50,7 +50,7 @@ where
                 ep.clear_halt().await
             }
 
-            #[cfg(not(any(feature = "tokio", feature = "smol", target_arch = "wasm32")))]
+            #[cfg(not(feature = "async"))]
             {
                 use nusb::MaybeFuture;
                 ep.cancel_all();
