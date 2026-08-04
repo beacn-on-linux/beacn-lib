@@ -44,8 +44,14 @@ the connection to the device is closed.
 The [`examples/`](examples) directory contains a number of examples which demonstrate all of the features
 and concepts of this library, provided in both sync and async flavours.
 
-##### WASM
-Fun example, ensure you have the wasm build target installed (`rustup target add wasm32-unknown-unknown`)
-then run `cargo run --example wasm_example`, and open the served URL in anything Chromium-based.
+## WASM
+`beacn-lib` supports WASM in theory, your application will need a `.carg/config.toml` file with the following:
+```toml
+[target.wasm32-unknown-unknown]
+rustflags = ["--cfg=web_sys_unstable_apis"]
+```
 
+For an example, ensure you have the wasm build target installed (`rustup target add wasm32-unknown-unknown`)
+then run `cargo build --target wasm32-unknown-unknown`, and open the provided URL in a chromium-based browser.
+Remember to pair your devices before selecting and example.
 
