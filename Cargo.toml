@@ -39,7 +39,7 @@ jpeg-decoder = "0.3"
 thiserror = "2.0"
 
 # Tokio Spawner
-tokio = { version = "1", optional = true, default-features = false, features = ["rt", "time"] }
+tokio = { version = "1", optional = true, default-features = false, features = ["rt"] }
 
 # This replaces std::time in all environments
 web-time = "1.1.0"
@@ -63,19 +63,19 @@ tokio = { version = "1", default-features = false, features = ["rt", "sync", "ma
 image = { version = "0.25", features = ["jpeg"] }
 
 # Used for general timers
-futures-timer = "3.0.4"
+futures-timer = { version = "3.0.4", features = ["wasm-bindgen"] }
 
 # Used in the wasm_example to compile wasm
 wasm-bindgen-cli-support = "=0.2.126"
 
 # Used in the wasm_example to serve files
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 tiny_http = "0.12"
-webbrowser = "1.0"
-tempfile = "3"
 
 # WASM Features
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-web-sys = { version = "0.3.103", features = ["console"] }
+web-sys = { version = "0.3.103", features = ["console", "Window", "CustomEvent", "CustomEventInit"] }
 
 
 [[example]]
