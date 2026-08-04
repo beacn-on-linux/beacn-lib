@@ -21,7 +21,7 @@ async fn app_main() {
     // Spawn up a hotplug thread, this will announce all existing devices and watch for new ones.
     let handle = spawn_local(watch_hotplug_devices(hotplug_tx, mgmt_rx));
 
-    info!("Listening for Devices..");
+    info!("Listening for devices for 10 seconds..");
     // Listen for messages coming from the hotplug thread for 10 seconds, then exit.
     loop {
         select! {
@@ -52,7 +52,8 @@ async fn app_main() {
             }
         }
     }
-    
+
+    info!("Shutting down hotplug thread");
     let _ = mgmt_tx.send(HotPlugThreadManagement::Quit);
     handle.join().await;
 }

@@ -20,6 +20,8 @@ beacn_main!(flavor = "local", {
 async fn app_main() {
     configure_logging();
 
+    info!("Turn the Dials while this is running to see the output!");
+
     // Firstly, find any Mix and Mix Create devices
     let mut devices = get_beacn_mix_device().await;
     devices.extend(get_beacn_mix_create_device().await);
@@ -51,6 +53,10 @@ async fn app_main() {
         error!("No usable devices found!");
         return;
     }
+
+    let count = device_maps.iter().count();
+    let s = if count == 1 { "" } else { "s" };
+    info!("Found {} device{s}..", count);
 
     // For each of the devices, spawn up a task that handles the events so we can wrap everything
     // in a tokio::select!
@@ -94,6 +100,8 @@ async fn app_main() {
     'primary: loop {
         tokio::select! {
             _ = ticker.tick() => {
+                info!("Executing Step {}", step);
+
                 for device in &device_maps {
                     let (x, y, image) = test_pattern(step);
                     for (button, colour) in test_buttons(step) {
@@ -125,6 +133,7 @@ async fn app_main() {
         }
     }
 
+    info!("Turning off devices..");
     for device in device_maps {
         let _ = device.device.set_enabled(false).await;
     }

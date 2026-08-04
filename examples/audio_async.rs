@@ -36,6 +36,10 @@ async fn app_main() {
         }
     }
 
+    let count = device_maps.len();
+    let s = if count == 1 { "" } else { "s" };
+    info!("Found {} device{s}", count);
+
     // Ok, lets fetch all the current device configs..
     for dev in &device_maps {
         let messages = Message::generate_fetch_message(dev.device_type);
