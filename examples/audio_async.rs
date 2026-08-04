@@ -3,7 +3,6 @@ use beacn_lib::audio::messages::Message;
 use beacn_lib::audio::messages::lighting::{Lighting, LightingBrightness};
 use beacn_lib::audio::{BeacnAudioDevice, open_audio_device};
 use beacn_lib::manager::{DeviceType, get_beacn_mic_devices, get_beacn_studio_devices};
-use env_logger::Env;
 use log::{error, info};
 
 #[path = "common/mod.rs"]

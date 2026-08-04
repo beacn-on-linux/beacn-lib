@@ -1,9 +1,9 @@
 use crate::common::logging::configure_logging;
+use crate::common::{sleep, spawn_local};
 use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, watch_hotplug_devices};
 use log::info;
 use tokio::{join, select, task};
 use web_time::Duration;
-use crate::common::{sleep, spawn_local};
 
 #[path = "common/mod.rs"]
 mod common;
@@ -14,9 +14,6 @@ beacn_main!(flavor = "local", {
 
 async fn app_main() {
     configure_logging();
-    info!("Starting Hotplug Example");
-
-    info!("Generating hotplug channels: (hotplug_tx, hotplug_rx) = (flume::unbounded(), flume::unbounded())");
     let (hotplug_tx, hotplug_rx) = flume::unbounded();
     let (mgmt_tx, mgmt_rx) = flume::unbounded();
 
@@ -24,7 +21,7 @@ async fn app_main() {
     // Spawn up a hotplug thread, this will announce all existing devices and watch for new ones.
     let handle = spawn_local(watch_hotplug_devices(hotplug_tx, mgmt_rx));
 
-    info!("Thread Spawned");
+    info!("Listening for Devices..");
     // Listen for messages coming from the hotplug thread for 10 seconds, then exit.
     loop {
         select! {
@@ -55,7 +52,7 @@ async fn app_main() {
             }
         }
     }
-
+    
     let _ = mgmt_tx.send(HotPlugThreadManagement::Quit);
     handle.join().await;
 }

@@ -3,12 +3,12 @@ use beacn_lib::controller::{BeacnControlDevice, Interactions, open_control_devic
 use beacn_lib::manager::{DeviceLocation, get_beacn_mix_create_device, get_beacn_mix_device};
 
 use crate::common::logging::configure_logging;
+use crate::common::{interval, spawn_local};
 use flume::Receiver;
 use log::{error, info};
 use std::sync::Arc;
-use web_time::Duration;
 use tokio::sync::mpsc;
-use crate::common::{interval, spawn_local};
+use web_time::Duration;
 
 #[path = "common/mod.rs"]
 mod common;
