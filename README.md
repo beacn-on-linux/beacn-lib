@@ -30,7 +30,7 @@ which may occur from its use. Please read the LICENSE for more information.
 ## Usage
 ```toml
 [dependencies]
-beacn-lib = { git = "https://github.com/beacn-on-linux/beacn-lib", tag = "v0.2.1", features = [] }
+beacn-lib = { git = "https://github.com/beacn-on-linux/beacn-lib", tag = "v0.2.2", features = [] }
 ```
 
 Crate Feature Table
