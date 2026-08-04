@@ -46,9 +46,11 @@ macro_rules! beacn_main {
         wasm_bindgen_futures::spawn_local(async move {
             $body
 
-            let window = web_sys::window().unwrap();
-            let event = web_sys::Event::new("wasm-finished").unwrap();
-            window.dispatch_event(&event).unwrap();
+            if let Some(window) = web_sys::window() {
+                if let Ok(event) = web_sys::Event::new("wasm-finished") {
+                    let _ = window.dispatch_event(&event);
+                }
+            }
         });
     }};
 
