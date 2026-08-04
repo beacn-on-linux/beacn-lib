@@ -9,10 +9,29 @@ pub(crate) fn configure_logging() {
     wasm_console_log::init_with_level(log::Level::Info).unwrap();
 
     std::panic::set_hook(Box::new(|info| {
-        log::error!("PANIC: {}", info);
+        // Extract just the raw inner payload string if available (e.g., "TEST")
+        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            *s
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.as_str()
+        } else {
+            "Box<dyn Any>"
+        };
 
-        if let Some(location) = info.location() {
-            log::error!("at {}:{}", location.file(), location.line());
+        // Format a single unified error entry matching your [ERROR] sidebar UI style
+        if let Some(l) = info.location() {
+            log::error!("Panic in '{}' at line {}: {}", l.file(), l.line(), payload);
+        } else {
+            log::error!("Panic occurred: {}", payload);
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(window) = web_sys::window() {
+                if let Ok(event) = web_sys::Event::new("wasm-finished") {
+                    let _ = window.dispatch_event(&event);
+                }
+            }
         }
     }));
 }
