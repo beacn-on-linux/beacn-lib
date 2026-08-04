@@ -8,7 +8,7 @@ default = []
 
 # These two get passed forward to nusb for use in async environments
 async = []
-tokio = ["dep:tokio", "nusb/tokio", "async"]
+tokio = ["dep:tokio", "tokio/time", "nusb/tokio", "async"]
 smol = ["nusb/smol", "async"]
 
 [dependencies]
