@@ -15,7 +15,6 @@ pub(crate) fn configure_logging() {
             log::error!("at {}:{}", location.file(), location.line());
         }
     }));
-
 }
 
 // Portions of this code are derived from console_log and are covered by its
@@ -51,9 +50,11 @@ mod wasm_console_log {
 
     use alloc::format;
     use log::{Level, Log, Metadata, Record, SetLoggerError};
-    use web_sys::console;
+    use web_sys::{CustomEvent, console};
 
     use alloc::string::ToString;
+    use serde_json::json;
+    use wasm_bindgen::JsValue;
 
     const STYLE: Style<'static> = Style::default();
     static LOGGER: WebConsoleLogger = WebConsoleLogger {};
@@ -77,6 +78,25 @@ mod wasm_console_log {
     }
 
     pub fn log(record: &Record) {
+        // Before we do anything, send this across as a window event..
+        if let Some(window) = web_sys::window() {
+            let detail = json!({
+                "level": record.level().to_string(),
+                "message": record.args().to_string(),
+            });
+
+            // Convert the JSON to a plain string value
+            let js_payload = JsValue::from_str(&detail.to_string());
+
+            let event_init = web_sys::CustomEventInit::new();
+            event_init.set_detail(&js_payload);
+
+            // Create the event explicitly as "inner-log"
+            if let Ok(event) = CustomEvent::new_with_event_init_dict("inner-log", &event_init) {
+                let _ = window.dispatch_event(&event);
+            }
+        }
+
         // pick the console.log() variant for the appropriate logging level
         let console_log = match record.level() {
             Level::Error => console::error_4,
