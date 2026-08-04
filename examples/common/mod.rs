@@ -42,11 +42,21 @@ macro_rules! beacn_main {
     // and don't require a massive threaded runtime, we won't support flavor = "muliti_thread".
 
 
+    (@wasm $body:block) => {{
+        wasm_bindgen_futures::spawn_local(async move {
+            $body
+
+            let window = web_sys::window().unwrap();
+            let event = web_sys::Event::new("wasm-finished").unwrap();
+            window.dispatch_event(&event).unwrap();
+        });
+    }};
+
     (flavor = "current_thread", $body:block) => {
         fn main() {
             #[cfg(target_arch = "wasm32")]
             {
-                wasm_bindgen_futures::spawn_local(async move $body);
+                $crate::beacn_main!(@wasm $body);
             }
 
             #[cfg(not(target_arch = "wasm32"))]
@@ -65,7 +75,7 @@ macro_rules! beacn_main {
         fn main() {
             #[cfg(target_arch = "wasm32")]
             {
-                wasm_bindgen_futures::spawn_local(async move $body);
+                $crate::beacn_main!(@wasm $body);
             }
 
             #[cfg(not(target_arch = "wasm32"))]
@@ -107,9 +117,7 @@ where
             let _ = tx.send(());
         });
 
-        TaskHandle {
-            done: rx,
-        }
+        TaskHandle { done: rx }
     }
 }
 
