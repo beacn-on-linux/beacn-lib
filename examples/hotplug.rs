@@ -1,9 +1,19 @@
+use crate::common::logging::configure_logging;
 use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, spawn_hotplug_handler};
 use flume::TryRecvError;
+use log::info;
 use std::thread::sleep;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
+
+#[path = "common/mod.rs"]
+mod common;
+
+#[cfg(target_arch = "wasm32")]
+compile_error!("Sync Examples are not supported under WASM, use the async variant instead.");
 
 fn main() {
+    configure_logging();
+
     let (hotplug_tx, hotplug_rx) = flume::unbounded();
     let (mgmt_tx, mgmt_rx) = flume::unbounded();
     let start = Instant::now();
@@ -25,10 +35,10 @@ fn main() {
                     // the device.
                     //
                     // In this example, we're just going to ignore the health channel.
-                    println!("{:?} Device Attached: {:?}", device_type, location);
+                    info!("{:?} Device Attached: {:?}", device_type, location);
                 }
                 HotPlugMessage::DeviceRemoved(location) => {
-                    println!("Device Removed: {:?}", location);
+                    info!("Device Removed: {:?}", location);
                 }
                 HotPlugMessage::ThreadStopped => {
                     break;

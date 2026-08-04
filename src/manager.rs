@@ -10,10 +10,10 @@ use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::thread;
+
 use std::thread::JoinHandle;
-use std::time::Duration;
 use strum::Display;
+use web_time::Duration;
 
 pub(crate) const VENDOR_BEACN: u16 = 0x33ae;
 pub(crate) const PID_BEACN_MIC: &[u16] = &[0x0001, 0x8001];
@@ -179,6 +179,7 @@ enum HotplugLoopEvent {
 ///
 /// Runs until `receiver` gets `HotPlugThreadManagement::Quit`, `sender`'s corresponding
 /// receiver is dropped, or the underlying hotplug watch itself fails.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn spawn_hotplug_handler(
     sender: Sender<HotPlugMessage>,
     receiver: Receiver<HotPlugThreadManagement>,
@@ -186,7 +187,18 @@ pub fn spawn_hotplug_handler(
     debug!("Running Beacn Mic Hot Plug Handler");
 
     use crate::MaybeFuture;
+    use std::thread;
     thread::spawn(|| watch_hotplug_devices(sender, receiver).wait())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn spawn_hotplug_handler(
+    _: Sender<HotPlugMessage>,
+    _: Receiver<HotPlugThreadManagement>,
+) -> JoinHandle<()> {
+    panic!(
+        "spawn_hotplug_handler is not supported on WASM - Use async and watch_hotplug_devices instead"
+    );
 }
 
 /// Watch for Beacn device hot-plug events and report them on `sender`, without spawning
@@ -233,6 +245,7 @@ pub async fn watch_hotplug_devices(
         devices.sort_by_key(|(_, ty)| *ty);
 
         for (info, device_type) in devices {
+            debug!("Found Beacn Device (type {:?})", device_type);
             inner.device_connected(&info, device_type).await;
         }
     }
@@ -254,7 +267,6 @@ pub async fn watch_hotplug_devices(
             },
         )
         .await;
-
         match event {
             HotplugLoopEvent::Management(Ok(HotPlugThreadManagement::Quit)) => break,
             HotplugLoopEvent::Management(Err(_)) => {
@@ -279,7 +291,6 @@ pub async fn watch_hotplug_devices(
             }
         }
     }
-
     inner.thread_stopped();
 }
 
@@ -318,10 +329,22 @@ impl From<&DeviceInfo> for DeviceLocation {
             format!("{:016x}", hasher.finish())
         };
 
-        Self {
-            hash,
-            bus_id: value.bus_id().to_string(),
-            device_address: value.device_address(),
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Self {
+                hash,
+                bus_id: value.bus_id().to_string(),
+                device_address: value.device_address(),
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            Self {
+                hash,
+                bus_id: "NotSupported".to_string(),
+                device_address: 0,
+            }
         }
     }
 }
@@ -329,6 +352,7 @@ impl From<&DeviceInfo> for DeviceLocation {
 /// This is a generic function that will just return a list of USB Locations of Beacn Mic devices
 /// attached to your system for situations where you want to handle hot plugging yourself.
 pub async fn get_beacn_mic_devices() -> Vec<DeviceLocation> {
+    debug!("DOING IT");
     get_beacn_device(PID_BEACN_MIC).await
 }
 

@@ -19,8 +19,7 @@ use std::marker::PhantomData;
 use std::panic::RefUnwindSafe;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use std::time::Duration;
+use web_time::Duration;
 
 #[derive(Debug)]
 pub(crate) struct BeacnDevice<K: BeacnDeviceKind> {
@@ -111,6 +110,7 @@ impl<K: BeacnDeviceKind> Drop for BeacnDevice<K> {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn spawn_background<F>(kind: DeviceType, future: F)
 where
     F: Future<Output = ()> + Send + 'static,
@@ -130,12 +130,26 @@ where
     };
 
     // If we're not already inside a supported runtime, create an async-io context.
-    debug!("Spawning background thread for {}", device_type);
-    let name = format!("{}-task", device_type);
-    thread::Builder::new()
-        .name(name)
-        .spawn(move || {
-            async_io::block_on(future);
-        })
-        .expect("failed to spawn background thread");
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use std::thread;
+
+        debug!("Spawning background thread for {}", device_type);
+        let name = format!("{}-task", device_type);
+        thread::Builder::new()
+            .name(name)
+            .spawn(move || {
+                async_io::block_on(future);
+            })
+            .expect("failed to spawn background thread");
+    }
+}
+
+// Split wasm off completely as it has a different, incompatible, return type
+#[cfg(target_arch = "wasm32")]
+fn spawn_background<F>(_: DeviceType, future: F)
+where
+    F: Future<Output = ()> + 'static,
+{
+    wasm_bindgen_futures::spawn_local(future);
 }

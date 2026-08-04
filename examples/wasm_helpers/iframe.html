@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>WASM Runner</title>
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #1E1F22;
+            color: #DCDDDE;
+            font-family: "JetBrains Mono", Fira Code, monospace;
+            overflow-y: auto;
+        }
+
+        #logs {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 16px;
+            margin: 0;
+        }
+
+        .log-entry {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            column-gap: 8px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            background-color: #2B2D31;
+            white-space: pre-wrap;
+            line-height: 1.5;
+            font-size: 13px;
+            border-left: 4px solid transparent;
+        }
+
+        /* Avoid Formatting, these are better as one-liners :D */
+        .log-level { font-weight: bold; }
+
+        .log-entry.error  { border-left-color: #ED4245; }
+        .log-level.error  { color: #ED4245; }
+
+        .log-entry.warn   { border-left-color: #FEE75C; }
+        .log-level.warn   { color: #FEE75C; }
+
+        .log-entry.info   { border-left-color: #57F287; }
+        .log-level.info   { color: #57F287; }
+
+        .log-entry.debug  { border-left-color: #5865F2; }
+        .log-level.debug  { color: #5865F2; }
+
+        .log-entry.trace  { border-left-color: #99AAB5; }
+        .log-level.trace  { color: #99AAB5; }
+
+        .log-entry.system {
+            border-left-color: #EB459E;
+            background-color: rgba(235, 69, 158, 0.04);
+        }
+        .log-level.system { color: #EB459E; }
+    </style>
+</head>
+<body>
+
+<div id="logs"></div>
+<div id="scroll-anchor" style="height: 1px; margin-top: -1px;"></div>
+
+<script type="module">
+    const logs = document.getElementById("logs");
+    const scrollAnchor = document.getElementById("scroll-anchor");
+
+    function renderLog(level, message) {
+        const lowerLevel = level.toLowerCase();
+
+        const entry = document.createElement("div");
+        entry.className = `log-entry ${lowerLevel}`;
+
+        const levelSpan = document.createElement("span");
+        levelSpan.className = `log-level ${lowerLevel}`;
+        levelSpan.textContent = `[${level}]`;
+
+        const messageSpan = document.createElement("span");
+        messageSpan.textContent = message;
+
+        entry.appendChild(levelSpan);
+        entry.appendChild(messageSpan);
+        logs.appendChild(entry);
+
+        scrollAnchor.scrollIntoView({
+            behavior: "smooth",
+            block: "end"
+        });
+    }
+
+    // Inner application logs
+    window.addEventListener("inner-log", event => {
+        const data = JSON.parse(event.detail);
+        const { level, message } = data;
+        renderLog(level, message);
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    const example = params.get("example");
+
+    function waitForWasmFinish() {
+        return new Promise(resolve => {
+            window.addEventListener("wasm-finished", resolve, {once: true});
+        });
+    }
+
+    async function runExample() {
+        if (!example) {
+            renderLog("ERROR", "No example runtime path specified.");
+            return;
+        }
+
+        try {
+            const finished = waitForWasmFinish();
+            const stamp = Date.now();
+
+            // JS code has successfully imported from the network
+            const module = await import(`/generated/${example}/${example}.js?t=${stamp}`);
+
+            // Print the load confirmation BEFORE running the WASM code execution block
+            renderLog("SYSTEM", `WASM assets for "${example}" loaded successfully.`);
+
+            // Launch the compiled WASM binary execution context
+            await module.default(`/generated/${example}/${example}_bg.wasm?t=${stamp}`);
+
+            await finished;
+
+            renderLog("SYSTEM", "WASM program processing completed execution flow.");
+            window.parent.postMessage({type: "wasm-finished", example}, "*");
+
+        } catch (err) {
+            console.error(err);
+            renderLog("ERROR", `Runtime crash: ${err.stack || String(err)}`);
+            window.parent.postMessage({type: "wasm-error", example, error: err.stack || String(err)}, "*");
+        }
+    }
+
+    runExample();
+</script>
+
+</body>
+</html>

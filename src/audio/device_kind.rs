@@ -9,6 +9,7 @@ use crate::common::{
 use crate::manager::DeviceType;
 use crate::sealed::Sealed;
 use crate::sync::AsyncMutex;
+use crate::transfer::EndpointHandle;
 use crate::version::VersionNumber;
 use async_trait::async_trait;
 use log::debug;
@@ -40,7 +41,8 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnDeviceInfo for BeacnDevice<K> {
     }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioDeviceInternal for BeacnDevice<K> {
     async fn connect(definition: DeviceDefinition) -> BResult<Box<dyn BeacnAudioDevice>>
     where
@@ -49,8 +51,8 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnAudioDeviceInternal for BeacnDevic
         let handle = open_device::<Bulk>(K::PID, definition, 3, &[0xa0, 0xa1]).await?;
 
         // Grab the Endpoints
-        let out_ep = handle.interface.endpoint::<Bulk, Out>(0x03)?;
-        let in_ep = handle.interface.endpoint::<Bulk, In>(0x83)?;
+        let out_ep = EndpointHandle::<Bulk, Out>::new(handle.interface.clone(), 0x03)?;
+        let in_ep = EndpointHandle::<Bulk, In>::new(handle.interface.clone(), 0x83)?;
 
         let endpoints = AudioEndpoints { in_ep, out_ep };
 

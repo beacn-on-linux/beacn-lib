@@ -1,0 +1,324 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>WASM Example Runner</title>
+
+    <style>
+        /* Base page reset */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #1E1F22;
+            color: #DCDDDE;
+            font-family: sans-serif;
+        }
+
+        /* Flexbox Layout Structure */
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .status-header {
+            background-color: #2B2D31;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #3F4147;
+            flex-shrink: 0;
+            z-index: 10;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        .controls-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        h1 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0;
+            color: #FFFFFF;
+            letter-spacing: -0.3px;
+        }
+
+        .runner-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        select, button {
+            background-color: #383A40;
+            color: #F2F3F5;
+            border: 1px solid #4E5058;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s ease, border-color 0.15s ease;
+            outline: none;
+        }
+
+        select:hover, button:hover {
+            background-color: #4E5058;
+            border-color: #6D6F78;
+        }
+
+        select {
+            padding: 6px 32px 6px 12px;
+            position: relative;
+
+            appearance: none;
+            -webkit-appearance: none;
+
+            background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27%23DCDDDE%27%20stroke-width%3D%272.5%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpolyline%20points%3D%276%209%2012%2015%2018%209%27%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 6px center;
+            background-size: 14px;
+        }
+
+        #run-btn {
+            background-color: #248046;
+            border: none;
+            color: #FFFFFF;
+        }
+
+        #run-btn:hover {
+            background-color: #1a6535;
+        }
+
+        #usb {
+            background-color: #5865F2;
+            border: none;
+            color: #FFFFFF;
+        }
+
+        #usb:hover {
+            background-color: #4752C4;
+        }
+
+        #output {
+            background-color: #111214;
+            margin: 0;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            flex-shrink: 1;
+            box-sizing: border-box;
+
+            border-bottom: 1px solid #35363C;
+
+            max-height: 400px;
+            padding: 16px 20px;
+        }
+
+        #output:empty {
+            max-height: 0;
+            padding: 0;
+            border: none;
+        }
+
+        #runner {
+            flex-grow: 1;
+            width: 100%;
+            position: relative;
+            background-color: #1E1F22;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+<div class="status-header">
+    <div class="controls-left">
+        <h1>WASM Example Runner</h1>
+
+        <div class="runner-controls">
+            <select id="examples-dropdown">
+                <option value="" disabled selected>Select an example...</option>
+            </select>
+            <button id="run-btn">Run</button>
+        </div>
+    </div>
+    <button id="usb">Pair Device</button>
+</div>
+
+<pre id="output"></pre>
+<div id="runner"></div>
+
+<script type="module">
+    import {AnsiUp} from "https://cdn.jsdelivr.net/npm/ansi_up@6.0.2/+esm";
+
+    const ansi = new AnsiUp();
+
+    const usbButton = document.getElementById("usb");
+    const dropdown = document.getElementById("examples-dropdown");
+    const runButton = document.getElementById("run-btn");
+    const output = document.getElementById("output");
+    const runner = document.getElementById("runner");
+
+    let currentFrame = null;
+    let examplesList = [];
+
+    usbButton.onclick = async () => {
+        try {
+            await navigator.usb.requestDevice({filters: [{vendorId: 0x33ae}]});
+            if (currentFrame) {
+                // Something may have changed, reload the current app.
+                currentFrame.contentWindow.location.reload();
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    function unloadExample() {
+        if (currentFrame) {
+            currentFrame.remove();
+            currentFrame = null;
+        }
+    }
+
+    function loadExampleFrame(example) {
+        unloadExample();
+
+        currentFrame = document.createElement("iframe");
+        currentFrame.src = `/runner.html?example=${encodeURIComponent(example)}&t=${Date.now()}`;
+
+        runner.appendChild(currentFrame);
+    }
+
+    // Single click trigger hooked up to the new 'Run' button
+    runButton.onclick = async () => {
+        const selectedExample = dropdown.value;
+        if (!selectedExample) return;
+
+        unloadExample();
+        output.innerHTML = "";
+
+        try {
+            const response = await fetch(`/load/${selectedExample}`);
+
+            if (!response.ok) {
+                throw new Error(`Build failed: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            let buffer = "";
+
+            let buildFailed = false;
+            let statusMessage = "";
+
+            while (true) {
+                const {value, done} = await reader.read();
+
+                buffer += done ? decoder.decode() : decoder.decode(value, {stream: true});
+
+                while (true) {
+                    const index = buffer.indexOf("\0");
+                    if (index === -1) {
+                        break;
+                    }
+
+                    const json = buffer.slice(0, index);
+                    buffer = buffer.slice(index + 1);
+
+                    const message = JSON.parse(json);
+
+                    switch (message.type) {
+                        case "Line":
+                            output.innerHTML += ansi.ansi_to_html(message.text + "\n");
+                            output.scrollTop = output.scrollHeight;
+                            break;
+
+                        case "ExitStatus":
+                            buildFailed = !message.success;
+                            if (message.reason) {
+                                statusMessage = message.reason; // Capture "Build Complete..." or failure string
+                            }
+                            break;
+
+                        default:
+                            console.warn("Unknown output type:", message);
+                    }
+                }
+
+                if (done) break;
+            }
+
+            if (buildFailed) {
+                output.innerHTML += ansi.ansi_to_html(
+                    `\n\x1b[1;31m❌ Application launch aborted.\x1b[0m\n` +
+                    `\x1b[33mReason: ${statusMessage}\x1b[0m\n`
+                );
+                output.scrollTop = output.scrollHeight;
+                return;
+            }
+
+            output.innerHTML += ansi.ansi_to_html(`\n\x1b[1;32m✓ ${statusMessage}\x1b[0m\n`);
+            output.scrollTop = output.scrollHeight;
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            output.innerHTML = "";
+            loadExampleFrame(selectedExample);
+        } catch (err) {
+            console.error(err);
+            output.innerHTML += "\nFailed to build example:\n\n" + ansi.ansi_to_html(err.stack || String(err));
+        }
+    };
+
+    async function loadExamples() {
+        try {
+            const response = await fetch("/examples");
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch examples: ${response.status}`);
+            }
+
+            examplesList = await response.json();
+
+            for (const example of examplesList) {
+                const option = document.createElement("option");
+                option.value = example.name;
+                option.textContent = example.name;
+                dropdown.appendChild(option);
+            }
+        } catch (err) {
+            console.error(err);
+            output.textContent =
+                "Failed to load examples:\n\n" +
+                (err.stack || err);
+        }
+    }
+
+    window.addEventListener("message", event => {
+        if (event.data?.type === "wasm-finished") {
+            console.log(
+                `WASM finished: ${event.data.example}`
+            );
+        }
+    });
+
+    loadExamples();
+</script>
+
+</body>
+</html>

@@ -1,16 +1,27 @@
+use crate::common::logging::configure_logging;
+use crate::common::{sleep, spawn_local};
 use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, watch_hotplug_devices};
-use std::time::Duration;
-use tokio::time::sleep;
-use tokio::{join, select, task};
+use log::info;
+use tokio::select;
+use web_time::Duration;
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
+#[path = "common/mod.rs"]
+mod common;
+
+beacn_main!(flavor = "local", {
+    app_main().await;
+});
+
+async fn app_main() {
+    configure_logging();
     let (hotplug_tx, hotplug_rx) = flume::unbounded();
     let (mgmt_tx, mgmt_rx) = flume::unbounded();
 
+    info!("Spawning hotplug thread");
     // Spawn up a hotplug thread, this will announce all existing devices and watch for new ones.
-    let handle = task::spawn(watch_hotplug_devices(hotplug_tx, mgmt_rx));
+    let handle = spawn_local(watch_hotplug_devices(hotplug_tx, mgmt_rx));
 
+    info!("Listening for devices for 10 seconds..");
     // Listen for messages coming from the hotplug thread for 10 seconds, then exit.
     loop {
         select! {
@@ -26,10 +37,10 @@ async fn main() {
                         // the device.
                         //
                         // In this example, we're just going to ignore the health channel.
-                        println!("{:?} Device Attached: {:?}", device_type, location);
+                        info!("{:?} Device Attached: {:?}", device_type, location);
                     }
                     HotPlugMessage::DeviceRemoved(location) => {
-                        println!("Device Removed: {:?}", location);
+                        info!("Device Removed: {:?}", location);
                     }
                     HotPlugMessage::ThreadStopped => {
                         break;
@@ -42,6 +53,7 @@ async fn main() {
         }
     }
 
+    info!("Shutting down hotplug thread");
     let _ = mgmt_tx.send(HotPlugThreadManagement::Quit);
-    let _ = join!(handle);
+    handle.join().await;
 }

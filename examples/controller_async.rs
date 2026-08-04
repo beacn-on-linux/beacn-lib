@@ -1,17 +1,28 @@
-use beacn_lib::controller::{
-    BeacnControlDevice, ButtonLighting, Interactions, open_control_device,
-};
+use crate::common::controller::{test_buttons, test_pattern};
+use beacn_lib::controller::{BeacnControlDevice, Interactions, open_control_device};
 use beacn_lib::manager::{DeviceLocation, get_beacn_mix_create_device, get_beacn_mix_device};
-use beacn_lib::types::RGBA;
-use flume::Receiver;
-use image::codecs::jpeg::JpegEncoder;
-use image::{ImageBuffer, Rgb};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::mpsc;
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
+use crate::common::logging::configure_logging;
+use crate::common::{interval, spawn_local};
+use flume::Receiver;
+use log::{error, info};
+use std::sync::Arc;
+use tokio::sync::mpsc;
+use web_time::Duration;
+
+#[path = "common/mod.rs"]
+mod common;
+
+beacn_main!(flavor = "local", {
+    app_main().await;
+});
+
+async fn app_main() {
+    configure_logging();
+
+    info!("Turn the Dials while this is running to see the output!");
+
+    // Firstly, find any Mix and Mix Create devices
     let mut devices = get_beacn_mix_device().await;
     devices.extend(get_beacn_mix_create_device().await);
 
@@ -25,7 +36,7 @@ async fn main() {
         let dev = match dev {
             Ok(dev) => dev,
             Err(e) => {
-                println!("Failed to open device: {:?}", e);
+                error!("Failed to open device: {:?}", e);
                 continue;
             }
         };
@@ -39,9 +50,13 @@ async fn main() {
     }
 
     if device_maps.is_empty() {
-        println!("No usable devices found!");
+        error!("No usable devices found!");
         return;
     }
+
+    let count = device_maps.len();
+    let s = if count == 1 { "" } else { "s" };
+    info!("Found {} device{s}..", count);
 
     // For each of the devices, spawn up a task that handles the events so we can wrap everything
     // in a tokio::select!
@@ -53,7 +68,7 @@ async fn main() {
         let interaction_rx = device.interactions.clone();
         let health_rx = device.health.clone();
 
-        tokio::spawn(async move {
+        spawn_local(async move {
             loop {
                 tokio::select! {
                     msg = interaction_rx.recv_async() => {
@@ -79,12 +94,14 @@ async fn main() {
     }
     drop(event_tx);
 
-    let mut ticker = tokio::time::interval(Duration::from_secs(1));
+    let mut ticker = interval::Interval::new(Duration::from_secs(1));
     let mut step = 0;
 
     'primary: loop {
         tokio::select! {
             _ = ticker.tick() => {
+                info!("Executing Step {}", step);
+
                 for device in &device_maps {
                     let (x, y, image) = test_pattern(step);
                     for (button, colour) in test_buttons(step) {
@@ -105,17 +122,18 @@ async fn main() {
             Some(event) = event_rx.recv() => {
                 match event {
                     DeviceEvent::Interaction(location, msg) => {
-                        println!("[{}] {:?}", location, msg);
+                        info!("[{}] {:?}", location, msg);
                     }
 
                     DeviceEvent::Health(location) => {
-                        println!("[{}] Error on Device Handler!", location);
+                        error!("[{}] Error on Device Handler!", location);
                     }
                 }
             }
         }
     }
 
+    info!("Turning off devices..");
     for device in device_maps {
         let _ = device.device.set_enabled(false).await;
     }
@@ -133,64 +151,4 @@ struct Device {
 
     health: Receiver<()>,
     interactions: Receiver<Interactions>,
-}
-
-/// This test pattern is a simple 4 colour stepper, that demonstrates how to create images that
-/// can be used on the devices. It specifically uses overlays, and not full draws.
-fn test_pattern(step: usize) -> (u32, u32, Vec<u8>) {
-    let width = 800;
-    let height = 480;
-
-    let band = width / 4;
-
-    let (x, colour, w) = match step {
-        0 => (0, [0u8, 0, 0], width),
-        1..=4 => (
-            ((step - 1) as u32) * band,
-            [[255u8, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 255]][step - 1],
-            band,
-        ),
-        5..=8 => (((step - 5) as u32) * band, [0u8, 0, 0], band),
-        9 => (0, [0u8, 0, 0], width),
-        _ => unreachable!(),
-    };
-
-    let image = ImageBuffer::from_fn(w, height, |_x, _y| Rgb(colour));
-
-    // The higher the quality, the larger the file size, and thus the longer it'll take to send
-    // and render. Keep this in mind when creating your own images!
-    let mut jpeg = Vec::new();
-    let mut encoder = JpegEncoder::new_with_quality(&mut jpeg, 50);
-
-    encoder.encode_image(&image).unwrap();
-    (x, 0, jpeg)
-}
-
-fn test_buttons(step: usize) -> Vec<(ButtonLighting, RGBA)> {
-    let black = RGBA::from([0, 0, 0, 255]);
-    let red = RGBA::from([255, 0, 0, 255]);
-    let green = RGBA::from([0, 255, 0, 255]);
-    let blue = RGBA::from([0, 0, 255, 255]);
-    let white = RGBA::from([255, 255, 255, 255]);
-
-    let clear = vec![
-        (ButtonLighting::Dial1, black),
-        (ButtonLighting::Dial2, black),
-        (ButtonLighting::Dial3, black),
-        (ButtonLighting::Dial4, black),
-    ];
-
-    match step {
-        0 => clear,
-        1 => vec![(ButtonLighting::Dial1, red)],
-        2 => vec![(ButtonLighting::Dial2, green)],
-        3 => vec![(ButtonLighting::Dial3, blue)],
-        4 => vec![(ButtonLighting::Dial4, white)],
-        5 => vec![(ButtonLighting::Dial1, black)],
-        6 => vec![(ButtonLighting::Dial2, black)],
-        7 => vec![(ButtonLighting::Dial3, black)],
-        8 => vec![(ButtonLighting::Dial4, black)],
-        9 => clear,
-        _ => unreachable!(),
-    }
 }

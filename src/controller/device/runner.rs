@@ -8,19 +8,19 @@ use crate::controller::device::messenger::Messenger;
 use crate::controller::{BeacnControlDevice, Buttons, ControlThreadSender, Dials, Interactions};
 use crate::sealed::Sealed;
 use crate::timers::{Ticker, Timer, sleep};
-use crate::transfer::transfer;
+use crate::transfer::{EndpointHandle, transfer};
 use crate::version::VersionNumber;
 use byteorder::{BigEndian, ByteOrder};
 use flume::{Receiver, Sender};
 use futures_lite::future::or;
 use futures_lite::stream::{self, Stream, StreamExt};
 use log::{debug, error, warn};
-use nusb::transfer::{Buffer, In, Interrupt, TransferError};
+use nusb::transfer::{In, Interrupt, TransferError};
 use std::future::pending;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 use strum::IntoEnumIterator;
+use web_time::Duration;
 
 // Default Display 'Active' and 'Dimmed' brightness, and the default dim time
 static DISPLAY_DEFAULT_FULL_BRIGHTNESS: u8 = 40;
@@ -63,7 +63,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
         // when needed (for example, the two different interaction methods can feed into a single
         // handler with the same data).
         let (event_tx, event_rx) = flume::unbounded::<Event>();
-        let in_ep = match handler.interface.endpoint::<Interrupt, In>(0x83) {
+        let in_ep = match EndpointHandle::<Interrupt, In>::new(handler.interface.clone(), 0x83) {
             Ok(ep) => ep,
             Err(e) => {
                 error!("Failed to open Interrupt IN endpoint: {}", e);
@@ -71,8 +71,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
             }
         };
 
-        let serial = handler.serial.clone();
-        let mut messenger = match Messenger::new(handler, timeout) {
+        let mut messenger = match Messenger::new(handler.interface.clone(), timeout) {
             Ok(messenger) => messenger,
             Err(e) => {
                 error!("Failed to create Messenger: {}", e);
@@ -80,8 +79,14 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
             }
         };
 
-        let mut polled_in_ep: Option<nusb::Endpoint<Interrupt, In>> = None;
-        let mut notify_reads: Pin<Box<dyn Stream<Item = [u8; 64]> + Send>> = if is_notify {
+        #[cfg(target_arch = "wasm32")]
+        type NotifyType = Pin<Box<dyn Stream<Item = [u8; 64]>>>;
+
+        #[cfg(not(target_arch = "wasm32"))]
+        type NotifyType = Pin<Box<dyn Stream<Item = [u8; 64]> + Send>>;
+
+        let mut polled_in_ep: Option<EndpointHandle<Interrupt, In>> = None;
+        let mut notify_reads: NotifyType = if is_notify {
             Box::pin(build_notify_read_stream(in_ep))
         } else {
             polled_in_ep = Some(in_ep);
@@ -131,7 +136,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
 
         // TODO: I should probably use a Macro or a closure to handle the recv
         // In all cases, if a channel has closed, we should abort.
-        debug!("Spawning Event Handler for {}", serial);
+        debug!("Spawning Event Handler for {}", handler.serial);
 
         'primary: loop {
             // We're using this because we have futures-lite available as an agnostic handler,
@@ -260,7 +265,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                         break;
                     };
 
-                    match transfer(in_ep, Buffer::new(64), timeout).await {
+                    match transfer(in_ep, Vec::with_capacity(64), timeout).await {
                         Err(e) => {
                             debug!("Error Reading Poll Response: {}", e);
                             break;
@@ -357,7 +362,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
 ///
 /// We maintain ownership of the endpoint for the run, but when a message arrives we return it
 /// back to the caller.
-fn build_notify_read_stream(in_ep: nusb::Endpoint<Interrupt, In>) -> impl Stream<Item = [u8; 64]> {
+fn build_notify_read_stream(in_ep: EndpointHandle<Interrupt, In>) -> impl Stream<Item = [u8; 64]> {
     // Defensive check, how many consecutive "device gone" reads we'll tolerate before assuming
     // the device is actually dead.
     const MAX_DEVICE_RETRIES: u32 = 10;
@@ -367,7 +372,7 @@ fn build_notify_read_stream(in_ep: nusb::Endpoint<Interrupt, In>) -> impl Stream
         (in_ep, 0u32),
         move |(mut ep, mut device_retries)| async move {
             loop {
-                match transfer(&mut ep, Buffer::new(64), read_timeout).await {
+                match transfer(&mut ep, Vec::with_capacity(64), read_timeout).await {
                     Ok(buf) => {
                         device_retries = 0;
                         let mut input = [0u8; 64];

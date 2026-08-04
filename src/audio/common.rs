@@ -4,23 +4,24 @@ use crate::common::BeacnDeviceInfo;
 use crate::manager::DeviceType;
 use crate::sealed::Sealed;
 use crate::sync::AsyncMutex as Mutex;
-use crate::transfer::transfer;
+use crate::transfer::{EndpointHandle, transfer};
 use crate::{BResult, beacn_bail};
 use async_trait::async_trait;
 use byteorder::{ByteOrder, LittleEndian};
 use log::warn;
-use nusb::transfer::{Buffer, Bulk, In, Out};
-use std::time::Duration;
+use nusb::transfer::{Bulk, In, Out};
+use web_time::Duration;
 
 /// This is a bulk endpoint pair. These are mutexed together to prevent
 /// the potential of different threads (or async tasks) attempting to interact with
 /// the device at the same time; access is treated one at a time.
 pub struct AudioEndpoints {
-    pub(crate) out_ep: nusb::Endpoint<Bulk, Out>,
-    pub(crate) in_ep: nusb::Endpoint<Bulk, In>,
+    pub(crate) out_ep: EndpointHandle<Bulk, Out>,
+    pub(crate) in_ep: EndpointHandle<Bulk, In>,
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub(crate) trait BeacnAudioDeviceInternal: Sealed {
     // We're specifically allowing the DeviceDefinition to be a private interface, as it's
     // simply used internally for connection up a device, and shouldn't have any visibility
@@ -35,8 +36,9 @@ pub(crate) trait BeacnAudioDeviceInternal: Sealed {
 }
 
 // Trait for Sending and Receiving Messages
-#[async_trait]
 #[allow(private_bounds)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait BeacnAudioAPI: BeacnAudioDeviceInternal + BeacnAudioMessageLocal + Sealed {
     async fn handle_message(&self, message: Message) -> BResult<Message> {
         if message.is_device_message_set() {
@@ -55,7 +57,8 @@ pub trait BeacnAudioAPI: BeacnAudioDeviceInternal + BeacnAudioMessageLocal + Sea
 }
 
 // Stuff that is local to this instance
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub(crate) trait BeacnAudioMessageLocal:
     BeacnAudioDeviceInternal + BeacnDeviceInfo + Sealed
 {
@@ -143,8 +146,9 @@ pub(crate) trait BeacnAudioMessageLocal:
         transfer(&mut ep.out_ep, request.into(), timeout).await?;
 
         // Grab the response into a buffer
-        let max_packet_size = ep.in_ep.max_packet_size();
-        let completion = transfer(&mut ep.in_ep, Buffer::new(max_packet_size), timeout).await?;
+        let max_packet_size = ep.in_ep.get_mut()?.max_packet_size();
+        let buffer = Vec::with_capacity(max_packet_size);
+        let completion = transfer(&mut ep.in_ep, buffer, timeout).await?;
 
         if completion.len() != 8 {
             beacn_bail!("Invalid Response Length Received");
@@ -209,7 +213,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         transfer(&mut endpoints.out_ep, request.into(), timeout).await?;
 
         // TODO: Assuming max length of 1024, it might be higher
-        let completion = transfer(&mut endpoints.in_ep, Buffer::new(1024), timeout).await?;
+        let completion = transfer(&mut endpoints.in_ep, Vec::with_capacity(1024), timeout).await?;
         let buf = &completion[..];
 
         // Extract the header
@@ -275,7 +279,7 @@ pub(crate) trait BeacnAudioMessageLocal:
 
         let timeout = Duration::from_secs(3);
         let mut endpoints = self.get_endpoints().lock().await;
-        transfer(&mut endpoints.out_ep, message.into(), timeout).await?;
+        transfer(&mut endpoints.out_ep, message, timeout).await?;
 
         Ok(())
     }
