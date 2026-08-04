@@ -85,8 +85,6 @@ impl WebServer {
 
         let parts: Vec<_> = url.trim_matches('/').split('/').collect();
 
-        info!("Parts: {:?}", parts.as_slice());
-
         match parts.as_slice() {
             ["examples"] => {
                 let examples = self.manager.examples();
