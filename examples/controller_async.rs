@@ -54,7 +54,7 @@ async fn app_main() {
         return;
     }
 
-    let count = device_maps.iter().count();
+    let count = device_maps.len();
     let s = if count == 1 { "" } else { "s" };
     info!("Found {} device{s}..", count);
 

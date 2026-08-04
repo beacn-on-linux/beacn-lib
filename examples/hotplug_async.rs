@@ -2,7 +2,7 @@ use crate::common::logging::configure_logging;
 use crate::common::{sleep, spawn_local};
 use beacn_lib::manager::{HotPlugMessage, HotPlugThreadManagement, watch_hotplug_devices};
 use log::info;
-use tokio::{join, select, task};
+use tokio::select;
 use web_time::Duration;
 
 #[path = "common/mod.rs"]
