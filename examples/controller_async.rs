@@ -8,12 +8,12 @@ use log::{error, info};
 use std::sync::Arc;
 use web_time::Duration;
 use tokio::sync::mpsc;
-use crate::common::interval;
+use crate::common::{interval, spawn_local};
 
 #[path = "common/mod.rs"]
 mod common;
 
-beacn_main!(flavor = "current_thread", {
+beacn_main!(flavor = "local", {
     app_main().await;
 });
 
@@ -62,7 +62,7 @@ async fn app_main() {
         let interaction_rx = device.interactions.clone();
         let health_rx = device.health.clone();
 
-        tokio::spawn(async move {
+        spawn_local(async move {
             loop {
                 tokio::select! {
                     msg = interaction_rx.recv_async() => {
