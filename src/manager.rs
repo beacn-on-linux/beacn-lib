@@ -331,9 +331,14 @@ impl From<&DeviceInfo> for DeviceLocation {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
+            let bus = match value.bus_id().parse::<u32>() {
+                Ok(n) => n.to_string(),
+                Err(_) => value.bus_id().to_string(),
+            };
+
             Self {
                 hash,
-                bus_id: value.bus_id().to_string(),
+                bus_id: bus,
                 device_address: value.device_address(),
             }
         }
