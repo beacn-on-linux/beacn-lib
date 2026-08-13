@@ -30,7 +30,7 @@ which may occur from its use. Please read the LICENSE for more information.
 ## Usage
 ```toml
 [dependencies]
-beacn-lib = { git = "https://github.com/beacn-on-linux/beacn-lib", tag = "v0.2.2", features = [] }
+beacn-lib = { git = "https://github.com/beacn-on-linux/beacn-lib", tag = "v0.2.3", features = [] }
 ```
 
 Crate Feature Table
@@ -41,7 +41,7 @@ Crate Feature Table
 | `tokio`    | Async support with tokio                      |
 | `async-rt` | Async support with other runtimes (e.g. smol) |
 
-If you are compiling for WASM, you sould only use the `async` feature.
+If you are compiling for WASM, you should only use the `async` feature.
 
 ## Warnings
 When used against a Beacn Mix and Mix Create, termination of an application while an image is mid-send may cause
