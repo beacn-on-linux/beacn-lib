@@ -3,6 +3,7 @@ use crate::controller::common::{
     BeacnControlAPI, BeacnControlDeviceInfo, BeacnControlDeviceInternal,
 };
 use crate::controller::device_kind::BeacnDevice;
+use crate::controller::messages::Message;
 use crate::manager::{DeviceLocation, DeviceType, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
 use crate::sealed::Sealed;
 use crate::types::RGBA;
@@ -17,6 +18,7 @@ use web_time::Duration;
 mod common;
 mod device;
 pub mod device_kind;
+pub mod messages;
 
 #[allow(private_interfaces)]
 pub type BeacnMix = BeacnDevice<BeacnMixKind>;
@@ -122,11 +124,5 @@ pub enum ButtonLighting {
 #[derive(Display, Debug)]
 pub enum ControlThreadSender {
     Stop,
-    KeepAlive(oneshot::Sender<()>),
-    SetEnabled(bool, oneshot::Sender<()>),
-    SetImage(u32, u32, Vec<u8>, oneshot::Sender<()>),
-    SetDimTimeout(Duration, oneshot::Sender<()>),
-    SetActiveBrightness(u8, oneshot::Sender<()>),
-    SetButtonBrightness(u8, oneshot::Sender<()>),
-    SetButtonColour(u8, RGBA, oneshot::Sender<()>),
+    SendMessage(Message, oneshot::Sender<()>),
 }

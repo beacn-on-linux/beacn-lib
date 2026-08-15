@@ -1,10 +1,7 @@
 use crate::common::BeacnDeviceHandle;
 use crate::controller::ButtonState::{Press, Release};
-use crate::controller::ControlThreadSender::{
-    KeepAlive, SetActiveBrightness, SetButtonBrightness, SetButtonColour, SetDimTimeout,
-    SetEnabled, SetImage,
-};
 use crate::controller::device::messenger::Messenger;
+use crate::controller::messages::Message;
 use crate::controller::{BeacnControlDevice, Buttons, ControlThreadSender, Dials, Interactions};
 use crate::sealed::Sealed;
 use crate::timers::{Ticker, Timer, sleep};
@@ -171,65 +168,80 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                                     debug!("Stopping Event Handler");
                                     break;
                                 }
-                                KeepAlive(tx) => {
-                                    if let Err(e) = messenger.ping().await {
-                                        error!("Failed to Send Keep-Alive Request: {}", e);
-                                        break;
-                                    }
-                                    let _ = tx.send(());
-                                }
-                                SetEnabled(enabled, tx) => {
-                                    if let Err(e) = messenger.enable(enabled).await {
-                                        error!("Failed to Enable Device: {}", e);
-                                        break;
-                                    }
-                                    let _ = tx.send(());
-                                }
-                                SetImage(x, y, img, tx) => {
-                                    if let Err(e) = messenger.ensure_enabled().await {
-                                        error!("Failed to Enable Device, dropping Frame: {}", e);
-                                        continue 'primary;
-                                    }
+                                ControlThreadSender::SendMessage(msg, tx) => {
+                                    match msg {
+                                        Message::KeepAlive => {
+                                            if let Err(e) = messenger.ping().await {
+                                                error!("Failed to Send Keep-Alive Request: {}", e);
+                                                break;
+                                            }
+                                            let _ = tx.send(());
+                                        }
+                                        Message::SetEnabled(enabled) => {
+                                            if let Err(e) = messenger.enable(enabled).await {
+                                                error!("Failed to Enable Device: {}", e);
+                                                break;
+                                            }
+                                            let _ = tx.send(());
+                                        }
+                                        Message::SetImage(x, y, img) => {
+                                            if let Err(e) = messenger.ensure_enabled().await {
+                                                error!(
+                                                    "Failed to Enable Device, dropping Frame: {}",
+                                                    e
+                                                );
+                                                continue 'primary;
+                                            }
 
-                                    if let Err(e) = messenger.send_image(x, y, &img).await {
-                                        error!("Failed to Send Image, dropping Frame: {}", e);
-                                        continue 'primary;
+                                            if let Err(e) = messenger.send_image(x, y, &img).await {
+                                                error!(
+                                                    "Failed to Send Image, dropping Frame: {}",
+                                                    e
+                                                );
+                                                continue 'primary;
+                                            }
+                                            let _ = tx.send(());
+                                        }
+                                        Message::SetDimTimeout(timeout) => {
+                                            dim_duration = timeout;
+                                            if !is_dimmed {
+                                                // If we're not already dimmed, reset the timer
+                                                dim_timeout.reset(dim_duration);
+                                            }
+                                            let _ = tx.send(());
+                                        }
+                                        Message::SetActiveBrightness(percent) => {
+                                            if is_dimmed {
+                                                is_dimmed = false;
+                                                dim_timeout.reset(dim_duration);
+                                            }
+                                            brightness = percent;
+                                            if let Err(e) =
+                                                messenger.set_brightness(brightness).await
+                                            {
+                                                error!("Failed to Set Brightness: {}", e);
+                                                break;
+                                            }
+                                            let _ = tx.send(());
+                                        }
+                                        Message::SetButtonBrightness(value) => {
+                                            if let Err(e) =
+                                                messenger.set_button_brightness(value).await
+                                            {
+                                                error!("Failed to Set Button Brightness: {}", e);
+                                                break;
+                                            }
+                                            let _ = tx.send(());
+                                        }
+                                        Message::SetButtonColour(b, c) => {
+                                            let msg = messenger.set_button_colour(b as u8, c).await;
+                                            if let Err(e) = msg {
+                                                error!("Failed to Set Button Colour: {}", e);
+                                                break;
+                                            }
+                                            let _ = tx.send(());
+                                        }
                                     }
-                                    let _ = tx.send(());
-                                }
-                                SetDimTimeout(timeout, tx) => {
-                                    dim_duration = timeout;
-                                    if !is_dimmed {
-                                        // If we're not already dimmed, reset the timer
-                                        dim_timeout.reset(dim_duration);
-                                    }
-                                    let _ = tx.send(());
-                                }
-                                SetActiveBrightness(percent, tx) => {
-                                    if is_dimmed {
-                                        is_dimmed = false;
-                                        dim_timeout.reset(dim_duration);
-                                    }
-                                    brightness = percent;
-                                    if let Err(e) = messenger.set_brightness(brightness).await {
-                                        error!("Failed to Set Brightness: {}", e);
-                                        break;
-                                    }
-                                    let _ = tx.send(());
-                                }
-                                SetButtonBrightness(value, tx) => {
-                                    if let Err(e) = messenger.set_button_brightness(value).await {
-                                        error!("Failed to Set Button Brightness: {}", e);
-                                        break;
-                                    }
-                                    let _ = tx.send(());
-                                }
-                                SetButtonColour(b, c, tx) => {
-                                    if let Err(e) = messenger.set_button_colour(b, c).await {
-                                        error!("Failed to Set Button Colour: {}", e);
-                                        break;
-                                    }
-                                    let _ = tx.send(());
                                 }
                             }
                         }
