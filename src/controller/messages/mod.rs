@@ -10,12 +10,12 @@ use web_time::Duration;
 pub enum Message {
     KeepAlive,
     Enabled(bool),
-    
+
     Image(u32, u32, Arc<Vec<u8>>),
-    
+
     DisplayBrightness(u8),
     DisplayDimTime(Duration),
-    
-    ButtonBrightness(u8), 
+
+    ButtonBrightness(u8),
     ButtonColour(ButtonLighting, RGBA),
 }

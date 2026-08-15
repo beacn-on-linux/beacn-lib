@@ -27,7 +27,7 @@ pub enum Suppressor {
     Sensitivity(SuppressorSensitivity),
 
     GetAdaptTime,
-    AdaptTime(SupressorAdaptTime),
+    AdaptTime(SuppressorAdaptTime),
 }
 
 impl BeacnSubMessage for Suppressor {
@@ -90,7 +90,7 @@ impl BeacnSubMessage for Suppressor {
 }
 
 generate_range!(SuppressorSensitivity, f32, -120.0..=-60.0);
-generate_range!(SupressorAdaptTime, f32, 100.0..=5000.0);
+generate_range!(SuppressorAdaptTime, f32, 100.0..=5000.0);
 
 // enum Suppressor {
 //     Enabled = 0x00,
