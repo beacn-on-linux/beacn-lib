@@ -1,11 +1,11 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
-use crate::{generate_range, message_group};
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{
     BeacnValue, MakeUpGain, PackedEnumKey, ReadBeacn, TimeFrame, WriteBeacn, read_value,
     write_value,
 };
+use crate::{generate_range, message_group};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
