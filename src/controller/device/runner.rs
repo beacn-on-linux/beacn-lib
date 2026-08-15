@@ -202,7 +202,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                                             }
                                             let _ = tx.send(());
                                         }
-                                        Message::DimTimeout(timeout) => {
+                                        Message::DisplayDimTime(timeout) => {
                                             dim_duration = timeout;
                                             if !is_dimmed {
                                                 // If we're not already dimmed, reset the timer

@@ -85,7 +85,7 @@ pub trait BeacnControlAPI:
             }
 
             #[allow(clippy::collapsible_match)]
-            Message::DimTimeout(t) => {
+            Message::DisplayDimTime(t) => {
                 if !(30..=300).contains(&t.as_secs()) {
                     let err = "Dim timeout must be between 30 and 300 seconds";
                     beacn_bail!(anyhow!("{err}"));
