@@ -175,7 +175,7 @@ fn main() {
                 let message = Message::KeepAlive;
                 match device.handle_message(message).wait() {
                     Ok(()) => {
-                        let image = Message::SetImage(0, 0, frame);
+                        let image = Message::Image(0, 0, frame);
                         if let Err(e) = device.handle_message(image).wait() {
                             debug!("Image send failed: {e}");
                             sleep(Duration::from_millis(200));

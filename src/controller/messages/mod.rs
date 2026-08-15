@@ -7,11 +7,11 @@ use web_time::Duration;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Message {
-    SetEnabled(bool),
     KeepAlive,
-    SetImage(u32, u32, Vec<u8>),
-    SetActiveBrightness(u8),
-    SetButtonBrightness(u8),
-    SetDimTimeout(Duration),
-    SetButtonColour(ButtonLighting, RGBA),
+    Enabled(bool),
+    Image(u32, u32, Vec<u8>),
+    DisplayBrightness(u8),
+    ButtonBrightness(u8),
+    DimTimeout(Duration),
+    ButtonColour(ButtonLighting, RGBA),
 }

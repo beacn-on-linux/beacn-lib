@@ -106,14 +106,14 @@ async fn app_main() {
                 for device in &device_maps {
                     let (x, y, image) = test_pattern(step);
                     for (button, colour) in test_buttons(step) {
-                        let message = Message::SetButtonColour(button, colour);
+                        let message = Message::ButtonColour(button, colour);
                         let _ = device.device.handle_message(message).await;
                     }
 
                     let _ = device.device.handle_message(Message::KeepAlive).await;
 
                     // Send the Image
-                    let msg = Message::SetImage(x, y, image);
+                    let msg = Message::Image(x, y, image);
                     let _ = device.device.handle_message(msg).await;
 
                     step += 1;
@@ -140,7 +140,7 @@ async fn app_main() {
 
     info!("Turning off devices..");
     for device in device_maps {
-        let msg = Message::SetEnabled(false);
+        let msg = Message::Enabled(false);
         let _ = device.device.handle_message(msg).await;
     }
 }

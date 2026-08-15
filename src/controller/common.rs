@@ -40,7 +40,7 @@ pub trait BeacnControlAPI:
     async fn handle_message(&self, message: Message) -> BResult<()> {
         // Firstly, do any validation that's needed on the messages
         match &message {
-            Message::SetImage(x, y, i) => {
+            Message::Image(x, y, i) => {
                 let display_size = self.get_display_size();
                 if *x > display_size.0 || *y > display_size.1 {
                     beacn_bail!(
@@ -73,19 +73,19 @@ pub trait BeacnControlAPI:
                     beacn_bail!("Unable to Fetch Image Info");
                 }
             }
-            Message::SetActiveBrightness(b) => {
+            Message::DisplayBrightness(b) => {
                 if !(1..=100).contains(b) {
                     beacn_bail!("Display Brightness must be a percentage");
                 }
             }
-            Message::SetButtonBrightness(b) => {
+            Message::ButtonBrightness(b) => {
                 if !(0..=10).contains(b) {
                     beacn_bail!("Button Brightness must be between 0 and 10");
                 }
             }
 
             #[allow(clippy::collapsible_match)]
-            Message::SetDimTimeout(t) => {
+            Message::DimTimeout(t) => {
                 if !(30..=300).contains(&t.as_secs()) {
                     let err = "Dim timeout must be between 30 and 300 seconds";
                     beacn_bail!(anyhow!("{err}"));

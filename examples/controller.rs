@@ -87,14 +87,14 @@ fn main() {
             for device in &device_maps {
                 let (x, y, image) = test_pattern(step);
                 for (button, colour) in test_buttons(step) {
-                    let msg = Message::SetButtonColour(button, colour);
+                    let msg = Message::ButtonColour(button, colour);
                     let _ = device.device.handle_message(msg).wait();
                 }
 
                 let _ = device.device.handle_message(Message::KeepAlive).wait();
 
                 // Send the Image
-                let msg = Message::SetImage(x, y, image);
+                let msg = Message::Image(x, y, image);
                 let _ = device.device.handle_message(msg).wait();
 
                 step += 1;
@@ -106,7 +106,7 @@ fn main() {
         }
     }
     for device in device_maps {
-        let msg = Message::SetEnabled(false);
+        let msg = Message::Enabled(false);
         let _ = device.device.handle_message(msg).wait();
     }
 }

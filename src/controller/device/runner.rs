@@ -177,14 +177,14 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                                             }
                                             let _ = tx.send(());
                                         }
-                                        Message::SetEnabled(enabled) => {
+                                        Message::Enabled(enabled) => {
                                             if let Err(e) = messenger.enable(enabled).await {
                                                 error!("Failed to Enable Device: {}", e);
                                                 break;
                                             }
                                             let _ = tx.send(());
                                         }
-                                        Message::SetImage(x, y, img) => {
+                                        Message::Image(x, y, img) => {
                                             if let Err(e) = messenger.ensure_enabled().await {
                                                 error!(
                                                     "Failed to Enable Device, dropping Frame: {}",
@@ -202,7 +202,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                                             }
                                             let _ = tx.send(());
                                         }
-                                        Message::SetDimTimeout(timeout) => {
+                                        Message::DimTimeout(timeout) => {
                                             dim_duration = timeout;
                                             if !is_dimmed {
                                                 // If we're not already dimmed, reset the timer
@@ -210,7 +210,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                                             }
                                             let _ = tx.send(());
                                         }
-                                        Message::SetActiveBrightness(percent) => {
+                                        Message::DisplayBrightness(percent) => {
                                             if is_dimmed {
                                                 is_dimmed = false;
                                                 dim_timeout.reset(dim_duration);
@@ -224,7 +224,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                                             }
                                             let _ = tx.send(());
                                         }
-                                        Message::SetButtonBrightness(value) => {
+                                        Message::ButtonBrightness(value) => {
                                             if let Err(e) =
                                                 messenger.set_button_brightness(value).await
                                             {
@@ -233,7 +233,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                                             }
                                             let _ = tx.send(());
                                         }
-                                        Message::SetButtonColour(b, c) => {
+                                        Message::ButtonColour(b, c) => {
                                             let msg = messenger.set_button_colour(b as u8, c).await;
                                             if let Err(e) = msg {
                                                 error!("Failed to Set Button Colour: {}", e);
