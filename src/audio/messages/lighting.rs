@@ -35,21 +35,7 @@ impl BeacnSubMessage for Lighting {
     }
 
     fn is_device_message_set(&self) -> bool {
-        matches!(
-            self,
-            Lighting::Mode(_)
-                | Lighting::StudioMode(_)
-                | Lighting::Colour1(_)
-                | Lighting::Colour2(_)
-                | Lighting::Speed(_)
-                | Lighting::Brightness(_)
-                | Lighting::MeterSource(_)
-                | Lighting::MeterSensitivity(_)
-                | Lighting::MuteMode(_)
-                | Lighting::MuteColour(_)
-                | Lighting::SuspendMode(_)
-                | Lighting::SuspendBrightness(_)
-        )
+        self.is_message_set()
     }
 
     fn to_beacn_key(&self) -> [u8; 2] {

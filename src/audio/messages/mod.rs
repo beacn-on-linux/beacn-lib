@@ -261,11 +261,17 @@ trait BeacnSubMessage {
 #[macro_export]
 macro_rules! message_group {
     (pub enum $name:ident { $($body:tt)* }) => {
-        $crate::message_group!(@munch $name; []; []; []; $($body)*);
+        $crate::message_group!(@munch $name; []; []; []; []; $($body)*);
     };
 
-    (@munch $name:ident; [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*]; ) => {
-        paste::paste! {
+    // base case: nothing left to consume, emit everything
+    (@munch $name:ident;
+        [$($variants:tt)*];
+        [$($getters:tt)*];
+        [$($targets:tt)*];
+        [$($device_arms:tt)*];
+    ) => {
+        $crate::paste::paste! {
             #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
             pub enum $name {
                 $($variants)*
@@ -279,45 +285,58 @@ macro_rules! message_group {
                         _ => false,
                     }
                 }
+
+                pub fn is_message_set(&self) -> bool {
+                    match self {
+                        $($device_arms)*
+                        _ => false,
+                    }
+                }
             }
         }
     };
 
-    // Zero Key Variant
-    (@munch $name:ident; [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*];
+    // zero-key variant
+    (@munch $name:ident;
+        [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*]; [$($device_arms:tt)*];
         $variant:ident () -> $val_ty:ty $(, $($rest:tt)*)?) => {
         $crate::message_group!(
             @munch $name;
             [$($variants)* $variant($val_ty),];
             [$($getters)* [<Get $variant>],];
             [$($targets)* (Self::$variant(_), Self::$variant(_)) => true,];
+            [$($device_arms)* Self::$variant(..) => true,];
             $($($rest)*)?
         );
     };
 
-    // One Key Variant
-    (@munch $name:ident; [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*];
+    // one-key variant
+    (@munch $name:ident;
+        [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*]; [$($device_arms:tt)*];
         $variant:ident ($k0:ty) -> $val_ty:ty $(, $($rest:tt)*)?) => {
         $crate::message_group!(
             @munch $name;
             [$($variants)* $variant($k0, $val_ty),];
             [$($getters)* [<Get $variant>]($k0),];
             [$($targets)* (Self::$variant(a0, _), Self::$variant(b0, _)) => a0 == b0,];
+            [$($device_arms)* Self::$variant(..) => true,];
             $($($rest)*)?
         );
     };
 
-    // Two Key Variant
-    (@munch $name:ident; [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*];
+    // two-key variant
+    (@munch $name:ident;
+        [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*]; [$($device_arms:tt)*];
         $variant:ident ($k0:ty, $k1:ty) -> $val_ty:ty $(, $($rest:tt)*)?) => {
         $crate::message_group!(
             @munch $name;
             [$($variants)* $variant($k0, $k1, $val_ty),];
             [$($getters)* [<Get $variant>]($k0, $k1),];
             [$($targets)* (Self::$variant(a0, a1, _), Self::$variant(b0, b1, _)) => a0 == b0 && a1 == b1,];
+            [$($device_arms)* Self::$variant(..) => true,];
             $($($rest)*)?
         );
     };
 
-    // This gonna get silly if we ever need a three key variant :D
+    // This gonna get messy if we ever need a third key :D
 }

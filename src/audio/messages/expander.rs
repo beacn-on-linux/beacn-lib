@@ -28,15 +28,7 @@ impl BeacnSubMessage for Expander {
     }
 
     fn is_device_message_set(&self) -> bool {
-        matches!(
-            self,
-            Expander::Mode(_)
-                | Expander::Threshold(_, _)
-                | Expander::Ratio(_, _)
-                | Expander::Enabled(_, _)
-                | Expander::Attack(_, _)
-                | Expander::Release(_, _)
-        )
+        self.is_message_set()
     }
 
     fn to_beacn_key(&self) -> [u8; 2] {

@@ -29,16 +29,7 @@ impl BeacnSubMessage for Compressor {
     }
 
     fn is_device_message_set(&self) -> bool {
-        matches!(
-            self,
-            Compressor::Mode(_)
-                | Compressor::Attack(_, _)
-                | Compressor::Release(_, _)
-                | Compressor::Threshold(_, _)
-                | Compressor::Ratio(_, _)
-                | Compressor::MakeupGain(_, _)
-                | Compressor::Enabled(_, _)
-        )
+        self.is_message_set()
     }
 
     fn to_beacn_key(&self) -> [u8; 2] {

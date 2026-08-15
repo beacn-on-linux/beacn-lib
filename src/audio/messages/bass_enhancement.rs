@@ -36,24 +36,7 @@ impl BeacnSubMessage for BassEnhancement {
     }
 
     fn is_device_message_set(&self) -> bool {
-        matches!(
-            self,
-            BassEnhancement::Drive(_)
-                | BassEnhancement::Mix(_)
-                | BassEnhancement::Enabled(_)
-                | BassEnhancement::Preset(_)
-                | BassEnhancement::Amount(_)
-                | BassEnhancement::Attack(_)
-                | BassEnhancement::Release(_)
-                | BassEnhancement::Threshold(_)
-                | BassEnhancement::Knee(_)
-                | BassEnhancement::MakeupGain(_)
-                | BassEnhancement::Ratio(_)
-                | BassEnhancement::Cutoff(_)
-                | BassEnhancement::Q(_)
-                | BassEnhancement::LowerCutoff(_)
-                | BassEnhancement::LowerQ(_)
-        )
+        self.is_message_set()
     }
 
     fn to_beacn_key(&self) -> [u8; 2] {

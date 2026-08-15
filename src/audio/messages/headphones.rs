@@ -54,19 +54,7 @@ impl BeacnSubMessage for Headphones {
     }
 
     fn is_device_message_set(&self) -> bool {
-        matches!(
-            self,
-            Headphones::HeadphoneLevel(_)
-                | Headphones::MicMonitor(_)
-                | Headphones::StudioMicMonitor(_)
-                | Headphones::MicChannelsLinked(_)
-                | Headphones::StudioChannelsLinked(_)
-                | Headphones::MicOutputGain(_)
-                | Headphones::HeadphoneType(_)
-                | Headphones::FXEnabled(_)
-                | Headphones::StudioDriverless(_)
-                | Headphones::MicClassCompliant(_)
-        )
+        self.is_message_set()
     }
 
     fn to_beacn_key(&self) -> [u8; 2] {

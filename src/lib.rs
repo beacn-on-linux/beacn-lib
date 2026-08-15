@@ -19,6 +19,10 @@ use crate::version::VersionNumber;
 use std::future::Future;
 use thiserror::Error;
 
+// We kinda need this for sanity reasons, it helps IDEs expand the macros for message groups
+#[allow(clippy::single_component_path_imports)]
+use paste;
+
 #[cfg(all(target_arch = "wasm32", feature = "tokio"))]
 compile_error!("Cannot use the tokio feature on wasm, use async instead");
 
