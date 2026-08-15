@@ -94,7 +94,7 @@ fn main() {
                 let _ = device.device.handle_message(Message::KeepAlive).wait();
 
                 // Send the Image
-                let msg = Message::Image(x, y, image);
+                let msg = Message::Image(x, y, Arc::new(image));
                 let _ = device.device.handle_message(msg).wait();
 
                 step += 1;

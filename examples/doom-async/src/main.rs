@@ -174,8 +174,8 @@ async fn main() {
 
                 let message = Message::KeepAlive;
                 match device.handle_message(message).await {
-                    Ok(()) => {
-                        let msg = Message::Image(0, 0, frame);
+                    Ok(_) => {
+                        let msg = Message::Image(0, 0, Arc::new(frame));
                         if let Err(e) = device.handle_message(msg).await {
                             warn!("Image send failed: {e}");
                             sleep(Duration::from_millis(200)).await;

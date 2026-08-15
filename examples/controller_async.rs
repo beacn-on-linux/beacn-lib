@@ -113,7 +113,7 @@ async fn app_main() {
                     let _ = device.device.handle_message(Message::KeepAlive).await;
 
                     // Send the Image
-                    let msg = Message::Image(x, y, image);
+                    let msg = Message::Image(x, y, Arc::new(image));
                     let _ = device.device.handle_message(msg).await;
 
                     step += 1;
