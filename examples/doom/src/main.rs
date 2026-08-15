@@ -20,6 +20,7 @@ use image::{ImageBuffer, RgbaImage};
 use neurodoom::{Button as DoomButton, Buttons as DoomButtons};
 use neurodoom::{ClassicEngine, PeerId, PlayerAction};
 
+use beacn_lib::controller::messages::Message;
 use image::imageops::{FilterType, resize};
 use log::{debug, info, warn};
 use signal_hook::consts::{SIGINT, SIGTERM};
@@ -171,9 +172,11 @@ fn main() {
             if now.duration_since(last_display) >= DISPLAY_TICK {
                 let frame = encode_frame(doom.framebuffer());
 
-                match device.send_keepalive().wait() {
+                let message = Message::KeepAlive;
+                match device.handle_message(message).wait() {
                     Ok(()) => {
-                        if let Err(e) = device.set_image(0, 0, &frame).wait() {
+                        let image = Message::SetImage(0, 0, frame);
+                        if let Err(e) = device.handle_message(image).wait() {
                             debug!("Image send failed: {e}");
                             sleep(Duration::from_millis(200));
                         }

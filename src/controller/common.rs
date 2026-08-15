@@ -1,16 +1,15 @@
 use crate::common::DeviceDefinition;
 use crate::controller::device::runner::BeacnControlDeviceRunner;
 use crate::controller::messages::Message;
-use crate::controller::{BeacnControlDevice, ButtonLighting, ControlThreadSender, Interactions};
+use crate::controller::{BeacnControlDevice, ControlThreadSender, Interactions};
 use crate::sealed::Sealed;
 use crate::{BResult, beacn_bail};
-use anyhow::Error;
 use anyhow::Result;
+use anyhow::{Error, anyhow};
 use async_trait::async_trait;
 use flume::Sender;
 use jpeg_decoder::Decoder;
 use std::sync::Arc;
-use web_time::Duration;
 
 #[async_trait]
 pub trait BeacnControlDeviceInfo: Sealed {
@@ -84,11 +83,12 @@ pub trait BeacnControlAPI:
                     beacn_bail!("Button Brightness must be between 0 and 10");
                 }
             }
+
+            #[allow(clippy::collapsible_match)]
             Message::SetDimTimeout(t) => {
-                if *t > Duration::from_secs(300) || *t < Duration::from_secs(30) {
-                    beacn_bail!(
-                        "For display safety, dim timeout must be lower than 5 minutes, and greater than 30 seconds"
-                    );
+                if !(30..=300).contains(&t.as_secs()) {
+                    let err = "Dim timeout must be between 30 and 300 seconds";
+                    beacn_bail!(anyhow!("{err}"));
                 }
             }
             _ => {}

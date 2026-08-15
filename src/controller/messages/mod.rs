@@ -1,9 +1,9 @@
 // Internally, we go from function -> Message -> Handle, so the goal here is to cut out the
 // weird middle stuff and do this properly.
 
-use std::time::Duration;
 use crate::controller::ButtonLighting;
 use crate::types::RGBA;
+use web_time::Duration;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Message {

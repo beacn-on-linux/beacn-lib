@@ -4,6 +4,7 @@ use beacn_lib::manager::{DeviceLocation, get_beacn_mix_create_device, get_beacn_
 
 use crate::common::controller::{test_buttons, test_pattern};
 use crate::common::logging::configure_logging;
+use beacn_lib::controller::messages::Message;
 use flume::Receiver;
 use log::{error, info, warn};
 use std::sync::Arc;
@@ -86,11 +87,15 @@ fn main() {
             for device in &device_maps {
                 let (x, y, image) = test_pattern(step);
                 for (button, colour) in test_buttons(step) {
-                    let _ = device.device.set_button_colour(button, colour).wait();
+                    let msg = Message::SetButtonColour(button, colour);
+                    let _ = device.device.handle_message(msg).wait();
                 }
 
-                let _ = device.device.send_keepalive().wait();
-                let _ = device.device.set_image(x, y, &image).wait();
+                let _ = device.device.handle_message(Message::KeepAlive).wait();
+
+                // Send the Image
+                let msg = Message::SetImage(x, y, image);
+                let _ = device.device.handle_message(msg).wait();
 
                 step += 1;
             }
@@ -101,7 +106,8 @@ fn main() {
         }
     }
     for device in device_maps {
-        let _ = device.device.set_enabled(false).wait();
+        let msg = Message::SetEnabled(false);
+        let _ = device.device.handle_message(msg).wait();
     }
 }
 

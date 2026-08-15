@@ -6,14 +6,12 @@ use crate::controller::device_kind::BeacnDevice;
 use crate::controller::messages::Message;
 use crate::manager::{DeviceLocation, DeviceType, PID_BEACN_MIX, PID_BEACN_MIX_CREATE};
 use crate::sealed::Sealed;
-use crate::types::RGBA;
 use crate::{BResult, beacn_bail};
 use enum_map::Enum;
 use flume::Sender;
 use std::panic::RefUnwindSafe;
 use std::sync::Arc;
 use strum::{Display, EnumIter};
-use web_time::Duration;
 
 mod common;
 mod device;
