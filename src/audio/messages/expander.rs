@@ -1,5 +1,5 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
-use crate::generate_range;
+use crate::{generate_range, message_group};
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{
@@ -11,26 +11,16 @@ use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Expander {
-    GetMode,
-    Mode(ExpanderMode),
-
-    GetThreshold(ExpanderMode),
-    Threshold(ExpanderMode, ExpanderThreshold),
-
-    GetRatio(ExpanderMode),
-    Ratio(ExpanderMode, ExpanderRatio),
-
-    GetEnabled(ExpanderMode),
-    Enabled(ExpanderMode, bool),
-
-    GetAttack(ExpanderMode),
-    Attack(ExpanderMode, TimeFrame),
-
-    GetRelease(ExpanderMode),
-    Release(ExpanderMode, TimeFrame),
-}
+message_group!(
+    pub enum Expander {
+        Mode() -> ExpanderMode,
+        Threshold(ExpanderMode) -> ExpanderThreshold,
+        Ratio(ExpanderMode) -> ExpanderRatio,
+        Enabled(ExpanderMode) -> bool,
+        Attack(ExpanderMode) -> TimeFrame,
+        Release(ExpanderMode) -> TimeFrame,
+    }
+);
 
 impl BeacnSubMessage for Expander {
     fn get_device_message_type(&self) -> DeviceMessageType {

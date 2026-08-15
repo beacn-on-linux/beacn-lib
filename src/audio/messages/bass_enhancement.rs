@@ -1,66 +1,34 @@
 use crate::audio::messages::bass_enhancement::BassPreset::{Preset1, Preset2, Preset3, Preset4};
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
-use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::{
     BeacnValue, MakeUpGain, Percent, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
 };
+use crate::{generate_range, message_group};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum BassEnhancement {
-    GetDrive,
-    Drive(BassDrive),
-
-    GetMix,
-    Mix(Percent),
-
-    GetEnabled,
-    Enabled(bool),
-
-    GetPreset,
-    Preset(BassPreset),
-
-    GetAmount,
-    Amount(BassAmount),
-
-    // Realistically, a user shouldn't be calling these directly, but they
-    // need to exist so that we can load the presets, what I'll likely do
-    // is have helper functions which instead generates a list of commands
-    // to change the preset.
-    GetAttack,
-    Attack(TimeFrame),
-
-    GetRelease,
-    Release(TimeFrame),
-
-    GetThreshold,
-    Threshold(BassThreshold),
-
-    GetKnee,
-    Knee(BassKnee),
-
-    GetMakeupGain,
-    MakeupGain(MakeUpGain),
-
-    GetRatio,
-    Ratio(BassRatio),
-
-    GetCutoff,
-    Cutoff(BassCutoff),
-
-    GetQ,
-    Q(BassQ),
-
-    GetLowerCutoff,
-    LowerCutoff(BassCutoff),
-
-    GetLowerQ,
-    LowerQ(BassQ),
-}
+message_group!(
+    pub enum BassEnhancement {
+        Drive() -> BassDrive,
+        Mix() -> Percent,
+        Enabled() -> bool,
+        Preset() -> BassPreset,
+        Amount() -> BassAmount,
+        Attack() -> TimeFrame,
+        Release() -> TimeFrame,
+        Threshold() -> BassThreshold,
+        Knee() -> BassKnee,
+        MakeupGain() -> MakeUpGain,
+        Ratio() -> BassRatio,
+        Cutoff() -> BassCutoff,
+        Q() -> BassQ,
+        LowerCutoff() -> BassCutoff,
+        LowerQ() -> BassQ,
+    }
+);
 
 impl BeacnSubMessage for BassEnhancement {
     fn get_device_message_type(&self) -> DeviceMessageType {

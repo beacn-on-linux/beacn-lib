@@ -1,19 +1,17 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
-use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
+use crate::{generate_range, message_group};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum HeadphoneEQ {
-    GetAmount(HPEQType),
-    Amount(HPEQType, HPEQValue),
-
-    GetEnabled(HPEQType),
-    Enabled(HPEQType, bool),
-}
+message_group!(
+    pub enum HeadphoneEQ {
+        Amount(HPEQType) -> HPEQValue,
+        Enabled(HPEQType) -> bool,
+    }
+);
 
 impl BeacnSubMessage for HeadphoneEQ {
     fn get_device_message_type(&self) -> DeviceMessageType {

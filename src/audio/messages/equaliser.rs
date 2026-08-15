@@ -1,34 +1,24 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 
-use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
+use crate::{generate_range, message_group};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Equaliser {
-    GetMode,
-    Mode(EQMode),
-
-    GetType(EQMode, EQBand),
-    Type(EQMode, EQBand, EQBandType),
-
-    GetGain(EQMode, EQBand),
-    Gain(EQMode, EQBand, EQGain),
-
-    GetFrequency(EQMode, EQBand),
-    Frequency(EQMode, EQBand, EQFrequency),
-
-    GetQ(EQMode, EQBand),
-    Q(EQMode, EQBand, EQQ),
-
-    GetEnabled(EQMode, EQBand),
-    Enabled(EQMode, EQBand, bool),
-}
+message_group!(
+    pub enum Equaliser {
+        Mode() -> EQMode,
+        Type(EQMode, EQBand) -> EQBandType,
+        Gain(EQMode, EQBand) -> EQGain,
+        Frequency(EQMode, EQBand) -> EQFrequency,
+        Q(EQMode, EQBand) -> EQQ,
+        Enabled(EQMode, EQBand) -> bool,
+    }
+);
 
 impl BeacnSubMessage for Equaliser {
     fn get_device_message_type(&self) -> DeviceMessageType {

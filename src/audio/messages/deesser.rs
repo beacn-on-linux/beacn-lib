@@ -1,16 +1,14 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
-use serde::{Deserialize, Serialize};
+use crate::message_group;
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum DeEsser {
-    GetAmount,
-    Amount(Percent),
-
-    GetEnabled,
-    Enabled(bool),
-}
+message_group!(
+    pub enum DeEsser {
+        Amount() -> Percent,
+        Enabled() -> bool,
+    }
+);
 
 impl BeacnSubMessage for DeEsser {
     fn get_device_message_type(&self) -> DeviceMessageType {

@@ -199,6 +199,24 @@ impl Message {
 
         messages
     }
+
+    pub fn is_same_target(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Message::BassEnhancement(a), Message::BassEnhancement(b)) => a.is_same_target(b),
+            (Message::Compressor(a), Message::Compressor(b)) => a.is_same_target(b),
+            (Message::DeEsser(a), Message::DeEsser(b)) => a.is_same_target(b),
+            (Message::Equaliser(a), Message::Equaliser(b)) => a.is_same_target(b),
+            (Message::Exciter(a), Message::Exciter(b)) => a.is_same_target(b),
+            (Message::Expander(a), Message::Expander(b)) => a.is_same_target(b),
+            (Message::HeadphoneEQ(a), Message::HeadphoneEQ(b)) => a.is_same_target(b),
+            (Message::Headphones(a), Message::Headphones(b)) => a.is_same_target(b),
+            (Message::Lighting(a), Message::Lighting(b)) => a.is_same_target(b),
+            (Message::MicSetup(a), Message::MicSetup(b)) => a.is_same_target(b),
+            (Message::Subwoofer(a), Message::Subwoofer(b)) => a.is_same_target(b),
+            (Message::Suppressor(a), Message::Suppressor(b)) => a.is_same_target(b),
+            _ => false, // different top-level groups entirely
+        }
+    }
 }
 
 pub enum BeacnMessage {
@@ -238,4 +256,68 @@ trait BeacnSubMessage {
 
     fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType) -> Self;
     fn generate_fetch_message(device_type: DeviceType) -> Vec<Message>;
+}
+
+#[macro_export]
+macro_rules! message_group {
+    (pub enum $name:ident { $($body:tt)* }) => {
+        $crate::message_group!(@munch $name; []; []; []; $($body)*);
+    };
+
+    (@munch $name:ident; [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*]; ) => {
+        paste::paste! {
+            #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+            pub enum $name {
+                $($variants)*
+                $($getters)*
+            }
+
+            impl $name {
+                pub fn is_same_target(&self, other: &Self) -> bool {
+                    match (self, other) {
+                        $($targets)*
+                        _ => false,
+                    }
+                }
+            }
+        }
+    };
+
+    // Zero Key Variant
+    (@munch $name:ident; [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*];
+        $variant:ident () -> $val_ty:ty $(, $($rest:tt)*)?) => {
+        $crate::message_group!(
+            @munch $name;
+            [$($variants)* $variant($val_ty),];
+            [$($getters)* [<Get $variant>],];
+            [$($targets)* (Self::$variant(_), Self::$variant(_)) => true,];
+            $($($rest)*)?
+        );
+    };
+
+    // One Key Variant
+    (@munch $name:ident; [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*];
+        $variant:ident ($k0:ty) -> $val_ty:ty $(, $($rest:tt)*)?) => {
+        $crate::message_group!(
+            @munch $name;
+            [$($variants)* $variant($k0, $val_ty),];
+            [$($getters)* [<Get $variant>]($k0),];
+            [$($targets)* (Self::$variant(a0, _), Self::$variant(b0, _)) => a0 == b0,];
+            $($($rest)*)?
+        );
+    };
+
+    // Two Key Variant
+    (@munch $name:ident; [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*];
+        $variant:ident ($k0:ty, $k1:ty) -> $val_ty:ty $(, $($rest:tt)*)?) => {
+        $crate::message_group!(
+            @munch $name;
+            [$($variants)* $variant($k0, $k1, $val_ty),];
+            [$($getters)* [<Get $variant>]($k0, $k1),];
+            [$($targets)* (Self::$variant(a0, a1, _), Self::$variant(b0, b1, _)) => a0 == b0 && a1 == b1,];
+            $($($rest)*)?
+        );
+    };
+
+    // This gonna get silly if we ever need a three key variant :D
 }

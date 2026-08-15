@@ -1,5 +1,5 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
-use crate::generate_range;
+use crate::{generate_range, message_group};
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{
@@ -11,29 +11,17 @@ use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Compressor {
-    GetMode,
-    Mode(CompressorMode),
-
-    GetAttack(CompressorMode),
-    Attack(CompressorMode, TimeFrame),
-
-    GetRelease(CompressorMode),
-    Release(CompressorMode, TimeFrame),
-
-    GetThreshold(CompressorMode),
-    Threshold(CompressorMode, CompressorThreshold),
-
-    GetRatio(CompressorMode),
-    Ratio(CompressorMode, CompressorRatio),
-
-    GetMakeupGain(CompressorMode),
-    MakeupGain(CompressorMode, MakeUpGain),
-
-    GetEnabled(CompressorMode),
-    Enabled(CompressorMode, bool),
-}
+message_group!(
+    pub enum Compressor {
+        Mode() -> CompressorMode,
+        Attack(CompressorMode) -> TimeFrame,
+        Release(CompressorMode) -> TimeFrame,
+        Threshold(CompressorMode) -> CompressorThreshold,
+        Ratio(CompressorMode) -> CompressorRatio,
+        MakeupGain(CompressorMode) -> MakeUpGain,
+        Enabled(CompressorMode) -> bool,
+    }
+);
 
 impl BeacnSubMessage for Compressor {
     fn get_device_message_type(&self) -> DeviceMessageType {

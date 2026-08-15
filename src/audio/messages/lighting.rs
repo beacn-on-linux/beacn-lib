@@ -1,5 +1,5 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
-use crate::generate_range;
+use crate::{generate_range, message_group};
 use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, RGBA, ReadBeacn, WriteBeacn, read_value, write_value};
@@ -8,44 +8,22 @@ use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Lighting {
-    GetMode,
-    Mode(LightingMode),
-
-    GetStudioMode,
-    StudioMode(StudioLightingMode),
-
-    GetColour1,
-    Colour1(RGBA),
-
-    GetColour2,
-    Colour2(RGBA),
-
-    GetSpeed,
-    Speed(LightingSpeed),
-
-    GetBrightness,
-    Brightness(LightingBrightness),
-
-    GetMeterSource,
-    MeterSource(LightingMeterSource),
-
-    GetMeterSensitivity,
-    MeterSensitivity(LightingMeterSensitivty),
-
-    GetMuteMode,
-    MuteMode(LightingMuteMode),
-
-    GetMuteColour,
-    MuteColour(RGBA),
-
-    GetSuspendMode,
-    SuspendMode(LightingSuspendMode),
-
-    GetSuspendBrightness,
-    SuspendBrightness(LightingSuspendBrightness),
-}
+message_group!(
+    pub enum Lighting {
+        Mode() -> LightingMode,
+        StudioMode() -> StudioLightingMode,
+        Colour1() -> RGBA,
+        Colour2() -> RGBA,
+        Speed() -> LightingSpeed,
+        Brightness() -> LightingBrightness,
+        MeterSource() -> LightingMeterSource,
+        MeterSensitivity() -> LightingMeterSensitivty,
+        MuteMode() -> LightingMuteMode,
+        MuteColour() -> RGBA,
+        SuspendMode() -> LightingSuspendMode,
+        SuspendBrightness() -> LightingSuspendBrightness,
+    }
+);
 
 impl BeacnSubMessage for Lighting {
     fn get_device_message_type(&self) -> DeviceMessageType {

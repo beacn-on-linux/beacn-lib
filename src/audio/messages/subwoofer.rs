@@ -1,26 +1,18 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
-use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
+use crate::{generate_range, message_group};
 use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Subwoofer {
-    GetMakeupGain,
-    MakeupGain(SubwooferMakeupGain),
-
-    GetRatio,
-    Ratio(SubwooferRatio),
-
-    GetMix,
-    Mix(Percent),
-
-    GetEnabled,
-    Enabled(bool),
-
-    GetAmount,
-    Amount(SubwooferAmount),
-}
+message_group!(
+    pub enum Subwoofer {
+        MakeupGain() -> SubwooferMakeupGain,
+        Ratio() -> SubwooferRatio,
+        Mix() -> Percent,
+        Enabled() -> bool,
+        Amount() -> SubwooferAmount,
+    }
+);
 
 impl BeacnSubMessage for Subwoofer {
     fn get_device_message_type(&self) -> DeviceMessageType {

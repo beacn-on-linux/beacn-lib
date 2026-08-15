@@ -47,6 +47,9 @@ web-time = "1.1"
 # Allow Serialising / Deserialising our Enums
 serde = { version = "1.0.229", features = ["derive", "rc"] }
 
+# Used for Macro Handling
+paste = "1.0"
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # async-io include errno and polling, neither of which are wasm compatible, so we
 # exclude it on wasm, and reimplement it with more appropriate crates

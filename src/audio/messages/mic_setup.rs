@@ -1,20 +1,16 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
-use crate::generate_range;
+use crate::{generate_range, message_group};
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
 use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum MicSetup {
-    GetMicGain,
-    MicGain(MicGain),
-
-    GetStudioMicGain,
-    StudioMicGain(StudioMicGain),
-
-    GetStudioPhantomPower,
-    StudioPhantomPower(bool),
-}
+message_group!(
+    pub enum MicSetup {
+        MicGain() -> MicGain,
+        StudioMicGain() -> StudioMicGain,
+        StudioPhantomPower() -> bool,
+    }
+);
 
 impl BeacnSubMessage for MicSetup {
     fn get_device_message_type(&self) -> DeviceMessageType {

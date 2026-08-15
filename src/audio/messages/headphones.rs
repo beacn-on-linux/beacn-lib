@@ -4,44 +4,26 @@ use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
 use crate::version::VersionNumber;
-use crate::{MIC_CLASS_COMPLIANT_VERSION, generate_range};
+use crate::{MIC_CLASS_COMPLIANT_VERSION, generate_range, message_group};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Headphones {
-    GetHeadphoneLevel,
-    HeadphoneLevel(HPLevel),
-
-    GetMicMonitor,
-    MicMonitor(HPMicMonitorLevel),
-
-    GetStudioMicMonitor,
-    StudioMicMonitor(HPMicMonitorLevel),
-
-    GetMicChannelsLinked,
-    MicChannelsLinked(bool),
-
-    GetStudioChannelsLinked,
-    StudioChannelsLinked(bool),
-
-    GetMicOutputGain,
-    MicOutputGain(HPMicOutputGain),
-
-    GetHeadphoneType,
-    HeadphoneType(HeadphoneTypes),
-
-    GetFXEnabled,
-    FXEnabled(bool),
-
-    GetStudioDriverless,
-    StudioDriverless(bool),
-
-    GetMicClassCompliant,
-    MicClassCompliant(bool),
-}
+message_group!(
+    pub enum Headphones {
+        HeadphoneLevel() -> HPLevel,
+        MicMonitor() -> HPMicMonitorLevel,
+        StudioMicMonitor() -> HPMicMonitorLevel,
+        MicChannelsLinked() -> bool,
+        StudioChannelsLinked() -> bool,
+        MicOutputGain() -> HPMicOutputGain,
+        HeadphoneType() -> HeadphoneTypes,
+        FXEnabled() -> bool,
+        StudioDriverless() -> bool,
+        MicClassCompliant() -> bool,
+    }
+);
 
 impl BeacnSubMessage for Headphones {
     fn get_device_message_type(&self) -> DeviceMessageType {
