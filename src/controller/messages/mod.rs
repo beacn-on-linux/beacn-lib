@@ -3,10 +3,11 @@
 
 use crate::controller::ButtonLighting;
 use crate::types::RGBA;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use web_time::Duration;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Message {
     KeepAlive,
     Enabled(bool),

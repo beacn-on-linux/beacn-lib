@@ -3,9 +3,10 @@ use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 use enum_map::Enum;
+use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Exciter {
     GetAmount,
     Amount(Percent),

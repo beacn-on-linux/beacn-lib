@@ -1,5 +1,6 @@
 use crate::types::sealed::Sealed;
 use byteorder::{ByteOrder, LittleEndian};
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 
@@ -37,7 +38,7 @@ where
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RGBA {
     pub red: u8,
     pub green: u8,
@@ -285,7 +286,7 @@ impl ReadBeacn for RGBA {
 // -----------------------------------------------------------------------------------------------
 // Timeframe is used for most Attack / Release values
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TimeFrame(pub f32);
 impl HasRange<f32> for TimeFrame {
     fn range() -> RangeInclusive<f32> {
@@ -316,7 +317,7 @@ impl From<u16> for TimeFrame {
 // -----------------------------------------------------------------------------------------------
 // Make-up Gain is used in a couple of places
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MakeUpGain(pub f32);
 impl HasRange<f32> for MakeUpGain {
     fn range() -> RangeInclusive<f32> {
@@ -341,7 +342,7 @@ impl From<f32> for MakeUpGain {
 
 // -----------------------------------------------------------------------------------------------
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Percent(pub f32);
 impl HasRange<f32> for Percent {
     fn range() -> RangeInclusive<f32> {
@@ -433,7 +434,7 @@ impl From<MessageValue<RGBA>> for BeacnValue {
 #[macro_export]
 macro_rules! generate_range {
     ($name:ident, $type:ty, $range:expr $(, $friendly:ty)* $(,)?) => {
-        #[derive(Debug, Clone, Copy, PartialEq)]
+        #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
         pub struct $name(pub $type);
 
         impl $crate::types::HasRange<$type> for $name {

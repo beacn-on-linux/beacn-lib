@@ -6,9 +6,10 @@ use crate::manager::DeviceType;
 use crate::types::sealed::Sealed;
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
+use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Equaliser {
     GetMode,
     Mode(EQMode),
@@ -124,7 +125,9 @@ generate_range!(EQGain, f32, -12.0..=12.0);
 generate_range!(EQFrequency, f32, 20.0..=20000.0, u32);
 generate_range!(EQQ, f32, 0.1..=10.0);
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum EQMode {
     #[default]
     Simple = 0x00,
@@ -163,7 +166,7 @@ impl From<u8> for EQMode {
     }
 }
 
-#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum EQBand {
     Band1 = 0x00,
     Band2 = 0x01,
@@ -180,7 +183,7 @@ impl From<EQBand> for u8 {
     }
 }
 
-#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize)]
 enum EqualiserKeys {
     Type = 0x01,      // BandType
     Gain = 0x02,      // f32 (-12..=12)
@@ -194,7 +197,9 @@ impl From<EqualiserKeys> for u8 {
     }
 }
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum EQBandType {
     #[default]
     NotSet = 0x00,

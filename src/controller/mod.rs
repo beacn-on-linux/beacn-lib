@@ -9,6 +9,7 @@ use crate::sealed::Sealed;
 use crate::{BResult, beacn_bail};
 use enum_map::Enum;
 use flume::Sender;
+use serde::{Deserialize, Serialize};
 use std::panic::RefUnwindSafe;
 use std::sync::Arc;
 use strum::{Display, EnumIter};
@@ -107,7 +108,7 @@ pub enum Dials {
     Dial4 = 3,
 }
 
-#[derive(Display, Debug, Copy, Clone, Enum, EnumIter, PartialEq)]
+#[derive(Display, Debug, Copy, Clone, Enum, EnumIter, PartialEq, Serialize, Deserialize)]
 pub enum ButtonLighting {
     Dial1 = 0,
     Dial2 = 1,

@@ -3,9 +3,10 @@ use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 use enum_map::Enum;
+use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum HeadphoneEQ {
     GetAmount(HPEQType),
     Amount(HPEQType, HPEQValue),
@@ -63,7 +64,7 @@ impl BeacnSubMessage for HeadphoneEQ {
 
 generate_range!(HPEQValue, f32, -12.0..=12.0);
 
-#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum HPEQType {
     Bass = 0x00,
     Mids = 0x01,
@@ -75,7 +76,7 @@ impl From<HPEQType> for u8 {
     }
 }
 
-#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum HPEQKeys {
     Amount = 0x02,  // f32 (-12..12)
     Enabled = 0x05, // bool

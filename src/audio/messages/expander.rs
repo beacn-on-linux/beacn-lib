@@ -7,10 +7,11 @@ use crate::types::{
 };
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
+use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Expander {
     GetMode,
     Mode(ExpanderMode),
@@ -117,7 +118,9 @@ impl BeacnSubMessage for Expander {
 generate_range!(ExpanderRatio, f32, 1.0..=10.0);
 generate_range!(ExpanderThreshold, f32, -90.0..=0.0, i8);
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum ExpanderMode {
     #[default]
     Simple = 0x00,

@@ -7,9 +7,10 @@ use crate::version::VersionNumber;
 use crate::{MIC_CLASS_COMPLIANT_VERSION, generate_range};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
+use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Headphones {
     GetHeadphoneLevel,
     HeadphoneLevel(HPLevel),
@@ -201,7 +202,9 @@ generate_range!(HPLevel, f32, -70.0..=0.0);
 generate_range!(HPMicMonitorLevel, f32, -100.0..=6.0);
 generate_range!(HPMicOutputGain, f32, 0.0..=12.0);
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum HeadphoneTypes {
     #[default]
     LineLevel = 0x00,

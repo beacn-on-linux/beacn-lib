@@ -7,9 +7,10 @@ use crate::types::{
 };
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
+use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum BassEnhancement {
     GetDrive,
     Drive(BassDrive),
@@ -237,7 +238,9 @@ impl BassEnhancement {
     }
 }
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum BassPreset {
     #[default]
     Preset1 = 0x00,

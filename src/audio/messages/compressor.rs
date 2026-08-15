@@ -8,9 +8,10 @@ use crate::types::{
 };
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
+use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Compressor {
     GetMode,
     Mode(CompressorMode),
@@ -126,7 +127,9 @@ impl BeacnSubMessage for Compressor {
 generate_range!(CompressorThreshold, f32, -50.0..=0.0, i8);
 generate_range!(CompressorRatio, f32, 1.0..=16.0);
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum CompressorMode {
     #[default]
     Simple = 0x00,

@@ -10,9 +10,10 @@ use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
+use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Suppressor {
     GetEnabled,
     Enabled(bool),
@@ -99,7 +100,9 @@ generate_range!(SuppressorAdaptTime, f32, 100.0..=5000.0);
 //     AdaptTime = 0x08,    // Suppressor Adaption Time
 // }
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum SuppressorStyle {
     #[default]
     Off = 0x00,

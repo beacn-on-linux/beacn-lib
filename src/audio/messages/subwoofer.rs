@@ -2,8 +2,9 @@ use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::generate_range;
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
+use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Subwoofer {
     GetMakeupGain,
     MakeupGain(SubwooferMakeupGain),

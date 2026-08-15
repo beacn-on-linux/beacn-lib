@@ -5,9 +5,10 @@ use crate::types::sealed::Sealed;
 use crate::types::{BeacnValue, RGBA, ReadBeacn, WriteBeacn, read_value, write_value};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
+use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Lighting {
     GetMode,
     Mode(LightingMode),
@@ -171,7 +172,9 @@ generate_range!(LightingSuspendBrightness, u32, 0..=100);
 //     SuspendBrightness = 0x0c, // u32 (0..=100)    // VERIFY THIS, SHOULD MATCH Brightness
 // }
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum LightingMode {
     #[default]
     Solid = 0x00,
@@ -203,7 +206,9 @@ impl WriteBeacn for LightingMode {
     }
 }
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum StudioLightingMode {
     #[default]
     Solid = 0x00,
@@ -230,7 +235,9 @@ impl WriteBeacn for StudioLightingMode {
     }
 }
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum LightingMuteMode {
     #[default]
     Nothing = 0x00,
@@ -258,7 +265,9 @@ impl WriteBeacn for LightingMuteMode {
     }
 }
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum LightingSuspendMode {
     #[default]
     Nothing = 0x00,
@@ -285,7 +294,9 @@ impl WriteBeacn for LightingSuspendMode {
     }
 }
 
-#[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
 pub enum LightingMeterSource {
     #[default]
     Microphone = 0x00,

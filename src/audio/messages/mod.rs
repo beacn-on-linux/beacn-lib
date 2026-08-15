@@ -13,6 +13,7 @@ use crate::audio::messages::suppressor::Suppressor;
 use crate::manager::DeviceType;
 use crate::types::BeacnValue;
 use crate::version::VersionNumber;
+use serde::{Deserialize, Serialize};
 
 pub mod bass_enhancement;
 pub mod compressor;
@@ -30,7 +31,7 @@ pub mod suppressor;
 const VERSION_MIN_ALL: VersionNumber = VersionNumber(0, 0, 0, 0);
 const VERSION_MAX_ALL: VersionNumber = VersionNumber(u32::MAX, u32::MAX, u32::MAX, u32::MAX);
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Message {
     BassEnhancement(BassEnhancement),
     Compressor(Compressor),
