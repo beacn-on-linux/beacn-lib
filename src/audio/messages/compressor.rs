@@ -123,7 +123,7 @@ impl BeacnSubMessage for Compressor {
     }
 }
 
-generate_range!(CompressorThreshold, f32, -50.0..=0.0);
+generate_range!(CompressorThreshold, f32, -50.0..=0.0, i8);
 generate_range!(CompressorRatio, f32, 1.0..=16.0);
 
 #[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]

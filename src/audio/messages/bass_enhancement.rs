@@ -268,7 +268,7 @@ impl ReadBeacn for BassPreset {
 }
 
 generate_range!(BassDrive, f32, 0.0..=32.0);
-generate_range!(BassAmount, f32, 0.0..=10.0);
+generate_range!(BassAmount, f32, 0.0..=10.0, u8);
 generate_range!(BassThreshold, f32, -50.0..=0.0);
 generate_range!(BassKnee, f32, 0.0..=5.0);
 generate_range!(BassRatio, f32, 0.0..=16.0);

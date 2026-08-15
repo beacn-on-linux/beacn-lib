@@ -71,4 +71,4 @@ pub enum ExciterKeys {
     Enabled = 0x03,   // bool
 }
 
-generate_range!(ExciterFreq, f32, 600.0..=5000.0);
+generate_range!(ExciterFreq, f32, 600.0..=5000.0, u16);

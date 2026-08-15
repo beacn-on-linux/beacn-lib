@@ -115,7 +115,7 @@ impl BeacnSubMessage for Expander {
 }
 
 generate_range!(ExpanderRatio, f32, 1.0..=10.0);
-generate_range!(ExpanderThreshold, f32, -90.0..=0.0);
+generate_range!(ExpanderThreshold, f32, -90.0..=0.0, i8);
 
 #[derive(Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
 pub enum ExpanderMode {

@@ -75,5 +75,5 @@ impl BeacnSubMessage for MicSetup {
     }
 }
 
-generate_range!(MicGain, u32, 3..=20);
-generate_range!(StudioMicGain, u32, 0..=69); // NICE.
+generate_range!(MicGain, u32, 3..=20, u8);
+generate_range!(StudioMicGain, u32, 0..=69, u8); // NICE.

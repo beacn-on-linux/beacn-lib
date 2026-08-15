@@ -99,7 +99,7 @@ impl Subwoofer {
 
 generate_range!(SubwooferMakeupGain, f32, 0.0..=12.0);
 generate_range!(SubwooferRatio, f32, 0.0..=12.0);
-generate_range!(SubwooferAmount, i32, 0..=10);
+generate_range!(SubwooferAmount, i32, 0..=10, u8);
 
 // enum Subwoofer_ {
 //     MakeupGain = 0x04, // f32 (2..=11), Value: (amount < 6) ? 2 : amount + 1

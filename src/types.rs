@@ -302,6 +302,16 @@ impl ToInner<f32> for TimeFrame {
         self.0
     }
 }
+impl From<f32> for TimeFrame {
+    fn from(value: f32) -> Self {
+        Self(value)
+    }
+}
+impl From<u16> for TimeFrame {
+    fn from(value: u16) -> Self {
+        Self(value as f32)
+    }
+}
 
 // -----------------------------------------------------------------------------------------------
 // Make-up Gain is used in a couple of places
@@ -323,6 +333,11 @@ impl ToInner<f32> for MakeUpGain {
         self.0
     }
 }
+impl From<f32> for MakeUpGain {
+    fn from(value: f32) -> Self {
+        Self(value)
+    }
+}
 
 // -----------------------------------------------------------------------------------------------
 
@@ -341,6 +356,16 @@ impl FromInner<f32> for Percent {
 impl ToInner<f32> for Percent {
     fn to_inner(&self) -> f32 {
         self.0
+    }
+}
+impl From<f32> for Percent {
+    fn from(value: f32) -> Self {
+        Self(value)
+    }
+}
+impl From<u8> for Percent {
+    fn from(value: u8) -> Self {
+        Self(value as f32)
     }
 }
 
@@ -407,7 +432,7 @@ impl From<MessageValue<RGBA>> for BeacnValue {
 
 #[macro_export]
 macro_rules! generate_range {
-    ($name:ident, $type:ty, $range:expr) => {
+    ($name:ident, $type:ty, $range:expr $(, $friendly:ty)* $(,)?) => {
         #[derive(Debug, Clone, Copy, PartialEq)]
         pub struct $name(pub $type);
 
@@ -428,5 +453,19 @@ macro_rules! generate_range {
                 self.0
             }
         }
+
+        impl From<$type> for $name {
+            fn from(value: $type) -> Self {
+                Self(value)
+            }
+        }
+
+        $(
+            impl From<$friendly> for $name {
+                fn from(value: $friendly) -> Self {
+                    Self(value as $type)
+                }
+            }
+        )*
     };
 }
