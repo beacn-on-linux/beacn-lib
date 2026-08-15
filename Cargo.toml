@@ -13,11 +13,11 @@ async-rt = ["nusb/smol", "async"]
 
 [dependencies]
 strum = { version = "0.28", features = ["strum_macros", "derive"] }
-enum-map = "2.7"
+enum-map = "3.1"
 
-byteorder = "1.5.0"
+byteorder = "1.5"
 
-log = "0.4.33"
+log = "0.4"
 anyhow = "1"
 
 nusb = "0.2"
@@ -42,7 +42,7 @@ thiserror = "2.0"
 tokio = { version = "1", optional = true, default-features = false, features = ["rt"] }
 
 # This replaces std::time in all environments
-web-time = "1.1.0"
+web-time = "1.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # async-io include errno and polling, neither of which are wasm compatible, so we
