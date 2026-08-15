@@ -37,7 +37,7 @@ pub(crate) trait BeacnControlDeviceInternal: Sealed {
 pub trait BeacnControlAPI:
     BeacnControlDeviceInfo + BeacnControlDeviceInternal + BeacnControlDeviceRunner + Sealed
 {
-    async fn handle_message(&self, message: Message) -> BResult<()> {
+    async fn handle_message(&self, message: Message) -> BResult<Message> {
         // Firstly, do any validation that's needed on the messages
         match &message {
             Message::Image(x, y, i) => {
@@ -51,7 +51,7 @@ pub trait BeacnControlAPI:
                 }
 
                 // Load out the image, and get the width + height
-                let mut decoder = Decoder::new(&**i);
+                let mut decoder = Decoder::new(&***i);
                 decoder.read_info().map_err(Error::from)?;
 
                 if let Some(info) = decoder.info() {
@@ -98,11 +98,14 @@ pub trait BeacnControlAPI:
         let (tx, rx) = oneshot::channel();
 
         self.get_sender()?
-            .send_async(ControlThreadSender::SendMessage(message, tx))
+            .send_async(ControlThreadSender::SendMessage(message.clone(), tx))
             .await
             .map_err(Error::from)?;
 
         rx.await.map_err(Error::from)?;
-        Ok(())
+
+        // This is mostly for consistencies sake, settings don't persist, and outside general
+        // device errors, we don't actually KNOW if this applied correctly, but it's nicer to read.
+        Ok(message)
     }
 }
