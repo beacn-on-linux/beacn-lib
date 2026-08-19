@@ -88,14 +88,14 @@ impl BeacnSubMessage for EQMicrophone {
         // This one's kinda obnoxious, because we need to handle it both for the modes, and
         // the bands, so lets get started.
         let mut messages = vec![];
-        messages.push(Message::Equaliser(EQMicrophone::GetMode));
+        messages.push(Message::EQMicrophone(EQMicrophone::GetMode));
         for mode in EQMode::iter() {
             for band in EQBand::iter() {
-                messages.push(Message::Equaliser(EQMicrophone::GetType(mode, band)));
-                messages.push(Message::Equaliser(EQMicrophone::GetGain(mode, band)));
-                messages.push(Message::Equaliser(EQMicrophone::GetFrequency(mode, band)));
-                messages.push(Message::Equaliser(EQMicrophone::GetQ(mode, band)));
-                messages.push(Message::Equaliser(EQMicrophone::GetEnabled(mode, band)));
+                messages.push(Message::EQMicrophone(EQMicrophone::GetType(mode, band)));
+                messages.push(Message::EQMicrophone(EQMicrophone::GetGain(mode, band)));
+                messages.push(Message::EQMicrophone(EQMicrophone::GetFrequency(mode, band)));
+                messages.push(Message::EQMicrophone(EQMicrophone::GetQ(mode, band)));
+                messages.push(Message::EQMicrophone(EQMicrophone::GetEnabled(mode, band)));
             }
         }
 
