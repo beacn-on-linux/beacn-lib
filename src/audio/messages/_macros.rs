@@ -80,18 +80,3 @@ macro_rules! message_group {
 
     // This gonna get messy if we ever need a third key :D
 }
-
-#[macro_export]
-macro_rules! generate_fetch_messages {
-    ($message_class:ident, $device_type:expr, $version:expr, $messages:expr) => {
-        let min_version = $message_class::get_class_minimum_version();
-        let max_version = $message_class::get_class_maximum_version();
-
-        if $version >= min_version && $version <= max_version {
-            $messages.append(&mut $message_class::generate_fetch_message(
-                $device_type,
-                $version,
-            ));
-        }
-    };
-}
