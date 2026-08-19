@@ -3,6 +3,7 @@ use crate::manager::DeviceType;
 use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
 use crate::{generate_range, message_group};
 use serde::{Deserialize, Serialize};
+use crate::version::VersionNumber;
 
 message_group!(
     pub enum MicSetup {
@@ -57,7 +58,7 @@ impl BeacnSubMessage for MicSetup {
         }
     }
 
-    fn generate_fetch_message(device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(device_type: DeviceType, _: VersionNumber) -> Vec<Message> {
         match device_type {
             DeviceType::BeacnMic => vec![Message::MicSetup(MicSetup::GetMicGain)],
             DeviceType::BeacnStudio => vec![

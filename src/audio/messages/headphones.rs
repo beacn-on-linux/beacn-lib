@@ -143,7 +143,7 @@ impl BeacnSubMessage for Headphones {
         }
     }
 
-    fn generate_fetch_message(device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(device_type: DeviceType, version: VersionNumber) -> Vec<Message> {
         let mut messages = vec![
             Message::Headphones(Headphones::GetHeadphoneLevel),
             Message::Headphones(Headphones::GetMicOutputGain),
@@ -154,7 +154,10 @@ impl BeacnSubMessage for Headphones {
             DeviceType::BeacnMic => {
                 messages.push(Message::Headphones(Headphones::GetMicMonitor));
                 messages.push(Message::Headphones(Headphones::GetMicChannelsLinked));
-                messages.push(Message::Headphones(Headphones::GetMicClassCompliant));
+
+                if version > MIC_CLASS_COMPLIANT_VERSION {
+                    messages.push(Message::Headphones(Headphones::GetMicClassCompliant));
+                }
             }
             DeviceType::BeacnStudio => {
                 messages.push(Message::Headphones(Headphones::GetStudioMicMonitor));

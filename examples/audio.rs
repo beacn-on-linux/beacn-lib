@@ -38,7 +38,7 @@ fn main() {
 
     // Ok, lets fetch all the current device configs..
     for dev in &device_maps {
-        let messages = Message::generate_fetch_message(dev.device_type);
+        let messages = Message::generate_fetch_message(dev.device_type, dev.device.get_version());
         for message in messages {
             info!("Request {:?}", message);
 

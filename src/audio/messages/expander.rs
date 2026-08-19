@@ -10,6 +10,7 @@ use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
 use strum::{EnumIter, IntoEnumIterator};
+use crate::version::VersionNumber;
 
 message_group!(
     pub enum Expander {
@@ -81,7 +82,7 @@ impl BeacnSubMessage for Expander {
         }
     }
 
-    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType, _: VersionNumber) -> Vec<Message> {
         let mut messages = vec![];
         messages.push(Message::Expander(Expander::GetMode));
 

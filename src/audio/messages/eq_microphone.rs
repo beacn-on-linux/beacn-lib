@@ -7,6 +7,7 @@ use crate::audio::messages::eq_common::{
 use crate::manager::DeviceType;
 use crate::message_group;
 use strum::IntoEnumIterator;
+use crate::version::VersionNumber;
 
 message_group!(
     pub enum EQMicrophone {
@@ -83,18 +84,18 @@ impl BeacnSubMessage for EQMicrophone {
         }
     }
 
-    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType, _: VersionNumber) -> Vec<Message> {
         // This one's kinda obnoxious, because we need to handle it both for the modes, and
         // the bands, so lets get started.
         let mut messages = vec![];
-        messages.push(Message::Equaliser(EQMicrophone::GetMode));
+        messages.push(Message::EQMicrophone(EQMicrophone::GetMode));
         for mode in EQMode::iter() {
             for band in EQBand::iter() {
-                messages.push(Message::Equaliser(EQMicrophone::GetType(mode, band)));
-                messages.push(Message::Equaliser(EQMicrophone::GetGain(mode, band)));
-                messages.push(Message::Equaliser(EQMicrophone::GetFrequency(mode, band)));
-                messages.push(Message::Equaliser(EQMicrophone::GetQ(mode, band)));
-                messages.push(Message::Equaliser(EQMicrophone::GetEnabled(mode, band)));
+                messages.push(Message::EQMicrophone(EQMicrophone::GetType(mode, band)));
+                messages.push(Message::EQMicrophone(EQMicrophone::GetGain(mode, band)));
+                messages.push(Message::EQMicrophone(EQMicrophone::GetFrequency(mode, band)));
+                messages.push(Message::EQMicrophone(EQMicrophone::GetQ(mode, band)));
+                messages.push(Message::EQMicrophone(EQMicrophone::GetEnabled(mode, band)));
             }
         }
 

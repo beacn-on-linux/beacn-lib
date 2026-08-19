@@ -3,6 +3,7 @@ use crate::manager::DeviceType;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
 use crate::{generate_range, message_group};
 use serde::{Deserialize, Serialize};
+use crate::version::VersionNumber;
 
 message_group!(
     pub enum Subwoofer {
@@ -55,7 +56,7 @@ impl BeacnSubMessage for Subwoofer {
         }
     }
 
-    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType, _: VersionNumber) -> Vec<Message> {
         vec![
             Message::Subwoofer(Subwoofer::GetEnabled),
             Message::Subwoofer(Subwoofer::GetRatio),

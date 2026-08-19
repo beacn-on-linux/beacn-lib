@@ -9,6 +9,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
+use crate::version::VersionNumber;
 
 message_group!(
     pub enum BassEnhancement {
@@ -101,7 +102,7 @@ impl BeacnSubMessage for BassEnhancement {
         }
     }
 
-    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType, _: VersionNumber) -> Vec<Message> {
         vec![
             Message::BassEnhancement(BassEnhancement::GetDrive),
             Message::BassEnhancement(BassEnhancement::GetMix),

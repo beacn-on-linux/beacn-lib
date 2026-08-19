@@ -10,10 +10,14 @@ use crate::audio::messages::lighting::Lighting;
 use crate::audio::messages::mic_setup::MicSetup;
 use crate::audio::messages::subwoofer::Subwoofer;
 use crate::audio::messages::suppressor::Suppressor;
+use crate::generate_fetch_messages;
 use crate::manager::DeviceType;
 use crate::types::BeacnValue;
 use crate::version::VersionNumber;
 use serde::{Deserialize, Serialize};
+
+mod _macros;
+mod eq_common;
 
 pub mod bass_enhancement;
 pub mod compressor;
@@ -37,7 +41,7 @@ pub enum Message {
     BassEnhancement(BassEnhancement),
     Compressor(Compressor),
     DeEsser(DeEsser),
-    Equaliser(EQMicrophone),
+    EQMicrophone(EQMicrophone),
     Exciter(Exciter),
     Expander(Expander),
     HeadphoneEQ(HeadphoneEQ),
@@ -54,7 +58,7 @@ impl Message {
             Message::BassEnhancement(v) => v.is_device_message_set(),
             Message::Compressor(v) => v.is_device_message_set(),
             Message::DeEsser(v) => v.is_device_message_set(),
-            Message::Equaliser(v) => v.is_device_message_set(),
+            Message::EQMicrophone(v) => v.is_device_message_set(),
             Message::Exciter(v) => v.is_device_message_set(),
             Message::Expander(v) => v.is_device_message_set(),
             Message::HeadphoneEQ(v) => v.is_device_message_set(),
@@ -71,7 +75,7 @@ impl Message {
             Message::BassEnhancement(v) => v.get_device_message_type(),
             Message::Compressor(v) => v.get_device_message_type(),
             Message::DeEsser(v) => v.get_device_message_type(),
-            Message::Equaliser(v) => v.get_device_message_type(),
+            Message::EQMicrophone(v) => v.get_device_message_type(),
             Message::Exciter(v) => v.get_device_message_type(),
             Message::Expander(v) => v.get_device_message_type(),
             Message::HeadphoneEQ(v) => v.get_device_message_type(),
@@ -88,7 +92,7 @@ impl Message {
             Message::BassEnhancement(v) => v.get_message_minimum_version(),
             Message::Compressor(v) => v.get_message_minimum_version(),
             Message::DeEsser(v) => v.get_message_minimum_version(),
-            Message::Equaliser(v) => v.get_message_minimum_version(),
+            Message::EQMicrophone(v) => v.get_message_minimum_version(),
             Message::Exciter(v) => v.get_message_minimum_version(),
             Message::Expander(v) => v.get_message_minimum_version(),
             Message::HeadphoneEQ(v) => v.get_message_minimum_version(),
@@ -105,7 +109,7 @@ impl Message {
             Message::BassEnhancement(v) => v.get_message_maximum_version(),
             Message::Compressor(v) => v.get_message_maximum_version(),
             Message::DeEsser(v) => v.get_message_maximum_version(),
-            Message::Equaliser(v) => v.get_message_maximum_version(),
+            Message::EQMicrophone(v) => v.get_message_maximum_version(),
             Message::Exciter(v) => v.get_message_maximum_version(),
             Message::Expander(v) => v.get_message_maximum_version(),
             Message::HeadphoneEQ(v) => v.get_message_maximum_version(),
@@ -122,7 +126,7 @@ impl Message {
             Message::BassEnhancement(v) => (BeacnMessage::BassEnhancement as u8, v.to_beacn_key()),
             Message::Compressor(v) => (BeacnMessage::Compressor as u8, v.to_beacn_key()),
             Message::DeEsser(v) => (BeacnMessage::DeEsser as u8, v.to_beacn_key()),
-            Message::Equaliser(v) => (BeacnMessage::Equaliser as u8, v.to_beacn_key()),
+            Message::EQMicrophone(v) => (BeacnMessage::EQMicrophone as u8, v.to_beacn_key()),
             Message::Exciter(v) => (BeacnMessage::Exciter as u8, v.to_beacn_key()),
             Message::Expander(v) => (BeacnMessage::Expander as u8, v.to_beacn_key()),
             Message::HeadphoneEQ(v) => (BeacnMessage::HeadphoneEQ as u8, v.to_beacn_key()),
@@ -146,7 +150,7 @@ impl Message {
             Message::BassEnhancement(v) => v.to_beacn_value(),
             Message::Compressor(v) => v.to_beacn_value(),
             Message::DeEsser(v) => v.to_beacn_value(),
-            Message::Equaliser(v) => v.to_beacn_value(),
+            Message::EQMicrophone(v) => v.to_beacn_value(),
             Message::Exciter(v) => v.to_beacn_value(),
             Message::Expander(v) => v.to_beacn_value(),
             Message::HeadphoneEQ(v) => v.to_beacn_value(),
@@ -158,7 +162,7 @@ impl Message {
         }
     }
 
-    pub fn from_beacn_message(bytes: [u8; 8], device_type: DeviceType) -> Self {
+    pub fn from_beacn_message(bytes: [u8; 8], device_type: DeviceType, _: VersionNumber) -> Self {
         // Grab the initial type
         let message = bytes[0];
 
@@ -169,7 +173,7 @@ impl Message {
         match message {
             0x00 => Self::Headphones(Headphones::from_beacn(key, value, device_type)),
             0x01 => Self::Lighting(Lighting::from_beacn(key, value, device_type)),
-            0x02 => Self::Equaliser(EQMicrophone::from_beacn(key, value, device_type)),
+            0x02 => Self::EQMicrophone(EQMicrophone::from_beacn(key, value, device_type)),
             0x03 => Self::HeadphoneEQ(HeadphoneEQ::from_beacn(key, value, device_type)),
             0x04 => Self::BassEnhancement(BassEnhancement::from_beacn(key, value, device_type)),
             0x05 => Self::Compressor(Compressor::from_beacn(key, value, device_type)),
@@ -183,20 +187,20 @@ impl Message {
         }
     }
 
-    pub fn generate_fetch_message(device_type: DeviceType) -> Vec<Message> {
+    pub fn generate_fetch_message(device_type: DeviceType, version: VersionNumber) -> Vec<Message> {
         let mut messages = Vec::new();
-        messages.append(&mut BassEnhancement::generate_fetch_message(device_type));
-        messages.append(&mut Compressor::generate_fetch_message(device_type));
-        messages.append(&mut DeEsser::generate_fetch_message(device_type));
-        messages.append(&mut EQMicrophone::generate_fetch_message(device_type));
-        messages.append(&mut Exciter::generate_fetch_message(device_type));
-        messages.append(&mut Expander::generate_fetch_message(device_type));
-        messages.append(&mut HeadphoneEQ::generate_fetch_message(device_type));
-        messages.append(&mut Headphones::generate_fetch_message(device_type));
-        messages.append(&mut Lighting::generate_fetch_message(device_type));
-        messages.append(&mut MicSetup::generate_fetch_message(device_type));
-        messages.append(&mut Subwoofer::generate_fetch_message(device_type));
-        messages.append(&mut Suppressor::generate_fetch_message(device_type));
+
+        generate_fetch_messages!(BassEnhancement, device_type, version, messages);
+        generate_fetch_messages!(DeEsser, device_type, version, messages);
+        generate_fetch_messages!(EQMicrophone, device_type, version, messages);
+        generate_fetch_messages!(Exciter, device_type, version, messages);
+        generate_fetch_messages!(Expander, device_type, version, messages);
+        generate_fetch_messages!(HeadphoneEQ, device_type, version, messages);
+        generate_fetch_messages!(Headphones, device_type, version, messages);
+        generate_fetch_messages!(Lighting, device_type, version, messages);
+        generate_fetch_messages!(MicSetup, device_type, version, messages);
+        generate_fetch_messages!(Subwoofer, device_type, version, messages);
+        generate_fetch_messages!(Suppressor, device_type, version, messages);
 
         messages
     }
@@ -206,7 +210,7 @@ impl Message {
             (Message::BassEnhancement(a), Message::BassEnhancement(b)) => a.is_same_target(b),
             (Message::Compressor(a), Message::Compressor(b)) => a.is_same_target(b),
             (Message::DeEsser(a), Message::DeEsser(b)) => a.is_same_target(b),
-            (Message::Equaliser(a), Message::Equaliser(b)) => a.is_same_target(b),
+            (Message::EQMicrophone(a), Message::EQMicrophone(b)) => a.is_same_target(b),
             (Message::Exciter(a), Message::Exciter(b)) => a.is_same_target(b),
             (Message::Expander(a), Message::Expander(b)) => a.is_same_target(b),
             (Message::HeadphoneEQ(a), Message::HeadphoneEQ(b)) => a.is_same_target(b),
@@ -223,7 +227,7 @@ impl Message {
 pub enum BeacnMessage {
     Headphones = 0x00, // HeadphoneMessage
     Lighting = 0x01,
-    Equaliser = 0x02,
+    EQMicrophone = 0x02,
     HeadphoneEQ = 0x03,
     BassEnhancement = 0x04,
     Compressor = 0x05,
@@ -256,88 +260,12 @@ trait BeacnSubMessage {
     fn to_beacn_value(&self) -> BeacnValue;
 
     fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType) -> Self;
-    fn generate_fetch_message(device_type: DeviceType) -> Vec<Message>;
-}
 
-#[macro_export]
-macro_rules! message_group {
-    (pub enum $name:ident { $($body:tt)* }) => {
-        $crate::message_group!(@munch $name; []; []; []; []; $($body)*);
-    };
-
-    // base case: nothing left to consume, emit everything
-    (@munch $name:ident;
-        [$($variants:tt)*];
-        [$($getters:tt)*];
-        [$($targets:tt)*];
-        [$($device_arms:tt)*];
-    ) => {
-        $crate::paste::paste! {
-            #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-            pub enum $name {
-                $($variants)*
-                $($getters)*
-            }
-
-            impl $name {
-                pub fn is_same_target(&self, other: &Self) -> bool {
-                    match (self, other) {
-                        $($targets)*
-                        _ => false,
-                    }
-                }
-
-                pub fn is_message_set(&self) -> bool {
-                    match self {
-                        $($device_arms)*
-                        _ => false,
-                    }
-                }
-            }
-        }
-    };
-
-    // zero-key variant
-    (@munch $name:ident;
-        [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*]; [$($device_arms:tt)*];
-        $variant:ident () -> $val_ty:ty $(, $($rest:tt)*)?) => {
-        $crate::message_group!(
-            @munch $name;
-            [$($variants)* $variant($val_ty),];
-            [$($getters)* [<Get $variant>],];
-            [$($targets)* (Self::$variant(_), Self::$variant(_)) => true,];
-            [$($device_arms)* Self::$variant(..) => true,];
-            $($($rest)*)?
-        );
-    };
-
-    // one-key variant
-    (@munch $name:ident;
-        [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*]; [$($device_arms:tt)*];
-        $variant:ident ($k0:ty) -> $val_ty:ty $(, $($rest:tt)*)?) => {
-        $crate::message_group!(
-            @munch $name;
-            [$($variants)* $variant($k0, $val_ty),];
-            [$($getters)* [<Get $variant>]($k0),];
-            [$($targets)* (Self::$variant(a0, _), Self::$variant(b0, _)) => a0 == b0,];
-            [$($device_arms)* Self::$variant(..) => true,];
-            $($($rest)*)?
-        );
-    };
-
-    // two-key variant
-    (@munch $name:ident;
-        [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*]; [$($device_arms:tt)*];
-        $variant:ident ($k0:ty, $k1:ty) -> $val_ty:ty $(, $($rest:tt)*)?) => {
-        $crate::message_group!(
-            @munch $name;
-            [$($variants)* $variant($k0, $k1, $val_ty),];
-            [$($getters)* [<Get $variant>]($k0, $k1),];
-            [$($targets)* (Self::$variant(a0, a1, _), Self::$variant(b0, b1, _)) => a0 == b0 && a1 == b1,];
-            [$($device_arms)* Self::$variant(..) => true,];
-            $($($rest)*)?
-        );
-    };
-
-    // This gonna get messy if we ever need a third key :D
+    fn get_class_minimum_version() -> VersionNumber {
+        VERSION_MIN_ALL
+    }
+    fn get_class_maximum_version() -> VersionNumber {
+        VERSION_MAX_ALL
+    }
+    fn generate_fetch_message(device_type: DeviceType, version: VersionNumber) -> Vec<Message>;
 }
