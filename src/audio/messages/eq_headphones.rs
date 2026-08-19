@@ -121,6 +121,15 @@ pub enum EQChannel {
     Right,
 }
 
+impl EQChannel {
+    pub fn other(self) -> Self {
+        match self {
+            EQChannel::Left => EQChannel::Right,
+            EQChannel::Right => EQChannel::Left,
+        }
+    }
+}
+
 impl From<EQSubType> for EQChannel {
     fn from(value: EQSubType) -> Self {
         match value {
