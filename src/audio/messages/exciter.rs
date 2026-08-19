@@ -5,6 +5,7 @@ use crate::{generate_range, message_group};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::EnumIter;
+use crate::version::VersionNumber;
 
 message_group!(
     pub enum Exciter {
@@ -49,7 +50,7 @@ impl BeacnSubMessage for Exciter {
         }
     }
 
-    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType, _: VersionNumber) -> Vec<Message> {
         vec![
             Message::Exciter(Exciter::GetAmount),
             Message::Exciter(Exciter::GetFrequency),

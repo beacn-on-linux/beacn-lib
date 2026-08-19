@@ -10,6 +10,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
+use crate::version::VersionNumber;
 
 message_group!(
     pub enum Compressor {
@@ -88,7 +89,7 @@ impl BeacnSubMessage for Compressor {
         }
     }
 
-    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType, _: VersionNumber) -> Vec<Message> {
         let mut messages = vec![];
         messages.push(Message::Compressor(Compressor::GetMode));
         for mode in CompressorMode::iter() {

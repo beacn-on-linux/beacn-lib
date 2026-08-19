@@ -2,6 +2,7 @@ use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::manager::DeviceType;
 use crate::message_group;
 use crate::types::{BeacnValue, Percent, ReadBeacn, WriteBeacn, read_value, write_value};
+use crate::version::VersionNumber;
 
 message_group!(
     pub enum DeEsser {
@@ -42,7 +43,7 @@ impl BeacnSubMessage for DeEsser {
         }
     }
 
-    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType, _: VersionNumber) -> Vec<Message> {
         vec![
             Message::DeEsser(DeEsser::GetAmount),
             Message::DeEsser(DeEsser::GetEnabled),

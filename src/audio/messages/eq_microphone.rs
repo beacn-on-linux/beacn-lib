@@ -7,6 +7,7 @@ use crate::audio::messages::eq_common::{
 use crate::manager::DeviceType;
 use crate::message_group;
 use strum::IntoEnumIterator;
+use crate::version::VersionNumber;
 
 message_group!(
     pub enum EQMicrophone {
@@ -83,7 +84,7 @@ impl BeacnSubMessage for EQMicrophone {
         }
     }
 
-    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType, _: VersionNumber) -> Vec<Message> {
         // This one's kinda obnoxious, because we need to handle it both for the modes, and
         // the bands, so lets get started.
         let mut messages = vec![];

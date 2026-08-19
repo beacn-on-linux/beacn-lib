@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 pub mod bass_enhancement;
 pub mod compressor;
 pub mod deesser;
+mod eq_common;
 pub mod eq_microphone;
 pub mod exciter;
 pub mod expander;
@@ -27,10 +28,23 @@ pub mod lighting;
 pub mod mic_setup;
 pub mod subwoofer;
 pub mod suppressor;
-mod eq_common;
 
 const VERSION_MIN_ALL: VersionNumber = VersionNumber(0, 0, 0, 0);
 const VERSION_MAX_ALL: VersionNumber = VersionNumber(u32::MAX, u32::MAX, u32::MAX, u32::MAX);
+
+macro_rules! generate_messages {
+    ($message_class:ident, $device_type:expr, $version:expr, $messages:expr) => {
+        let min_version = $message_class::get_class_minimum_version();
+        let max_version = $message_class::get_class_maximum_version();
+
+        if $version >= min_version && $version <= max_version {
+            $messages.append(&mut $message_class::generate_fetch_message(
+                $device_type,
+                $version,
+            ));
+        }
+    };
+}
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Message {
@@ -183,20 +197,20 @@ impl Message {
         }
     }
 
-    pub fn generate_fetch_message(device_type: DeviceType) -> Vec<Message> {
+    pub fn generate_fetch_message(device_type: DeviceType, version: VersionNumber) -> Vec<Message> {
         let mut messages = Vec::new();
-        messages.append(&mut BassEnhancement::generate_fetch_message(device_type));
-        messages.append(&mut Compressor::generate_fetch_message(device_type));
-        messages.append(&mut DeEsser::generate_fetch_message(device_type));
-        messages.append(&mut EQMicrophone::generate_fetch_message(device_type));
-        messages.append(&mut Exciter::generate_fetch_message(device_type));
-        messages.append(&mut Expander::generate_fetch_message(device_type));
-        messages.append(&mut HeadphoneEQ::generate_fetch_message(device_type));
-        messages.append(&mut Headphones::generate_fetch_message(device_type));
-        messages.append(&mut Lighting::generate_fetch_message(device_type));
-        messages.append(&mut MicSetup::generate_fetch_message(device_type));
-        messages.append(&mut Subwoofer::generate_fetch_message(device_type));
-        messages.append(&mut Suppressor::generate_fetch_message(device_type));
+
+        generate_messages!(BassEnhancement, device_type, version, messages);
+        generate_messages!(DeEsser, device_type, version, messages);
+        generate_messages!(EQMicrophone, device_type, version, messages);
+        generate_messages!(Exciter, device_type, version, messages);
+        generate_messages!(Expander, device_type, version, messages);
+        generate_messages!(HeadphoneEQ, device_type, version, messages);
+        generate_messages!(Headphones, device_type, version, messages);
+        generate_messages!(Lighting, device_type, version, messages);
+        generate_messages!(MicSetup, device_type, version, messages);
+        generate_messages!(Subwoofer, device_type, version, messages);
+        generate_messages!(Suppressor, device_type, version, messages);
 
         messages
     }
@@ -256,7 +270,14 @@ trait BeacnSubMessage {
     fn to_beacn_value(&self) -> BeacnValue;
 
     fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType) -> Self;
-    fn generate_fetch_message(device_type: DeviceType) -> Vec<Message>;
+
+    fn get_class_minimum_version() -> VersionNumber {
+        VERSION_MIN_ALL
+    }
+    fn get_class_maximum_version() -> VersionNumber {
+        VERSION_MAX_ALL
+    }
+    fn generate_fetch_message(device_type: DeviceType, version: VersionNumber) -> Vec<Message>;
 }
 
 #[macro_export]

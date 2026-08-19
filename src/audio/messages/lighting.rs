@@ -7,6 +7,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
+use crate::version::VersionNumber;
 
 message_group!(
     pub enum Lighting {
@@ -94,7 +95,7 @@ impl BeacnSubMessage for Lighting {
         }
     }
 
-    fn generate_fetch_message(device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(device_type: DeviceType, _: VersionNumber) -> Vec<Message> {
         let mode = match device_type {
             DeviceType::BeacnMic => Message::Lighting(Lighting::GetMode),
             DeviceType::BeacnStudio => Message::Lighting(Lighting::GetStudioMode),

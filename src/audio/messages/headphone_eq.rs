@@ -1,7 +1,8 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
-use crate::{generate_range, message_group};
+use crate::version::VersionNumber;
+use crate::{EQ_HEADPHONES_VERSION, generate_range, message_group};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
@@ -50,7 +51,7 @@ impl BeacnSubMessage for HeadphoneEQ {
         }
     }
 
-    fn generate_fetch_message(_device_type: DeviceType) -> Vec<Message> {
+    fn generate_fetch_message(_device_type: DeviceType, _: VersionNumber) -> Vec<Message> {
         let mut messages = vec![];
         for eq_type in HPEQType::iter() {
             messages.push(Message::HeadphoneEQ(HeadphoneEQ::GetEnabled(eq_type)));
