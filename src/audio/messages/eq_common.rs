@@ -1,13 +1,14 @@
+use crate::generate_range;
+use crate::types::sealed::Sealed;
+use crate::types::{BeacnValue, ReadBeacn, WriteBeacn};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
-use crate::generate_range;
-use crate::types::sealed::Sealed;
-use crate::types::{BeacnValue, ReadBeacn, WriteBeacn};
 
 generate_range!(EQGain, f32, -12.0..=12.0);
 generate_range!(EQFrequency, f32, 20.0..=20000.0, u32);
+
 generate_range!(EQQ, f32, 0.1..=10.0);
 
 #[derive(

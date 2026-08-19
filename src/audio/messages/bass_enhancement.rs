@@ -4,12 +4,12 @@ use crate::manager::DeviceType;
 use crate::types::{
     BeacnValue, MakeUpGain, Percent, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
 };
+use crate::version::VersionNumber;
 use crate::{generate_range, message_group};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
-use crate::version::VersionNumber;
 
 message_group!(
     pub enum BassEnhancement {

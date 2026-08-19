@@ -31,7 +31,6 @@ pub mod lighting;
 pub mod mic_setup;
 pub mod subwoofer;
 pub mod suppressor;
-mod eq_common;
 
 const VERSION_MIN_ALL: VersionNumber = VersionNumber(0, 0, 0, 0);
 const VERSION_MAX_ALL: VersionNumber = VersionNumber(u32::MAX, u32::MAX, u32::MAX, u32::MAX);

@@ -435,6 +435,7 @@ impl From<MessageValue<RGBA>> for BeacnValue {
 macro_rules! generate_range {
     ($name:ident, $type:ty, $range:expr $(, $friendly:ty)* $(,)?) => {
         #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+        #[allow(clippy::upper_case_acronyms)]
         pub struct $name(pub $type);
 
         impl $crate::types::HasRange<$type> for $name {

@@ -6,8 +6,8 @@ use crate::audio::messages::eq_common::{
 };
 use crate::manager::DeviceType;
 use crate::message_group;
-use strum::IntoEnumIterator;
 use crate::version::VersionNumber;
+use strum::IntoEnumIterator;
 
 message_group!(
     pub enum EQMicrophone {
@@ -93,7 +93,9 @@ impl BeacnSubMessage for EQMicrophone {
             for band in EQBand::iter() {
                 messages.push(Message::EQMicrophone(EQMicrophone::GetType(mode, band)));
                 messages.push(Message::EQMicrophone(EQMicrophone::GetGain(mode, band)));
-                messages.push(Message::EQMicrophone(EQMicrophone::GetFrequency(mode, band)));
+                messages.push(Message::EQMicrophone(EQMicrophone::GetFrequency(
+                    mode, band,
+                )));
                 messages.push(Message::EQMicrophone(EQMicrophone::GetQ(mode, band)));
                 messages.push(Message::EQMicrophone(EQMicrophone::GetEnabled(mode, band)));
             }

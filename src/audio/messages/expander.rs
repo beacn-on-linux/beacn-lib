@@ -4,13 +4,13 @@ use crate::types::sealed::Sealed;
 use crate::types::{
     BeacnValue, PackedEnumKey, ReadBeacn, TimeFrame, WriteBeacn, read_value, write_value,
 };
+use crate::version::VersionNumber;
 use crate::{generate_range, message_group};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
 use strum::{EnumIter, IntoEnumIterator};
-use crate::version::VersionNumber;
 
 message_group!(
     pub enum Expander {

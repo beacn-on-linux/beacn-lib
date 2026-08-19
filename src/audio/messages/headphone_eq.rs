@@ -2,7 +2,7 @@ use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 use crate::version::VersionNumber;
-use crate::{EQ_HEADPHONES_VERSION, generate_range, message_group};
+use crate::{generate_range, message_group};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};

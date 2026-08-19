@@ -109,7 +109,11 @@ pub(crate) trait BeacnAudioMessageLocal:
         // Lookup the Parameter on the Mic
         let param = self.param_lookup(key).await?;
 
-        Ok(Message::from_beacn_message(param, self.get_device_type(), self.get_version()))
+        Ok(Message::from_beacn_message(
+            param,
+            self.get_device_type(),
+            self.get_version(),
+        ))
     }
 
     async fn set_value(&self, message: Message) -> BResult<Message> {
@@ -130,7 +134,11 @@ pub(crate) trait BeacnAudioMessageLocal:
 
         // This can generally be ignored, because in most cases it'll be identical to the
         // original request (except fed from the Mic), but passing back anyway just in case.
-        Ok(Message::from_beacn_message(result, self.get_device_type(), self.get_version()))
+        Ok(Message::from_beacn_message(
+            result,
+            self.get_device_type(),
+            self.get_version(),
+        ))
     }
 
     async fn param_lookup(&self, key: [u8; 3]) -> BResult<[u8; 8]> {

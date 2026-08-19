@@ -166,6 +166,7 @@ fn identify_beacn_device(info: &DeviceInfo) -> Option<DeviceType> {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 enum HotplugLoopEvent {
     Management(Result<HotPlugThreadManagement, flume::RecvError>),
     Hotplug(Option<HotplugEvent>),
