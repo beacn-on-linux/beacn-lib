@@ -57,7 +57,7 @@ impl BeacnSubMessage for Headphones {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             Headphones::HeadphoneLevel(_) | Headphones::GetHeadphoneLevel => [0x04, 0x00],
             Headphones::MicMonitor(_) | Headphones::GetMicMonitor => [0x06, 0x00],
@@ -76,7 +76,7 @@ impl BeacnSubMessage for Headphones {
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             Headphones::HeadphoneLevel(v) => write_value(v),
             Headphones::MicMonitor(v) => write_value(v),

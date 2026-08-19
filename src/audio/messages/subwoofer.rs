@@ -24,7 +24,7 @@ impl BeacnSubMessage for Subwoofer {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             Subwoofer::GetMakeupGain | Subwoofer::MakeupGain(_) => [0x04, 0x00],
             Subwoofer::GetRatio | Subwoofer::Ratio(_) => [0x05, 0x00],
@@ -34,7 +34,7 @@ impl BeacnSubMessage for Subwoofer {
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             Subwoofer::MakeupGain(v) => write_value(v),
             Subwoofer::Ratio(v) => write_value(v),

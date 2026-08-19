@@ -29,7 +29,7 @@ impl BeacnSubMessage for EQMicrophone {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             EQMicrophone::Mode(_) | EQMicrophone::GetMode => [0x00, 0x00],
             EQMicrophone::Type(m, b, _) | EQMicrophone::GetType(m, b) => [
@@ -55,7 +55,7 @@ impl BeacnSubMessage for EQMicrophone {
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             EQMicrophone::Mode(v) => EQSubType::from(*v).write_beacn(),
             EQMicrophone::Type(_, _, v) => v.write_beacn(),
@@ -67,7 +67,7 @@ impl BeacnSubMessage for EQMicrophone {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType, v: VersionNumber) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType, _: VersionNumber) -> Self {
         // This one's kinda interesting, we need to first check for 00,00..
         if key == [0x00, 0x00] {
             return Self::Mode(EQMode::from(EQSubType::read_beacn(&value)));

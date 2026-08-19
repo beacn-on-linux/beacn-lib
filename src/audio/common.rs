@@ -104,7 +104,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         }
 
         // Ok, first we need to deconstruct this message into something more useful
-        let key = message.to_beacn_key();
+        let key = message.to_beacn_key(self.get_version());
 
         // Lookup the Parameter on the Mic
         let param = self.param_lookup(key).await?;
@@ -127,8 +127,8 @@ pub(crate) trait BeacnAudioMessageLocal:
             beacn_bail!("Command is not valid for this firmware version");
         }
 
-        let key = message.to_beacn_key();
-        let value = message.to_beacn_value();
+        let key = message.to_beacn_key(self.get_version());
+        let value = message.to_beacn_value(self.get_version());
 
         let result = self.param_set(key, value).await?;
 

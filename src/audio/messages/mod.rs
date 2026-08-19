@@ -134,24 +134,24 @@ impl Message {
         }
     }
 
-    pub fn to_beacn_key(&self) -> [u8; 3] {
+    pub fn to_beacn_key(&self, vn: VersionNumber) -> [u8; 3] {
         let (top, sub) = match self {
-            Message::BassEnhancement(v) => (BeacnMessage::BassEnhancement as u8, v.to_beacn_key()),
-            Message::Compressor(v) => (BeacnMessage::Compressor as u8, v.to_beacn_key()),
-            Message::DeEsser(v) => (BeacnMessage::DeEsser as u8, v.to_beacn_key()),
-            Message::EQMicrophone(v) => (BeacnMessage::EQMicrophone as u8, v.to_beacn_key()),
-            Message::EQHeadphones(v) => (BeacnMessage::EQHeadphones as u8, v.to_beacn_key()),
+            Message::BassEnhancement(v) => (BeacnMessage::BassEnhance as u8, v.to_beacn_key(vn)),
+            Message::Compressor(v) => (BeacnMessage::Compressor as u8, v.to_beacn_key(vn)),
+            Message::DeEsser(v) => (BeacnMessage::DeEsser as u8, v.to_beacn_key(vn)),
+            Message::EQMicrophone(v) => (BeacnMessage::EQMicrophone as u8, v.to_beacn_key(vn)),
+            Message::EQHeadphones(v) => (BeacnMessage::EQHeadphones as u8, v.to_beacn_key(vn)),
 
             // This is the legacy (pre 1.3) headphone EQ
-            Message::EQHPLegacy(v) => (BeacnMessage::EQHeadphones as u8, v.to_beacn_key()),
-            Message::Exciter(v) => (BeacnMessage::Exciter as u8, v.to_beacn_key()),
-            Message::Expander(v) => (BeacnMessage::Expander as u8, v.to_beacn_key()),
-            Message::Headphones(v) => (BeacnMessage::Headphones as u8, v.to_beacn_key()),
-            Message::Lighting(v) => (BeacnMessage::Lighting as u8, v.to_beacn_key()),
-            Message::MicSetup(v) => (BeacnMessage::MicSetup as u8, v.to_beacn_key()),
-            Message::Subwoofer(v) => (BeacnMessage::Subwoofer as u8, v.to_beacn_key()),
-            Message::Suppressor(v) => (BeacnMessage::Suppressor as u8, v.to_beacn_key()),
-            Message::Controls(v) => (BeacnMessage::Controls as u8, v.to_beacn_key()),
+            Message::EQHPLegacy(v) => (BeacnMessage::EQHeadphones as u8, v.to_beacn_key(vn)),
+            Message::Exciter(v) => (BeacnMessage::Exciter as u8, v.to_beacn_key(vn)),
+            Message::Expander(v) => (BeacnMessage::Expander as u8, v.to_beacn_key(vn)),
+            Message::Headphones(v) => (BeacnMessage::Headphones as u8, v.to_beacn_key(vn)),
+            Message::Lighting(v) => (BeacnMessage::Lighting as u8, v.to_beacn_key(vn)),
+            Message::MicSetup(v) => (BeacnMessage::MicSetup as u8, v.to_beacn_key(vn)),
+            Message::Subwoofer(v) => (BeacnMessage::Subwoofer as u8, v.to_beacn_key(vn)),
+            Message::Suppressor(v) => (BeacnMessage::Suppressor as u8, v.to_beacn_key(vn)),
+            Message::Controls(v) => (BeacnMessage::Controls as u8, v.to_beacn_key(vn)),
         };
 
         // Build the Key
@@ -162,22 +162,22 @@ impl Message {
         key
     }
 
-    pub fn to_beacn_value(&self) -> BeacnValue {
+    pub fn to_beacn_value(&self, vn: VersionNumber) -> BeacnValue {
         match self {
-            Message::BassEnhancement(v) => v.to_beacn_value(),
-            Message::Compressor(v) => v.to_beacn_value(),
-            Message::DeEsser(v) => v.to_beacn_value(),
-            Message::EQMicrophone(v) => v.to_beacn_value(),
-            Message::EQHeadphones(v) => v.to_beacn_value(),
-            Message::Exciter(v) => v.to_beacn_value(),
-            Message::Expander(v) => v.to_beacn_value(),
-            Message::EQHPLegacy(v) => v.to_beacn_value(),
-            Message::Headphones(v) => v.to_beacn_value(),
-            Message::Lighting(v) => v.to_beacn_value(),
-            Message::MicSetup(v) => v.to_beacn_value(),
-            Message::Subwoofer(v) => v.to_beacn_value(),
-            Message::Suppressor(v) => v.to_beacn_value(),
-            Message::Controls(v) => v.to_beacn_value(),
+            Message::BassEnhancement(v) => v.to_beacn_value(vn),
+            Message::Compressor(v) => v.to_beacn_value(vn),
+            Message::DeEsser(v) => v.to_beacn_value(vn),
+            Message::EQMicrophone(v) => v.to_beacn_value(vn),
+            Message::EQHeadphones(v) => v.to_beacn_value(vn),
+            Message::Exciter(v) => v.to_beacn_value(vn),
+            Message::Expander(v) => v.to_beacn_value(vn),
+            Message::EQHPLegacy(v) => v.to_beacn_value(vn),
+            Message::Headphones(v) => v.to_beacn_value(vn),
+            Message::Lighting(v) => v.to_beacn_value(vn),
+            Message::MicSetup(v) => v.to_beacn_value(vn),
+            Message::Subwoofer(v) => v.to_beacn_value(vn),
+            Message::Suppressor(v) => v.to_beacn_value(vn),
+            Message::Controls(v) => v.to_beacn_value(vn),
         }
     }
 
@@ -253,7 +253,7 @@ pub enum BeacnMessage {
     Lighting = 0x01,
     EQMicrophone = 0x02,
     EQHeadphones = 0x03,
-    BassEnhancement = 0x04,
+    BassEnhance = 0x04,
     Compressor = 0x05,
     DeEsser = 0x06,
     Exciter = 0x07,
@@ -281,8 +281,8 @@ trait BeacnSubMessage {
 
     fn is_device_message_set(&self) -> bool;
 
-    fn to_beacn_key(&self) -> [u8; 2];
-    fn to_beacn_value(&self) -> BeacnValue;
+    fn to_beacn_key(&self, v: VersionNumber) -> [u8; 2];
+    fn to_beacn_value(&self, v: VersionNumber) -> BeacnValue;
 
     fn from_beacn(
         key: [u8; 2],

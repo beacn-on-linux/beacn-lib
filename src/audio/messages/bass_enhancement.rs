@@ -40,7 +40,7 @@ impl BeacnSubMessage for BassEnhancement {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             BassEnhancement::Attack(_) | BassEnhancement::GetAttack => [0x00, 0x00],
             BassEnhancement::Release(_) | BassEnhancement::GetRelease => [0x01, 0x00],
@@ -60,7 +60,7 @@ impl BeacnSubMessage for BassEnhancement {
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             BassEnhancement::Drive(v) => write_value(v),
             BassEnhancement::Mix(v) => write_value(v),

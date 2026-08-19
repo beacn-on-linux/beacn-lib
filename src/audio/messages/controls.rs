@@ -25,14 +25,14 @@ impl BeacnSubMessage for Controls {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             Controls::Mono(_) | Controls::GetMono => [0x01, 0x00],
             Controls::Balance(_) | Controls::GetBalance => [0x00, 0x00],
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             Controls::Mono(v) => v.write_beacn(),
             Controls::Balance(v) => v.write_beacn(),

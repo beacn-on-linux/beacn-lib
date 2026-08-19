@@ -20,14 +20,14 @@ impl BeacnSubMessage for DeEsser {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             DeEsser::Amount(_) | DeEsser::GetAmount => [0x03, 0x00],
             DeEsser::Enabled(_) | DeEsser::GetEnabled => [0x04, 0x00],
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             DeEsser::Amount(v) => write_value(v),
             DeEsser::Enabled(v) => v.write_beacn(),

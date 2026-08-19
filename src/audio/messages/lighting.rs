@@ -39,7 +39,7 @@ impl BeacnSubMessage for Lighting {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             Lighting::GetMode | Lighting::Mode(_) => [0x00, 0x00],
             Lighting::GetStudioMode | Lighting::StudioMode(_) => [0x00, 0x00],
@@ -56,7 +56,7 @@ impl BeacnSubMessage for Lighting {
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             Lighting::Mode(v) => v.write_beacn(),
             Lighting::StudioMode(v) => v.write_beacn(),

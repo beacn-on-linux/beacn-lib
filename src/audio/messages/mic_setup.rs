@@ -29,7 +29,7 @@ impl BeacnSubMessage for MicSetup {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             MicSetup::GetMicGain | MicSetup::MicGain(_) => [0x00, 0x00],
             MicSetup::GetStudioMicGain | MicSetup::StudioMicGain(_) => [0x00, 0x00],
@@ -37,7 +37,7 @@ impl BeacnSubMessage for MicSetup {
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             MicSetup::MicGain(v) => write_value(v),
             MicSetup::StudioMicGain(v) => write_value(v),

@@ -24,7 +24,7 @@ impl BeacnSubMessage for Exciter {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             Exciter::Amount(_) | Exciter::GetAmount => [0x01, 0x00],
             Exciter::Frequency(_) | Exciter::GetFrequency => [0x02, 0x00],
@@ -32,7 +32,7 @@ impl BeacnSubMessage for Exciter {
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             Exciter::Amount(v) => write_value(v),
             Exciter::Frequency(v) => write_value(v),

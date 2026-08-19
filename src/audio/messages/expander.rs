@@ -32,7 +32,7 @@ impl BeacnSubMessage for Expander {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             Expander::GetMode | Expander::Mode(_) => [0x00, 0x00],
             Expander::GetThreshold(m) | Expander::Threshold(m, _) => {
@@ -53,7 +53,7 @@ impl BeacnSubMessage for Expander {
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             Expander::Mode(v) => v.write_beacn(),
             Expander::Threshold(_, v) => write_value(v),

@@ -27,7 +27,7 @@ impl BeacnSubMessage for EQHPLegacy {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             EQHPLegacy::GetAmount(t) | EQHPLegacy::Amount(t, _) => {
                 [PackedEnumKey(*t, HPEQKeys::Amount).to_encoded(), 0]
@@ -38,7 +38,7 @@ impl BeacnSubMessage for EQHPLegacy {
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             EQHPLegacy::Amount(_, v) => write_value(v),
             EQHPLegacy::Enabled(_, v) => v.write_beacn(),
