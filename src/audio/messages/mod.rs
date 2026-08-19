@@ -4,7 +4,6 @@ use crate::audio::messages::deesser::DeEsser;
 use crate::audio::messages::eq_microphone::EQMicrophone;
 use crate::audio::messages::exciter::Exciter;
 use crate::audio::messages::expander::Expander;
-use crate::audio::messages::headphone_eq::HeadphoneEQ;
 use crate::audio::messages::headphones::Headphones;
 use crate::audio::messages::lighting::Lighting;
 use crate::audio::messages::mic_setup::MicSetup;
@@ -14,16 +13,20 @@ use crate::manager::DeviceType;
 use crate::types::BeacnValue;
 use crate::version::VersionNumber;
 use serde::{Deserialize, Serialize};
+use crate::audio::messages::headphone_eq::HeadphoneEQ;
+use crate::generate_fetch_messages;
+
+mod _macros;
+mod eq_common;
 
 pub mod bass_enhancement;
 pub mod compressor;
 pub mod deesser;
-mod eq_common;
 pub mod eq_microphone;
 pub mod exciter;
 pub mod expander;
-pub mod headphone_eq;
 pub mod headphones;
+pub mod headphone_eq;
 pub mod lighting;
 pub mod mic_setup;
 pub mod subwoofer;
@@ -31,20 +34,6 @@ pub mod suppressor;
 
 const VERSION_MIN_ALL: VersionNumber = VersionNumber(0, 0, 0, 0);
 const VERSION_MAX_ALL: VersionNumber = VersionNumber(u32::MAX, u32::MAX, u32::MAX, u32::MAX);
-
-macro_rules! generate_messages {
-    ($message_class:ident, $device_type:expr, $version:expr, $messages:expr) => {
-        let min_version = $message_class::get_class_minimum_version();
-        let max_version = $message_class::get_class_maximum_version();
-
-        if $version >= min_version && $version <= max_version {
-            $messages.append(&mut $message_class::generate_fetch_message(
-                $device_type,
-                $version,
-            ));
-        }
-    };
-}
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Message {
@@ -200,17 +189,17 @@ impl Message {
     pub fn generate_fetch_message(device_type: DeviceType, version: VersionNumber) -> Vec<Message> {
         let mut messages = Vec::new();
 
-        generate_messages!(BassEnhancement, device_type, version, messages);
-        generate_messages!(DeEsser, device_type, version, messages);
-        generate_messages!(EQMicrophone, device_type, version, messages);
-        generate_messages!(Exciter, device_type, version, messages);
-        generate_messages!(Expander, device_type, version, messages);
-        generate_messages!(HeadphoneEQ, device_type, version, messages);
-        generate_messages!(Headphones, device_type, version, messages);
-        generate_messages!(Lighting, device_type, version, messages);
-        generate_messages!(MicSetup, device_type, version, messages);
-        generate_messages!(Subwoofer, device_type, version, messages);
-        generate_messages!(Suppressor, device_type, version, messages);
+        generate_fetch_messages!(BassEnhancement, device_type, version, messages);
+        generate_fetch_messages!(DeEsser, device_type, version, messages);
+        generate_fetch_messages!(EQMicrophone, device_type, version, messages);
+        generate_fetch_messages!(Exciter, device_type, version, messages);
+        generate_fetch_messages!(Expander, device_type, version, messages);
+        generate_fetch_messages!(HeadphoneEQ, device_type, version, messages);
+        generate_fetch_messages!(Headphones, device_type, version, messages);
+        generate_fetch_messages!(Lighting, device_type, version, messages);
+        generate_fetch_messages!(MicSetup, device_type, version, messages);
+        generate_fetch_messages!(Subwoofer, device_type, version, messages);
+        generate_fetch_messages!(Suppressor, device_type, version, messages);
 
         messages
     }
@@ -278,87 +267,4 @@ trait BeacnSubMessage {
         VERSION_MAX_ALL
     }
     fn generate_fetch_message(device_type: DeviceType, version: VersionNumber) -> Vec<Message>;
-}
-
-#[macro_export]
-macro_rules! message_group {
-    (pub enum $name:ident { $($body:tt)* }) => {
-        $crate::message_group!(@munch $name; []; []; []; []; $($body)*);
-    };
-
-    // base case: nothing left to consume, emit everything
-    (@munch $name:ident;
-        [$($variants:tt)*];
-        [$($getters:tt)*];
-        [$($targets:tt)*];
-        [$($device_arms:tt)*];
-    ) => {
-        $crate::paste::paste! {
-            #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-            pub enum $name {
-                $($variants)*
-                $($getters)*
-            }
-
-            impl $name {
-                pub fn is_same_target(&self, other: &Self) -> bool {
-                    match (self, other) {
-                        $($targets)*
-                        _ => false,
-                    }
-                }
-
-                pub fn is_message_set(&self) -> bool {
-                    match self {
-                        $($device_arms)*
-                        _ => false,
-                    }
-                }
-            }
-        }
-    };
-
-    // zero-key variant
-    (@munch $name:ident;
-        [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*]; [$($device_arms:tt)*];
-        $variant:ident () -> $val_ty:ty $(, $($rest:tt)*)?) => {
-        $crate::message_group!(
-            @munch $name;
-            [$($variants)* $variant($val_ty),];
-            [$($getters)* [<Get $variant>],];
-            [$($targets)* (Self::$variant(_), Self::$variant(_)) => true,];
-            [$($device_arms)* Self::$variant(..) => true,];
-            $($($rest)*)?
-        );
-    };
-
-    // one-key variant
-    (@munch $name:ident;
-        [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*]; [$($device_arms:tt)*];
-        $variant:ident ($k0:ty) -> $val_ty:ty $(, $($rest:tt)*)?) => {
-        $crate::message_group!(
-            @munch $name;
-            [$($variants)* $variant($k0, $val_ty),];
-            [$($getters)* [<Get $variant>]($k0),];
-            [$($targets)* (Self::$variant(a0, _), Self::$variant(b0, _)) => a0 == b0,];
-            [$($device_arms)* Self::$variant(..) => true,];
-            $($($rest)*)?
-        );
-    };
-
-    // two-key variant
-    (@munch $name:ident;
-        [$($variants:tt)*]; [$($getters:tt)*]; [$($targets:tt)*]; [$($device_arms:tt)*];
-        $variant:ident ($k0:ty, $k1:ty) -> $val_ty:ty $(, $($rest:tt)*)?) => {
-        $crate::message_group!(
-            @munch $name;
-            [$($variants)* $variant($k0, $k1, $val_ty),];
-            [$($getters)* [<Get $variant>]($k0, $k1),];
-            [$($targets)* (Self::$variant(a0, a1, _), Self::$variant(b0, b1, _)) => a0 == b0 && a1 == b1,];
-            [$($device_arms)* Self::$variant(..) => true,];
-            $($($rest)*)?
-        );
-    };
-
-    // This gonna get messy if we ever need a third key :D
 }
