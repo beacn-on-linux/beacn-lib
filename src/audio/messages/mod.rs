@@ -1,7 +1,7 @@
 use crate::audio::messages::bass_enhancement::BassEnhancement;
 use crate::audio::messages::compressor::Compressor;
 use crate::audio::messages::deesser::DeEsser;
-use crate::audio::messages::equaliser::Equaliser;
+use crate::audio::messages::eq_microphone::EQMicrophone;
 use crate::audio::messages::exciter::Exciter;
 use crate::audio::messages::expander::Expander;
 use crate::audio::messages::headphone_eq::HeadphoneEQ;
@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 pub mod bass_enhancement;
 pub mod compressor;
 pub mod deesser;
-pub mod equaliser;
+pub mod eq_microphone;
 pub mod exciter;
 pub mod expander;
 pub mod headphone_eq;
@@ -27,6 +27,7 @@ pub mod lighting;
 pub mod mic_setup;
 pub mod subwoofer;
 pub mod suppressor;
+mod eq_common;
 
 const VERSION_MIN_ALL: VersionNumber = VersionNumber(0, 0, 0, 0);
 const VERSION_MAX_ALL: VersionNumber = VersionNumber(u32::MAX, u32::MAX, u32::MAX, u32::MAX);
@@ -36,7 +37,7 @@ pub enum Message {
     BassEnhancement(BassEnhancement),
     Compressor(Compressor),
     DeEsser(DeEsser),
-    Equaliser(Equaliser),
+    Equaliser(EQMicrophone),
     Exciter(Exciter),
     Expander(Expander),
     HeadphoneEQ(HeadphoneEQ),
@@ -168,7 +169,7 @@ impl Message {
         match message {
             0x00 => Self::Headphones(Headphones::from_beacn(key, value, device_type)),
             0x01 => Self::Lighting(Lighting::from_beacn(key, value, device_type)),
-            0x02 => Self::Equaliser(Equaliser::from_beacn(key, value, device_type)),
+            0x02 => Self::Equaliser(EQMicrophone::from_beacn(key, value, device_type)),
             0x03 => Self::HeadphoneEQ(HeadphoneEQ::from_beacn(key, value, device_type)),
             0x04 => Self::BassEnhancement(BassEnhancement::from_beacn(key, value, device_type)),
             0x05 => Self::Compressor(Compressor::from_beacn(key, value, device_type)),
@@ -187,7 +188,7 @@ impl Message {
         messages.append(&mut BassEnhancement::generate_fetch_message(device_type));
         messages.append(&mut Compressor::generate_fetch_message(device_type));
         messages.append(&mut DeEsser::generate_fetch_message(device_type));
-        messages.append(&mut Equaliser::generate_fetch_message(device_type));
+        messages.append(&mut EQMicrophone::generate_fetch_message(device_type));
         messages.append(&mut Exciter::generate_fetch_message(device_type));
         messages.append(&mut Expander::generate_fetch_message(device_type));
         messages.append(&mut HeadphoneEQ::generate_fetch_message(device_type));
