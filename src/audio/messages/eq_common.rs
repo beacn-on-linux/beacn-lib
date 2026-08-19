@@ -10,7 +10,6 @@ generate_range!(EQGain, f32, -12.0..=12.0);
 generate_range!(EQFrequency, f32, 20.0..=20000.0, u32);
 generate_range!(EQQ, f32, 0.1..=10.0);
 
-
 // This is a shared type, so we don't have to worry so much about having to implement to or
 // from beacn multiple times. We just wrap our enum in this.
 #[derive(

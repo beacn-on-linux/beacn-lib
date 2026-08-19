@@ -1,9 +1,9 @@
 use crate::audio::messages::eq_common::{EQBand, EQBandType, EQFrequency, EQGain, EQQ, EQSubType};
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::manager::DeviceType;
-use crate::{message_group, EQ_HEADPHONES_VERSION};
 use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
 use crate::version::VersionNumber;
+use crate::{EQ_HEADPHONES_VERSION, message_group};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};

@@ -1,4 +1,3 @@
-use crate::audio::messages::subwoofer::Subwoofer;
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::manager::DeviceType;
 use crate::types::{BeacnValue, ReadBeacn, WriteBeacn};
@@ -41,7 +40,7 @@ impl BeacnSubMessage for Controls {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType) -> Self {
         match key[0] {
             0x00 => Self::Balance(f32::read_beacn(&value)),
             0x01 => Self::Mono(bool::read_beacn(&value)),
@@ -49,7 +48,7 @@ impl BeacnSubMessage for Controls {
         }
     }
 
-    fn generate_fetch_message(device_type: DeviceType, version: VersionNumber) -> Vec<Message> {
+    fn generate_fetch_message(_: DeviceType, version: VersionNumber) -> Vec<Message> {
         if version < EQ_HEADPHONES_VERSION {
             return vec![];
         }

@@ -19,12 +19,12 @@ use crate::version::VersionNumber;
 use serde::{Deserialize, Serialize};
 
 mod _macros;
-mod eq_common;
 
 pub mod bass_enhancement;
 pub mod compressor;
-mod controls;
+pub mod controls;
 pub mod deesser;
+pub mod eq_common;
 pub mod eq_headphones;
 pub mod eq_headphones_legacy;
 pub mod eq_microphone;
