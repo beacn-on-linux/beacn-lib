@@ -65,7 +65,7 @@ impl BeacnSubMessage for EQHeadphones {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType, _: VersionNumber) -> Self {
         // This one's kinda interesting, we need to first check for 01,00..
         if key == [0x01, 0x00] {
             return Self::Linked(bool::read_beacn(&value));

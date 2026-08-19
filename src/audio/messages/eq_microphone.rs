@@ -67,7 +67,7 @@ impl BeacnSubMessage for EQMicrophone {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType, v: VersionNumber) -> Self {
         // This one's kinda interesting, we need to first check for 00,00..
         if key == [0x00, 0x00] {
             return Self::Mode(EQMode::from(EQSubType::read_beacn(&value)));

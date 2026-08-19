@@ -40,7 +40,7 @@ impl BeacnSubMessage for Controls {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType, _: VersionNumber) -> Self {
         match key[0] {
             0x00 => Self::Balance(f32::read_beacn(&value)),
             0x01 => Self::Mono(bool::read_beacn(&value)),

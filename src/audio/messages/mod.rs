@@ -190,22 +190,22 @@ impl Message {
         let value: BeacnValue = bytes[4..8].try_into().unwrap();
 
         match message {
-            0x00 => Self::Headphones(Headphones::from_beacn(key, value, device_type)),
-            0x01 => Self::Lighting(Lighting::from_beacn(key, value, device_type)),
-            0x02 => Self::EQMicrophone(EQMicrophone::from_beacn(key, value, device_type)),
+            0x00 => Self::Headphones(Headphones::from_beacn(key, value, device_type, v)),
+            0x01 => Self::Lighting(Lighting::from_beacn(key, value, device_type, v)),
+            0x02 => Self::EQMicrophone(EQMicrophone::from_beacn(key, value, device_type, v)),
             0x03 => match v > EQ_HEADPHONES_VERSION {
-                true => Self::EQHeadphones(EQHeadphones::from_beacn(key, value, device_type)),
-                false => Self::EQHPLegacy(EQHPLegacy::from_beacn(key, value, device_type)),
+                true => Self::EQHeadphones(EQHeadphones::from_beacn(key, value, device_type, v)),
+                false => Self::EQHPLegacy(EQHPLegacy::from_beacn(key, value, device_type, v)),
             },
-            0x04 => Self::BassEnhancement(BassEnhancement::from_beacn(key, value, device_type)),
-            0x05 => Self::Compressor(Compressor::from_beacn(key, value, device_type)),
-            0x06 => Self::DeEsser(DeEsser::from_beacn(key, value, device_type)),
-            0x07 => Self::Exciter(Exciter::from_beacn(key, value, device_type)),
-            0x08 => Self::Expander(Expander::from_beacn(key, value, device_type)),
-            0x09 => Self::Suppressor(Suppressor::from_beacn(key, value, device_type)),
-            0x0a => Self::MicSetup(MicSetup::from_beacn(key, value, device_type)),
-            0x0b => Self::Subwoofer(Subwoofer::from_beacn(key, value, device_type)),
-            0x0c => Self::Controls(Controls::from_beacn(key, value, device_type)),
+            0x04 => Self::BassEnhancement(BassEnhancement::from_beacn(key, value, device_type, v)),
+            0x05 => Self::Compressor(Compressor::from_beacn(key, value, device_type, v)),
+            0x06 => Self::DeEsser(DeEsser::from_beacn(key, value, device_type, v)),
+            0x07 => Self::Exciter(Exciter::from_beacn(key, value, device_type, v)),
+            0x08 => Self::Expander(Expander::from_beacn(key, value, device_type, v)),
+            0x09 => Self::Suppressor(Suppressor::from_beacn(key, value, device_type, v)),
+            0x0a => Self::MicSetup(MicSetup::from_beacn(key, value, device_type, v)),
+            0x0b => Self::Subwoofer(Subwoofer::from_beacn(key, value, device_type, v)),
+            0x0c => Self::Controls(Controls::from_beacn(key, value, device_type, v)),
             _ => panic!("Not Found!"),
         }
     }
@@ -284,7 +284,12 @@ trait BeacnSubMessage {
     fn to_beacn_key(&self) -> [u8; 2];
     fn to_beacn_value(&self) -> BeacnValue;
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType) -> Self;
+    fn from_beacn(
+        key: [u8; 2],
+        value: BeacnValue,
+        device_type: DeviceType,
+        version: VersionNumber,
+    ) -> Self;
 
     fn generate_fetch_message(device_type: DeviceType, version: VersionNumber) -> Vec<Message>;
 }

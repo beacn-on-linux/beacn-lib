@@ -46,7 +46,7 @@ impl BeacnSubMessage for MicSetup {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType, _: VersionNumber) -> Self {
         match key[0] {
             0x00 => match device_type {
                 DeviceType::BeacnMic => Self::MicGain(read_value(&value)),

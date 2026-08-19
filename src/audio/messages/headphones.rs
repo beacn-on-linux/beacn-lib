@@ -104,7 +104,7 @@ impl BeacnSubMessage for Headphones {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType, _: VersionNumber) -> Self {
         match key[0] {
             0x04 => Self::HeadphoneLevel(read_value(&value)),
             0x06 => Self::MicMonitor(read_value(&value)),

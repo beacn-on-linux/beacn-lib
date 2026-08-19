@@ -54,7 +54,7 @@ impl BeacnSubMessage for Suppressor {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType, _: VersionNumber) -> Self {
         match key[0] {
             0x00 => Self::Enabled(bool::read_beacn(&value)),
             0x02 => Self::Amount(read_value(&value)),
