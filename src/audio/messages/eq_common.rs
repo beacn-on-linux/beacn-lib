@@ -8,20 +8,22 @@ use strum::{EnumIter, IntoEnumIterator};
 
 generate_range!(EQGain, f32, -12.0..=12.0);
 generate_range!(EQFrequency, f32, 20.0..=20000.0, u32);
-
 generate_range!(EQQ, f32, 0.1..=10.0);
 
+
+// This is a shared type, so we don't have to worry so much about having to implement to or
+// from beacn multiple times. We just wrap our enum in this.
 #[derive(
     Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
 )]
-pub enum EQMode {
+pub enum EQSubType {
     #[default]
-    Simple = 0x00,
-    Advanced = 0x01,
+    Zero = 0x00,
+    One = 0x01,
 }
 
-impl Sealed for EQMode {}
-impl WriteBeacn for EQMode {
+impl Sealed for EQSubType {}
+impl WriteBeacn for EQSubType {
     fn write_beacn(&self) -> BeacnValue {
         let mut buf = [0; 4];
         LittleEndian::write_u32(&mut buf, *self as u8 as u32);
@@ -29,7 +31,7 @@ impl WriteBeacn for EQMode {
     }
 }
 
-impl ReadBeacn for EQMode {
+impl ReadBeacn for EQSubType {
     fn read_beacn(buf: &BeacnValue) -> Self {
         let value = LittleEndian::read_u32(buf);
         for var in Self::iter() {
@@ -41,7 +43,7 @@ impl ReadBeacn for EQMode {
     }
 }
 
-impl From<u8> for EQMode {
+impl From<u8> for EQSubType {
     fn from(value: u8) -> Self {
         for var in Self::iter() {
             if var as u8 == value {
@@ -61,24 +63,11 @@ pub enum EQBand {
     Band5 = 0x04,
     Band6 = 0x05,
     Band7 = 0x06,
-    Band8 = 0x08,
+    Band8 = 0x07,
+    Band9 = 0x08,
 }
 impl From<EQBand> for u8 {
     fn from(value: EQBand) -> Self {
-        value as u8
-    }
-}
-
-#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) enum EqualiserKeys {
-    Type = 0x01,      // BandType
-    Gain = 0x02,      // f32 (-12..=12)
-    Frequency = 0x03, // f32 (20..=20000)
-    Q = 0x04,         // f32 (0.1..=10)
-    Enabled = 0x05,   // boolean
-}
-impl From<EqualiserKeys> for u8 {
-    fn from(value: EqualiserKeys) -> Self {
         value as u8
     }
 }
