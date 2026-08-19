@@ -4,17 +4,17 @@ use crate::audio::messages::deesser::DeEsser;
 use crate::audio::messages::eq_microphone::EQMicrophone;
 use crate::audio::messages::exciter::Exciter;
 use crate::audio::messages::expander::Expander;
+use crate::audio::messages::headphone_eq::HeadphoneEQ;
 use crate::audio::messages::headphones::Headphones;
 use crate::audio::messages::lighting::Lighting;
 use crate::audio::messages::mic_setup::MicSetup;
 use crate::audio::messages::subwoofer::Subwoofer;
 use crate::audio::messages::suppressor::Suppressor;
+use crate::generate_fetch_messages;
 use crate::manager::DeviceType;
 use crate::types::BeacnValue;
 use crate::version::VersionNumber;
 use serde::{Deserialize, Serialize};
-use crate::audio::messages::headphone_eq::HeadphoneEQ;
-use crate::generate_fetch_messages;
 
 mod _macros;
 mod eq_common;
@@ -25,8 +25,8 @@ pub mod deesser;
 pub mod eq_microphone;
 pub mod exciter;
 pub mod expander;
-pub mod headphones;
 pub mod headphone_eq;
+pub mod headphones;
 pub mod lighting;
 pub mod mic_setup;
 pub mod subwoofer;
@@ -161,7 +161,7 @@ impl Message {
         }
     }
 
-    pub fn from_beacn_message(bytes: [u8; 8], device_type: DeviceType) -> Self {
+    pub fn from_beacn_message(bytes: [u8; 8], device_type: DeviceType, _: VersionNumber) -> Self {
         // Grab the initial type
         let message = bytes[0];
 
