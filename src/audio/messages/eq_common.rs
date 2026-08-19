@@ -1,6 +1,6 @@
 use crate::generate_range;
 use crate::types::sealed::Sealed;
-use crate::types::{BeacnValue, ReadBeacn, WriteBeacn};
+use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn};
 use byteorder::{ByteOrder, LittleEndian};
 use enum_map::Enum;
 use serde::{Deserialize, Serialize};
@@ -102,5 +102,119 @@ impl ReadBeacn for EQBandType {
             }
         }
         panic!("Unable to Locate Value {:?}", value)
+    }
+}
+
+// Base Keys struct, the code after will do all the work with wrapping it to the correct
+// type, we just need a version to pick.
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+pub(crate) enum EQKeys {
+    Type,
+    Gain,
+    Frequency,
+    Q,
+    Enabled,
+}
+
+// Used currently, they all got shifted because:
+// EQMicrophoneMode = 0x00 (previous)
+// EQHeadphoneLinked = 0x01 (new)
+//
+// The packed enum of an EQ band is Band + Key, so band 0 with field 'Type' would previously have a
+// presented packed key of 0x01, which now collides with the link command. So these keys have been
+// incremented to prevent that.. ugh.
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+enum EQKeysModern {
+    Type = 0x02,      // BandType
+    Gain = 0x03,      // f32 (-12..=12)
+    Frequency = 0x04, // f32 (20..=20000)
+    Q = 0x05,         // f32 (0.1..=10)
+    Enabled = 0x06,   // boolean
+}
+impl From<EQKeysModern> for u8 {
+    fn from(value: EQKeysModern) -> Self {
+        value as u8
+    }
+}
+
+// Used pre-1.3.0, can't wait for this to become LegacyLegacy :D
+#[derive(Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq)]
+enum EQKeysLegacy {
+    Type = 0x01,      // BandType
+    Gain = 0x02,      // f32 (-12..=12)
+    Frequency = 0x03, // f32 (20..=20000)
+    Q = 0x04,         // f32 (0.1..=10)
+    Enabled = 0x05,   // boolean
+}
+impl From<EQKeysLegacy> for u8 {
+    fn from(value: EQKeysLegacy) -> Self {
+        value as u8
+    }
+}
+
+pub(crate) enum EQKeySet {
+    Modern,
+    Legacy,
+}
+
+impl EQKeySet {
+    pub fn encode(self, band: EQBand, key: EQKeys) -> u8 {
+        match self {
+            Self::Modern => {
+                let key = match key {
+                    EQKeys::Q => EQKeysModern::Q,
+                    EQKeys::Type => EQKeysModern::Type,
+                    EQKeys::Gain => EQKeysModern::Gain,
+                    EQKeys::Frequency => EQKeysModern::Frequency,
+                    EQKeys::Enabled => EQKeysModern::Enabled,
+                };
+
+                PackedEnumKey(band, key).to_encoded()
+            }
+
+            Self::Legacy => {
+                let key = match key {
+                    EQKeys::Q => EQKeysLegacy::Q,
+                    EQKeys::Type => EQKeysLegacy::Type,
+                    EQKeys::Gain => EQKeysLegacy::Gain,
+                    EQKeys::Frequency => EQKeysLegacy::Frequency,
+                    EQKeys::Enabled => EQKeysLegacy::Enabled,
+                };
+
+                PackedEnumKey(band, key).to_encoded()
+            }
+        }
+    }
+
+    pub fn decode(self, encoded: u8) -> Option<(EQBand, EQKeys)> {
+        match self {
+            Self::Modern => {
+                let key = PackedEnumKey::<EQBand, EQKeysModern>::from_encoded(encoded)?;
+                let band = key.get_upper();
+                let key = match key.get_lower() {
+                    EQKeysModern::Q => EQKeys::Q,
+                    EQKeysModern::Type => EQKeys::Type,
+                    EQKeysModern::Gain => EQKeys::Gain,
+                    EQKeysModern::Frequency => EQKeys::Frequency,
+                    EQKeysModern::Enabled => EQKeys::Enabled,
+                };
+
+                Some((band, key))
+            }
+
+            Self::Legacy => {
+                let key = PackedEnumKey::<EQBand, EQKeysLegacy>::from_encoded(encoded)?;
+                let band = key.get_upper();
+                let key = match key.get_lower() {
+                    EQKeysLegacy::Q => EQKeys::Q,
+                    EQKeysLegacy::Type => EQKeys::Type,
+                    EQKeysLegacy::Gain => EQKeys::Gain,
+                    EQKeysLegacy::Frequency => EQKeys::Frequency,
+                    EQKeysLegacy::Enabled => EQKeys::Enabled,
+                };
+
+                Some((band, key))
+            }
+        }
     }
 }

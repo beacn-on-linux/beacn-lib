@@ -1,7 +1,9 @@
-use crate::audio::messages::eq_common::{EQBand, EQBandType, EQFrequency, EQGain, EQQ, EQSubType, EQKeys};
+use crate::audio::messages::eq_common::{
+    EQBand, EQBandType, EQFrequency, EQGain, EQKeySet, EQKeys, EQQ, EQSubType,
+};
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::manager::DeviceType;
-use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
+use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
 use crate::version::VersionNumber;
 use crate::{EQ_HEADPHONES_VERSION, message_group};
 use enum_map::Enum;
@@ -29,27 +31,25 @@ impl BeacnSubMessage for EQHeadphones {
     }
 
     fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
+        // These didn't appear until 1.3, so we can hard code this for now.
+        let keys = EQKeySet::Modern;
         match self {
             EQHeadphones::Linked(_) | EQHeadphones::GetLinked => [0x01, 0x00],
-            EQHeadphones::Type(m, b, _) | EQHeadphones::GetType(m, b) => [
-                PackedEnumKey(*b, EQKeys::Type).to_encoded(),
-                *m as u8,
-            ],
-            EQHeadphones::Gain(m, b, _) | EQHeadphones::GetGain(m, b) => [
-                PackedEnumKey(*b, EQKeys::Gain).to_encoded(),
-                *m as u8,
-            ],
-            EQHeadphones::Frequency(m, b, _) | EQHeadphones::GetFrequency(m, b) => [
-                PackedEnumKey(*b, EQKeys::Frequency).to_encoded(),
-                *m as u8,
-            ],
-            EQHeadphones::Q(m, b, _) | EQHeadphones::GetQ(m, b) => {
-                [PackedEnumKey(*b, EQKeys::Q).to_encoded(), *m as u8]
+            EQHeadphones::Type(m, b, _) | EQHeadphones::GetType(m, b) => {
+                [keys.encode(*b, EQKeys::Type), *m as u8]
             }
-            EQHeadphones::Enabled(m, b, _) | EQHeadphones::GetEnabled(m, b) => [
-                PackedEnumKey(*b, EQKeys::Enabled).to_encoded(),
-                *m as u8,
-            ],
+            EQHeadphones::Gain(m, b, _) | EQHeadphones::GetGain(m, b) => {
+                [keys.encode(*b, EQKeys::Gain), *m as u8]
+            }
+            EQHeadphones::Frequency(m, b, _) | EQHeadphones::GetFrequency(m, b) => {
+                [keys.encode(*b, EQKeys::Frequency), *m as u8]
+            }
+            EQHeadphones::Q(m, b, _) | EQHeadphones::GetQ(m, b) => {
+                [keys.encode(*b, EQKeys::Q), *m as u8]
+            }
+            EQHeadphones::Enabled(m, b, _) | EQHeadphones::GetEnabled(m, b) => {
+                [keys.encode(*b, EQKeys::Enabled), *m as u8]
+            }
         }
     }
 
@@ -65,16 +65,22 @@ impl BeacnSubMessage for EQHeadphones {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType, _: VersionNumber) -> Self {
+    fn from_beacn(
+        key: [u8; 2],
+        value: BeacnValue,
+        _device_type: DeviceType,
+        _: VersionNumber,
+    ) -> Self {
         // This one's kinda interesting, we need to first check for 01,00..
         if key == [0x01, 0x00] {
             return Self::Linked(bool::read_beacn(&value));
         }
 
+        let keys = EQKeySet::Modern;
+
         let channel = EQChannel::from(EQSubType::from(key[1]));
-        let key = PackedEnumKey::from_encoded(key[0]).unwrap();
-        let band = key.get_upper();
-        match key.get_lower() {
+        let (band, key) = keys.decode(key[0]).unwrap();
+        match key {
             EQKeys::Q => Self::Q(channel, band, read_value(&value)),
             EQKeys::Type => Self::Type(channel, band, EQBandType::read_beacn(&value)),
             EQKeys::Gain => Self::Gain(channel, band, read_value(&value)),
