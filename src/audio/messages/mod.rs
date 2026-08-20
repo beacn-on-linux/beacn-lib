@@ -46,9 +46,9 @@ pub enum Message {
     DeEsser(DeEsser),
     EQMicrophone(EQMicrophone),
     EQHeadphones(EQHeadphones),
+    EQHPLegacy(EQHPLegacy),
     Exciter(Exciter),
     Expander(Expander),
-    EQHPLegacy(EQHPLegacy),
     Headphones(Headphones),
     Lighting(Lighting),
     MicSetup(MicSetup),
@@ -215,9 +215,10 @@ impl Message {
         msg.append(&mut BassEnhancement::generate_fetch_message(device_type, v));
         msg.append(&mut DeEsser::generate_fetch_message(device_type, v));
         msg.append(&mut EQMicrophone::generate_fetch_message(device_type, v));
+        msg.append(&mut EQHeadphones::generate_fetch_message(device_type, v));
+        msg.append(&mut EQHPLegacy::generate_fetch_message(device_type, v));
         msg.append(&mut Exciter::generate_fetch_message(device_type, v));
         msg.append(&mut Expander::generate_fetch_message(device_type, v));
-        msg.append(&mut EQHPLegacy::generate_fetch_message(device_type, v));
         msg.append(&mut Headphones::generate_fetch_message(device_type, v));
         msg.append(&mut Lighting::generate_fetch_message(device_type, v));
         msg.append(&mut MicSetup::generate_fetch_message(device_type, v));
@@ -234,9 +235,10 @@ impl Message {
             (Message::Compressor(a), Message::Compressor(b)) => a.is_same_target(b),
             (Message::DeEsser(a), Message::DeEsser(b)) => a.is_same_target(b),
             (Message::EQMicrophone(a), Message::EQMicrophone(b)) => a.is_same_target(b),
+            (Message::EQHeadphones(a), Message::EQHeadphones(b)) => a.is_same_target(b),
+            (Message::EQHPLegacy(a), Message::EQHPLegacy(b)) => a.is_same_target(b),
             (Message::Exciter(a), Message::Exciter(b)) => a.is_same_target(b),
             (Message::Expander(a), Message::Expander(b)) => a.is_same_target(b),
-            (Message::EQHPLegacy(a), Message::EQHPLegacy(b)) => a.is_same_target(b),
             (Message::Headphones(a), Message::Headphones(b)) => a.is_same_target(b),
             (Message::Lighting(a), Message::Lighting(b)) => a.is_same_target(b),
             (Message::MicSetup(a), Message::MicSetup(b)) => a.is_same_target(b),
