@@ -1,6 +1,6 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::manager::DeviceType;
-use crate::types::{BeacnValue, ReadBeacn, WriteBeacn};
+use crate::types::{read_value, write_value, BeacnValue, ReadBeacn, WriteBeacn};
 use crate::version::VersionNumber;
 use crate::{EQ_HEADPHONES_VERSION, generate_range, message_group};
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 message_group!(
     pub enum Controls {
         Mono() -> bool,
-        Balance() -> f32,
+        Balance() -> Balance,
     }
 );
 
@@ -35,14 +35,14 @@ impl BeacnSubMessage for Controls {
     fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             Controls::Mono(v) => v.write_beacn(),
-            Controls::Balance(v) => v.write_beacn(),
+            Controls::Balance(v) => write_value(v),
             _ => panic!("Attempting to Set value for Getter"),
         }
     }
 
     fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType, _: VersionNumber) -> Self {
         match key[0] {
-            0x00 => Self::Balance(f32::read_beacn(&value)),
+            0x00 => Self::Balance(read_value(&value)),
             0x01 => Self::Mono(bool::read_beacn(&value)),
             _ => panic!("Unexpected Key: {}", key[0]),
         }
