@@ -194,14 +194,15 @@ pub(crate) trait BeacnAudioMessageLocal:
         let new = &new_value[4..8];
 
         // Compare the new response
-        if old != new {
-            if validate {
-                error!("Send Failed: Expecting: {:?} != Received: {:?}", old, new);
-                beacn_bail!("Value was not changed on the device!");
-            } else {
-                warn!("Send Failed: Expecting: {:?} != Received: {:?}", old, new);
-            }
+        if validate && old != new {
+            // If we're validating this, we should reject this because the value that was returned
+            // was different from the value which was sent, however, there are some minor cases
+            // where that behaviour is actually expected (Controls->Balance, sends an i32, returns
+            // a f32)
+            error!("Send Failed: Expecting: {:?} != Received: {:?}", old, new);
+            beacn_bail!("Value was not changed on the device!");
         }
+
         Ok(new_value)
     }
 

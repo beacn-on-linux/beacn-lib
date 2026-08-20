@@ -1,6 +1,6 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
 use crate::manager::DeviceType;
-use crate::types::{read_value, write_value, BeacnValue, ReadBeacn, WriteBeacn};
+use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
 use crate::version::VersionNumber;
 use crate::{EQ_HEADPHONES_VERSION, generate_range, message_group};
 use serde::{Deserialize, Serialize};
@@ -35,7 +35,8 @@ impl BeacnSubMessage for Controls {
     fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             Controls::Mono(v) => v.write_beacn(),
-            Controls::Balance(v) => write_value(v),
+            // This needs to send as an f32, so use the internal variant
+            Controls::Balance(v) => write_value(&BalanceInternal::from(v.0)),
             _ => panic!("Attempting to Set value for Getter"),
         }
     }
@@ -46,6 +47,11 @@ impl BeacnSubMessage for Controls {
             0x01 => Self::Mono(bool::read_beacn(&value)),
             _ => panic!("Unexpected Key: {}", key[0]),
         }
+    }
+
+    fn should_validate_response(&self) -> bool {
+        // Don't error on validation for the Balance
+        !matches!(self, Controls::Balance(_))
     }
 
     fn generate_fetch_message(_: DeviceType, version: VersionNumber) -> Vec<Message> {
@@ -60,4 +66,5 @@ impl BeacnSubMessage for Controls {
     }
 }
 
-generate_range!(Balance, f32, -100.0..=100.0, i8);
+generate_range!(Balance, i32, -100..=100, i8, f32);
+generate_range!(BalanceInternal, f32, -100.0..=100.0, i32, i8);
