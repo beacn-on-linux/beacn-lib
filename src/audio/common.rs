@@ -8,7 +8,7 @@ use crate::transfer::{EndpointHandle, transfer};
 use crate::{BResult, beacn_bail};
 use async_trait::async_trait;
 use byteorder::{ByteOrder, LittleEndian};
-use log::warn;
+use log::{error, warn};
 use nusb::transfer::{Bulk, In, Out};
 use web_time::Duration;
 
@@ -129,8 +129,8 @@ pub(crate) trait BeacnAudioMessageLocal:
 
         let key = message.to_beacn_key(self.get_version());
         let value = message.to_beacn_value(self.get_version());
-
-        let result = self.param_set(key, value).await?;
+        let validate = message.should_validate_response();
+        let result = self.param_set(key, value, validate).await?;
 
         // This can generally be ignored, because in most cases it'll be identical to the
         // original request (except fed from the Mic), but passing back anyway just in case.
@@ -173,7 +173,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         Ok(buf)
     }
 
-    async fn param_set(&self, key: [u8; 3], value: [u8; 4]) -> BResult<[u8; 8]> {
+    async fn param_set(&self, key: [u8; 3], value: [u8; 4], validate: bool) -> BResult<[u8; 8]> {
         let timeout = Duration::from_millis(200);
 
         // Build the Set Request
@@ -195,11 +195,12 @@ pub(crate) trait BeacnAudioMessageLocal:
 
         // Compare the new response
         if old != new {
-            warn!(
-                "Value Set: {:?} does not match value on Device: {:?}",
-                old, new
-            );
-            beacn_bail!("Value was not changed on the device!");
+            if validate {
+                error!("Send Failed: Expecting: {:?} != Received: {:?}", old, new);
+                beacn_bail!("Value was not changed on the device!");
+            } else {
+                warn!("Send Failed: Expecting: {:?} != Received: {:?}", old, new);
+            }
         }
         Ok(new_value)
     }

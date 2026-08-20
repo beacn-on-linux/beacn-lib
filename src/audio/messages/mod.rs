@@ -210,6 +210,25 @@ impl Message {
         }
     }
 
+    pub fn should_validate_response(&self) -> bool {
+        match self {
+            Message::BassEnhancement(v) => v.should_validate_response(),
+            Message::Compressor(v) => v.should_validate_response(),
+            Message::DeEsser(v) => v.should_validate_response(),
+            Message::EQMicrophone(v) => v.should_validate_response(),
+            Message::EQHeadphones(v) => v.should_validate_response(),
+            Message::Exciter(v) => v.should_validate_response(),
+            Message::Expander(v) => v.should_validate_response(),
+            Message::EQHPLegacy(v) => v.should_validate_response(),
+            Message::Headphones(v) => v.should_validate_response(),
+            Message::Lighting(v) => v.should_validate_response(),
+            Message::MicSetup(v) => v.should_validate_response(),
+            Message::Subwoofer(v) => v.should_validate_response(),
+            Message::Suppressor(v) => v.should_validate_response(),
+            Message::Controls(v) => v.should_validate_response(),
+        }
+    }
+
     pub fn generate_fetch_message(device_type: DeviceType, v: VersionNumber) -> Vec<Message> {
         let mut msg = Vec::new();
         msg.append(&mut BassEnhancement::generate_fetch_message(device_type, v));
@@ -285,13 +304,10 @@ trait BeacnSubMessage {
 
     fn to_beacn_key(&self, v: VersionNumber) -> [u8; 2];
     fn to_beacn_value(&self, v: VersionNumber) -> BeacnValue;
+    fn from_beacn(key: [u8; 2], value: BeacnValue, dev: DeviceType, v: VersionNumber) -> Self;
+    fn should_validate_response(&self) -> bool {
+        true
+    }
 
-    fn from_beacn(
-        key: [u8; 2],
-        value: BeacnValue,
-        device_type: DeviceType,
-        version: VersionNumber,
-    ) -> Self;
-
-    fn generate_fetch_message(device_type: DeviceType, version: VersionNumber) -> Vec<Message>;
+    fn generate_fetch_message(dev: DeviceType, v: VersionNumber) -> Vec<Message>;
 }
