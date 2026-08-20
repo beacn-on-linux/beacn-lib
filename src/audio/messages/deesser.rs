@@ -35,7 +35,7 @@ impl BeacnSubMessage for DeEsser {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType, _: VersionNumber) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType, _: VersionNumber) -> Self {
         match key[0] {
             0x03 => Self::Amount(read_value(&value)),
             0x04 => Self::Enabled(bool::read_beacn(&value)),

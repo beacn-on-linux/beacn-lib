@@ -74,9 +74,9 @@ impl BeacnSubMessage for Lighting {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType, _: VersionNumber) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, dev: DeviceType, _: VersionNumber) -> Self {
         match key[0] {
-            0x00 => match device_type {
+            0x00 => match dev {
                 DeviceType::BeacnMic => Self::Mode(LightingMode::read_beacn(&value)),
                 DeviceType::BeacnStudio => Self::StudioMode(StudioLightingMode::read_beacn(&value)),
                 _ => panic!("This isn't an Audio Device!"),

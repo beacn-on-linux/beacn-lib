@@ -104,11 +104,11 @@ impl BeacnSubMessage for Headphones {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType, _: VersionNumber) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, dev: DeviceType, _: VersionNumber) -> Self {
         match key[0] {
             0x04 => Self::HeadphoneLevel(read_value(&value)),
             0x06 => Self::MicMonitor(read_value(&value)),
-            0x07 => match device_type {
+            0x07 => match dev {
                 DeviceType::BeacnMic => Self::MicChannelsLinked(bool::read_beacn(&value)),
                 DeviceType::BeacnStudio => Self::StudioMicMonitor(read_value(&value)),
                 _ => panic!("This isn't an Audio Device!"),
@@ -121,7 +121,7 @@ impl BeacnSubMessage for Headphones {
                 // The values on this are a little ominous, it's technically an enum, but it's
                 // also a boolean,
                 let mode = DeviceMode::read_beacn(&value);
-                match device_type {
+                match dev {
                     DeviceType::BeacnMic => {
                         if mode == DeviceMode::MicDefault {
                             Self::MicClassCompliant(false)

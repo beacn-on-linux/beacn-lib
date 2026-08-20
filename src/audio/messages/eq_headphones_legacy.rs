@@ -46,7 +46,7 @@ impl BeacnSubMessage for EQHPLegacy {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType, _: VersionNumber) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType, _: VersionNumber) -> Self {
         let key = PackedEnumKey::from_encoded(key[0]).unwrap();
         let eq_type = key.get_upper();
         match key.get_lower() {

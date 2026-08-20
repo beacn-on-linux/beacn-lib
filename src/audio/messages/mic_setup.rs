@@ -46,9 +46,9 @@ impl BeacnSubMessage for MicSetup {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, device_type: DeviceType, _: VersionNumber) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, dev: DeviceType, _: VersionNumber) -> Self {
         match key[0] {
-            0x00 => match device_type {
+            0x00 => match dev {
                 DeviceType::BeacnMic => Self::MicGain(read_value(&value)),
                 DeviceType::BeacnStudio => Self::StudioMicGain(read_value(&value)),
                 _ => panic!("This isn't an Audio Device!"),
