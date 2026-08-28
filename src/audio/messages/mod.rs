@@ -16,7 +16,7 @@ use crate::version::VersionNumber;
 use serde::{Deserialize, Serialize};
 
 mod _macros;
-mod eq_common;
+pub mod eq_common;
 
 pub mod bass_enhancement;
 pub mod compressor;
