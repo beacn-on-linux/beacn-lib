@@ -19,14 +19,14 @@ pub enum BulkMessage {
 
 impl BulkMessage {
     pub fn is_valid_fetch(&self) -> bool {
-        match self {
-            BulkMessage::GetMeters => true,
-            BulkMessage::GetSuppressionBase => true,
-            BulkMessage::GetSuppressionCurrent => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            BulkMessage::GetMeters
+                | BulkMessage::GetSuppressionBase
+                | BulkMessage::GetSuppressionCurrent
+        )
     }
-    
+
     pub fn to_beacn_key(&self) -> [u8; 3] {
         match self {
             BulkMessage::GetMeters => [0x00, 0x00, 0x00],

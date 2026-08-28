@@ -1,7 +1,7 @@
 mod common;
+pub mod data;
 mod device_kind;
 pub mod messages;
-pub mod data;
 
 use crate::audio::common::{BeacnAudioAPI, BeacnAudioDeviceInternal};
 use crate::audio::device_kind::BeacnDevice;

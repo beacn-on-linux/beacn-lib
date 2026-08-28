@@ -187,17 +187,32 @@ impl Message {
 
     pub fn generate_fetch_message(device_type: DeviceType, version: VersionNumber) -> Vec<Message> {
         let mut messages = Vec::new();
-        messages.append(&mut BassEnhancement::generate_fetch_message(device_type, version));
+        messages.append(&mut BassEnhancement::generate_fetch_message(
+            device_type,
+            version,
+        ));
         messages.append(&mut DeEsser::generate_fetch_message(device_type, version));
-        messages.append(&mut EQMicrophone::generate_fetch_message(device_type, version));
+        messages.append(&mut EQMicrophone::generate_fetch_message(
+            device_type,
+            version,
+        ));
         messages.append(&mut Exciter::generate_fetch_message(device_type, version));
         messages.append(&mut Expander::generate_fetch_message(device_type, version));
-        messages.append(&mut HeadphoneEQ::generate_fetch_message(device_type, version));
-        messages.append(&mut Headphones::generate_fetch_message(device_type, version));
+        messages.append(&mut HeadphoneEQ::generate_fetch_message(
+            device_type,
+            version,
+        ));
+        messages.append(&mut Headphones::generate_fetch_message(
+            device_type,
+            version,
+        ));
         messages.append(&mut Lighting::generate_fetch_message(device_type, version));
         messages.append(&mut MicSetup::generate_fetch_message(device_type, version));
         messages.append(&mut Subwoofer::generate_fetch_message(device_type, version));
-        messages.append(&mut Suppressor::generate_fetch_message(device_type, version));
+        messages.append(&mut Suppressor::generate_fetch_message(
+            device_type,
+            version,
+        ));
 
         messages
     }
