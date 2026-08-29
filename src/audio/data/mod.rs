@@ -77,22 +77,22 @@ impl BulkMessage {
             BulkMessage::GetSuppressionBase | BulkMessage::GetSuppressionCurrent => {
                 // 16 floats here too,
                 let response = SuppressionResponse {
-                    float_0: cursor.read_f32::<LittleEndian>()?,
-                    float_1: cursor.read_f32::<LittleEndian>()?,
-                    float_2: cursor.read_f32::<LittleEndian>()?,
-                    float_3: cursor.read_f32::<LittleEndian>()?,
-                    float_4: cursor.read_f32::<LittleEndian>()?,
-                    float_5: cursor.read_f32::<LittleEndian>()?,
-                    float_6: cursor.read_f32::<LittleEndian>()?,
-                    float_7: cursor.read_f32::<LittleEndian>()?,
-                    float_8: cursor.read_f32::<LittleEndian>()?,
-                    float_9: cursor.read_f32::<LittleEndian>()?,
-                    float_10: cursor.read_f32::<LittleEndian>()?,
-                    float_11: cursor.read_f32::<LittleEndian>()?,
-                    float_12: cursor.read_f32::<LittleEndian>()?,
-                    float_13: cursor.read_f32::<LittleEndian>()?,
-                    float_14: cursor.read_f32::<LittleEndian>()?,
-                    float_15: cursor.read_f32::<LittleEndian>()?,
+                    float_0: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_1: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_2: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_3: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_4: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_5: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_6: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_7: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_8: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_9: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_10: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_11: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_12: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_13: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_14: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    float_15: lin_to_db(cursor.read_f32::<LittleEndian>()?),
                 };
 
                 match self {
@@ -219,7 +219,6 @@ pub struct SuppressionResponse {
     pub float_14: f32,
     pub float_15: f32,
 }
-
 
 // Some values are linear in dB, others are raw dB, either way they're all dB so we're going
 // to simply convert them.
