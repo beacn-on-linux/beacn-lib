@@ -191,6 +191,10 @@ impl Message {
             device_type,
             version,
         ));
+        messages.append(&mut Compressor::generate_fetch_message(
+            device_type,
+            version,
+        ));
         messages.append(&mut DeEsser::generate_fetch_message(device_type, version));
         messages.append(&mut EQMicrophone::generate_fetch_message(
             device_type,
