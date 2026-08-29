@@ -52,25 +52,23 @@ impl BulkMessage {
 
         let msg = match self {
             BulkMessage::GetMeters => {
-                // Ok, we have 16 maybe floats here (4, 12, 13, 14 may be u32), so just label them for now,
-                // we'll correct them later
                 let response = MetersResponse {
-                    float_0: cursor.read_f32::<LittleEndian>()?,
-                    float_1: cursor.read_f32::<LittleEndian>()?,
-                    float_2: cursor.read_f32::<LittleEndian>()?,
-                    float_3: cursor.read_f32::<LittleEndian>()?,
-                    float_4: cursor.read_f32::<LittleEndian>()?,
-                    float_5: cursor.read_f32::<LittleEndian>()?,
-                    float_6: cursor.read_f32::<LittleEndian>()?,
-                    float_7: cursor.read_f32::<LittleEndian>()?,
-                    float_8: cursor.read_f32::<LittleEndian>()?,
-                    float_9: cursor.read_f32::<LittleEndian>()?,
-                    float_10: cursor.read_f32::<LittleEndian>()?,
-                    float_11: cursor.read_f32::<LittleEndian>()?,
+                    raw_amplitude: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    limiter_output: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    limiter_adjustment: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    bass_response: cursor.read_f32::<LittleEndian>()?,
+                    hp_subwoofer_meter: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    treble_response: cursor.read_f32::<LittleEndian>()?,
+                    compressor_attenuation: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    processed_mic: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    pre_expander: cursor.read_f32::<LittleEndian>()?,
+                    post_expander: cursor.read_f32::<LittleEndian>()?,
+                    pre_compressor: cursor.read_f32::<LittleEndian>()?,
+                    post_compressor: cursor.read_f32::<LittleEndian>()?,
                     float_12: cursor.read_f32::<LittleEndian>()?,
-                    float_13: cursor.read_f32::<LittleEndian>()?,
-                    float_14: cursor.read_f32::<LittleEndian>()?,
-                    float_15: cursor.read_f32::<LittleEndian>()?,
+                    hp_meter_left: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    hp_meter_right: lin_to_db(cursor.read_f32::<LittleEndian>()?),
+                    clip_warning: cursor.read_f32::<LittleEndian>()?,
                 };
 
                 BulkMessage::Meters(response)
@@ -111,28 +109,94 @@ impl BulkMessage {
     }
 }
 
-// Ok, we have 16 maybe floats here (4, 12, 13, 14 may be u32), so just label them for now,
-// we'll correct them later once we can confirm their behaviours.
+// Ok, all values appear to be in dBFS
 #[derive(Debug, Copy, Clone)]
 pub struct MetersResponse {
-    pub float_0: f32,
-    pub float_1: f32,
-    pub float_2: f32,
-    pub float_3: f32,
-    pub float_4: f32,
-    pub float_5: f32,
-    pub float_6: f32,
-    pub float_7: f32,
-    pub float_8: f32,
-    pub float_9: f32,
-    pub float_10: f32,
-    pub float_11: f32,
-    pub float_12: f32,
-    pub float_13: f32,
-    pub float_14: f32,
+    /// Raw internal mic amplitude, this looks like dBFS but can go above 0 (activating the clip
+    /// warning). This is basically the value pre-limiter.
+    ///
+    /// Value Type: dBFS
+    pub raw_amplitude: f32,
 
-    // This float is common across all responses, probable activity level
-    pub float_15: f32,
+    /// Raw mic amplitude after the limiter is applied, this SHOULD be below 0dBFS.
+    ///
+    /// Value Type: dBFS
+    pub limiter_output: f32,
+
+    /// Adjustment made by the limiter. This reacts immediately to a clip but also appears
+    /// to decay over time.
+    ///
+    /// Value Type: dBFS
+    pub limiter_adjustment: f32,
+
+    /// Responds to noise at roughly around 50-100hz, likely used in EQ drawing.
+    ///
+    /// Value Type: Unknown
+    pub bass_response: f32,
+
+    /// The applied headphones subwoofer amount.
+    ///
+    /// Value Type: dBFS
+    pub hp_subwoofer_meter: f32,
+
+    /// Responds to noise at roughly around 5khz, likely used in EQ drawing.
+    ///
+    /// Value Type: Unknown
+    pub treble_response: f32,
+
+    /// The amount of attenuation applied by the compressor. This pulls from the top, so a value
+    /// of 0dBFS means it's not doing anything. Used to draw Red bar in the official app.
+    ///
+    /// Value Type: dBFS
+    pub compressor_attenuation: f32,
+
+    /// The final processed mic amplitude after the entire filter change has been applied. This
+    /// is used in the far right mic meter in the official app.
+    ///
+    /// Value Type: dBFS
+    pub processed_mic: f32,
+
+    /// The current full microphone amplitude (behaviour if expander was disabled).
+    ///
+    /// Value Type: dBFS
+    pub pre_expander: f32,
+
+    /// The microphone amplitude after the expander has been applied. Depending on things like the
+    ///  ratio, this might 'activate' below the threshold. This can be represented to the user.
+    ///
+    /// Value Type: dBFS
+    pub post_expander: f32,
+
+    /// The current full microphone amplitude (behaviour if compressor was disabled).
+    ///
+    /// Value Type: dBFS
+    pub pre_compressor: f32,
+
+    /// The microphone amplitude after compression has been applied.
+    ///
+    /// Value Type: dBFS
+    pub post_compressor: f32,
+
+    /// Unknown field, if anyone can make it not be 0, let me know!
+    ///
+    /// Value Type: Unknown
+    pub float_12: f32,
+
+    /// The left headphone meter.
+    ///
+    /// Value Type: dBFS
+    pub hp_meter_left: f32,
+
+    /// The right headphone meter.
+    ///
+    /// Value Type: dBFS
+    pub hp_meter_right: f32,
+
+    /// A clip warning. The value goes immediately to 1.0 if `raw_amplitude` goes above 0dBFS, then
+    /// decays over roughly a quarter of a second.
+    ///
+    /// Value Type: Unknown
+    pub clip_warning: f32,
 }
 
 // 16 floats here too, but these are all floats.
@@ -154,4 +218,15 @@ pub struct SuppressionResponse {
     pub float_13: f32,
     pub float_14: f32,
     pub float_15: f32,
+}
+
+
+// Some values are linear in dB, others are raw dB, either way they're all dB so we're going
+// to simply convert them.
+fn lin_to_db(x: f32) -> f32 {
+    if x <= 0.0 {
+        f32::NEG_INFINITY
+    } else {
+        20.0 * x.log10()
+    }
 }
