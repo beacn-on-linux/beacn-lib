@@ -200,7 +200,7 @@ pub struct MetersResponse {
 }
 
 // 16 floats here too, but these are all floats.
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct SuppressionResponse {
     pub float_0: f32,
     pub float_1: f32,
