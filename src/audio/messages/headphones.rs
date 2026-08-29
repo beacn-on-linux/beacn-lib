@@ -155,7 +155,7 @@ impl BeacnSubMessage for Headphones {
                 messages.push(Message::Headphones(Headphones::GetMicMonitor));
                 messages.push(Message::Headphones(Headphones::GetMicChannelsLinked));
 
-                if version > MIC_CLASS_COMPLIANT_VERSION {
+                if version >= MIC_CLASS_COMPLIANT_VERSION {
                     messages.push(Message::Headphones(Headphones::GetMicClassCompliant));
                 }
             }
