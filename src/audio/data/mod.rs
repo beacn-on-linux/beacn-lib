@@ -75,26 +75,13 @@ impl BulkMessage {
             }
 
             BulkMessage::GetSuppressionBase | BulkMessage::GetSuppressionCurrent => {
-                // 16 floats here too,
-                let response = SuppressionResponse {
-                    float_0: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_1: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_2: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_3: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_4: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_5: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_6: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_7: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_8: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_9: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_10: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_11: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_12: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_13: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_14: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                    float_15: lin_to_db(cursor.read_f32::<LittleEndian>()?),
-                };
-
+                // These only have 14 values, values 15 and 16 are populated with duplicate meter
+                // data, so can be cleanly ignored.
+                let mut values = [0.0; 14];
+                for value in &mut values {
+                    *value = lin_to_db(cursor.read_f32::<LittleEndian>()?);
+                }
+                let response = SuppressionResponse { values };
                 match self {
                     BulkMessage::GetSuppressionBase => BulkMessage::SuppressionBase(response),
                     BulkMessage::GetSuppressionCurrent => BulkMessage::SuppressionCurrent(response),
@@ -202,22 +189,7 @@ pub struct MetersResponse {
 // 16 floats here too, but these are all floats.
 #[derive(Default, Debug, Copy, Clone)]
 pub struct SuppressionResponse {
-    pub float_0: f32,
-    pub float_1: f32,
-    pub float_2: f32,
-    pub float_3: f32,
-    pub float_4: f32,
-    pub float_5: f32,
-    pub float_6: f32,
-    pub float_7: f32,
-    pub float_8: f32,
-    pub float_9: f32,
-    pub float_10: f32,
-    pub float_11: f32,
-    pub float_12: f32,
-    pub float_13: f32,
-    pub float_14: f32,
-    pub float_15: f32,
+    pub values: [f32; 14],
 }
 
 // Some values are linear in dB, others are raw dB, either way they're all dB so we're going
