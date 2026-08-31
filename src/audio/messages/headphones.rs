@@ -22,6 +22,7 @@ message_group!(
         FXEnabled() -> bool,
         StudioDriverless() -> bool,
         MicClassCompliant() -> bool,
+        MicFromLoopback() -> bool,
     }
 );
 
@@ -73,6 +74,7 @@ impl BeacnSubMessage for Headphones {
             | Headphones::GetStudioDriverless
             | Headphones::MicClassCompliant(_)
             | Headphones::GetMicClassCompliant => [0x14, 0x00],
+            Headphones::MicFromLoopback(_) | Headphones::GetMicFromLoopback => [0x0F, 0x00],
         }
     }
 
@@ -100,6 +102,7 @@ impl BeacnSubMessage for Headphones {
                     DeviceMode::MicDefault.write_beacn()
                 }
             }
+            Headphones::MicFromLoopback(v) => v.write_beacn(),
             _ => panic!("Attempted to get Value on Setter"),
         }
     }
@@ -139,6 +142,7 @@ impl BeacnSubMessage for Headphones {
                     _ => panic!("This isn't an Audio Device!"),
                 }
             }
+            0x0F => Self::MicFromLoopback(bool::read_beacn(&value)),
             _ => panic!("Unexpected Key: {}", key[0]),
         }
     }
