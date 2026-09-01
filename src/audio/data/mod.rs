@@ -4,6 +4,7 @@
 use anyhow::{Result, bail};
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::Cursor;
+use crate::manager::DeviceType;
 
 #[derive(Debug, Copy, Clone)]
 pub enum BulkMessage {
@@ -39,7 +40,7 @@ impl BulkMessage {
     // We only actually care about the first 68 bytes of the response, the first four bytes are
     // the header which can be ignored, and the rest constitutes 16 (maybe) LE floats which should
     // be filled into the response struct and sent back across the channel
-    pub fn handle_response(&self, response: &[u8]) -> Result<BulkMessage> {
+    pub fn handle_response(&self, response: &[u8], device_type: DeviceType) -> Result<BulkMessage> {
         if response.len() < 68 {
             bail!(
                 "Invalid response length: expected at least 68 bytes, got {}",
@@ -48,7 +49,8 @@ impl BulkMessage {
         }
 
         // Ignore the first four bytes, which are the response header.
-        let mut cursor = Cursor::new(&response[4..68]);
+        let mut cursor = Cursor::new(&response);
+        cursor.set_position(4);
 
         let msg = match self {
             BulkMessage::GetMeters => {
@@ -75,6 +77,17 @@ impl BulkMessage {
             }
 
             BulkMessage::GetSuppressionBase | BulkMessage::GetSuppressionCurrent => {
+                // TODO: I need to check this
+                // The Beacn Mic requires two separate messages for pulling this data
+                // The Studio seemingly reports them both in the same message
+                if device_type == DeviceType::BeacnStudio {
+                    match self {
+                        BulkMessage::GetSuppressionBase => cursor.set_position(18 * 4),
+                        BulkMessage::GetSuppressionCurrent => cursor.set_position(32 * 4),
+                        _ => unreachable!(),
+                    }
+                }
+
                 // These only have 14 values, values 15 and 16 are populated with duplicate meter
                 // data, so can be cleanly ignored.
                 let mut values = [0.0; 14];

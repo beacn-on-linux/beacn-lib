@@ -236,6 +236,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         Ok(BulkMessage::handle_response(
             &message,
             &completion.into_vec(),
+            self.get_device_type(),
         )?)
     }
 
