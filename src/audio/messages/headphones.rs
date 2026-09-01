@@ -153,6 +153,7 @@ impl BeacnSubMessage for Headphones {
             Message::Headphones(Headphones::GetMicOutputGain),
             Message::Headphones(Headphones::GetHeadphoneType),
             Message::Headphones(Headphones::GetFXEnabled),
+            Message::Headphones(Headphones::GetMicFromLoopback),
         ];
         match device_type {
             DeviceType::BeacnMic => {
