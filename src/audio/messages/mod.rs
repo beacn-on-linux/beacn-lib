@@ -232,6 +232,7 @@ impl Message {
     pub fn generate_fetch_message(device_type: DeviceType, v: VersionNumber) -> Vec<Message> {
         let mut msg = Vec::new();
         msg.append(&mut BassEnhancement::generate_fetch_message(device_type, v));
+        msg.append(&mut Compressor::generate_fetch_message(device_type, v));
         msg.append(&mut DeEsser::generate_fetch_message(device_type, v));
         msg.append(&mut EQMicrophone::generate_fetch_message(device_type, v));
         msg.append(&mut EQHeadphones::generate_fetch_message(device_type, v));

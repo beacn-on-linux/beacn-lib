@@ -1,3 +1,4 @@
+use crate::audio::data::BulkMessage;
 use crate::audio::messages::{DeviceMessageType, Message};
 use crate::audio::{BeacnAudioDevice, DeviceDefinition, LinkChannel, LinkedApp};
 use crate::common::BeacnDeviceInfo;
@@ -46,6 +47,10 @@ pub trait BeacnAudioAPI: BeacnAudioDeviceInternal + BeacnAudioMessageLocal + Sea
         } else {
             self.fetch_value(message).await
         }
+    }
+
+    async fn handle_bulk_message(&self, message: BulkMessage) -> BResult<BulkMessage> {
+        self.fetch_bulk(message).await
     }
 
     async fn get_linked_apps(&self) -> BResult<Option<Vec<LinkedApp>>> {
@@ -204,6 +209,36 @@ pub(crate) trait BeacnAudioMessageLocal:
         }
 
         Ok(new_value)
+    }
+
+    async fn fetch_bulk(&self, message: BulkMessage) -> BResult<BulkMessage> {
+        let timeout = Duration::from_secs(3);
+
+        if !message.is_valid_fetch() {
+            warn!("Cannot Fetch, Message not valid for this device:");
+            beacn_bail!("Message is not a valid request");
+        }
+
+        let mut request = [0; 4];
+        let key = message.to_beacn_key();
+        request[0..3].copy_from_slice(&key);
+        request[3] = 0xa5;
+
+        let mut ep = self.get_endpoints().lock().await;
+
+        // Write out the command request
+        transfer(&mut ep.out_ep, request.into(), timeout).await?;
+
+        // Grab the response into a buffer
+        let max_packet_size = ep.in_ep.get_mut()?.max_packet_size();
+        let buffer = Vec::with_capacity(max_packet_size);
+        let completion = transfer(&mut ep.in_ep, buffer, timeout).await?;
+
+        // Ok, we need to convert this into a BulkMessage
+        Ok(BulkMessage::handle_response(
+            &message,
+            &completion.into_vec(),
+        )?)
     }
 
     /// Returns the Apps and their link configuration from PC2

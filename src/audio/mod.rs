@@ -1,4 +1,5 @@
 mod common;
+pub mod data;
 mod device_kind;
 pub mod messages;
 
