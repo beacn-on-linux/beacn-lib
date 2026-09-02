@@ -33,7 +33,7 @@ impl BeacnSubMessage for Suppressor {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             Suppressor::GetEnabled | Suppressor::Enabled(_) => [0x00, 0x00],
             Suppressor::GetAmount | Suppressor::Amount(_) => [0x02, 0x00],
@@ -43,7 +43,7 @@ impl BeacnSubMessage for Suppressor {
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             Suppressor::Enabled(v) => v.write_beacn(),
             Suppressor::Amount(v) => write_value(v),
@@ -54,7 +54,7 @@ impl BeacnSubMessage for Suppressor {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType, _: VersionNumber) -> Self {
         match key[0] {
             0x00 => Self::Enabled(bool::read_beacn(&value)),
             0x02 => Self::Amount(read_value(&value)),

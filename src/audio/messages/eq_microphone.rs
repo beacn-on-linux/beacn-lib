@@ -1,13 +1,15 @@
 use crate::audio::messages::{BeacnSubMessage, DeviceMessageType, Message};
-use crate::types::{BeacnValue, PackedEnumKey, ReadBeacn, WriteBeacn, read_value, write_value};
+use crate::types::{BeacnValue, ReadBeacn, WriteBeacn, read_value, write_value};
+use enum_map::Enum;
+use serde::{Deserialize, Serialize};
 
 use crate::audio::messages::eq_common::{
-    EQBand, EQBandType, EQFrequency, EQGain, EQMode, EQQ, EqualiserKeys,
+    EQBand, EQBandType, EQFrequency, EQGain, EQKeySet, EQKeys, EQQ, EQSubType,
 };
 use crate::manager::DeviceType;
-use crate::message_group;
 use crate::version::VersionNumber;
-use strum::IntoEnumIterator;
+use crate::{EQ_HEADPHONES_VERSION, message_group};
+use strum::{EnumIter, IntoEnumIterator};
 
 message_group!(
     pub enum EQMicrophone {
@@ -29,34 +31,35 @@ impl BeacnSubMessage for EQMicrophone {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, v: VersionNumber) -> [u8; 2] {
+        let keys = match v > EQ_HEADPHONES_VERSION {
+            true => EQKeySet::Modern,
+            false => EQKeySet::Legacy,
+        };
+
         match self {
             EQMicrophone::Mode(_) | EQMicrophone::GetMode => [0x00, 0x00],
-            EQMicrophone::Type(m, b, _) | EQMicrophone::GetType(m, b) => [
-                PackedEnumKey(*b, EqualiserKeys::Type).to_encoded(),
-                *m as u8,
-            ],
-            EQMicrophone::Gain(m, b, _) | EQMicrophone::GetGain(m, b) => [
-                PackedEnumKey(*b, EqualiserKeys::Gain).to_encoded(),
-                *m as u8,
-            ],
-            EQMicrophone::Frequency(m, b, _) | EQMicrophone::GetFrequency(m, b) => [
-                PackedEnumKey(*b, EqualiserKeys::Frequency).to_encoded(),
-                *m as u8,
-            ],
-            EQMicrophone::Q(m, b, _) | EQMicrophone::GetQ(m, b) => {
-                [PackedEnumKey(*b, EqualiserKeys::Q).to_encoded(), *m as u8]
+            EQMicrophone::Type(m, b, _) | EQMicrophone::GetType(m, b) => {
+                [keys.encode(*b, EQKeys::Type), *m as u8]
             }
-            EQMicrophone::Enabled(m, b, _) | EQMicrophone::GetEnabled(m, b) => [
-                PackedEnumKey(*b, EqualiserKeys::Enabled).to_encoded(),
-                *m as u8,
-            ],
+            EQMicrophone::Gain(m, b, _) | EQMicrophone::GetGain(m, b) => {
+                [keys.encode(*b, EQKeys::Gain), *m as u8]
+            }
+            EQMicrophone::Frequency(m, b, _) | EQMicrophone::GetFrequency(m, b) => {
+                [keys.encode(*b, EQKeys::Frequency), *m as u8]
+            }
+            EQMicrophone::Q(m, b, _) | EQMicrophone::GetQ(m, b) => {
+                [keys.encode(*b, EQKeys::Q), *m as u8]
+            }
+            EQMicrophone::Enabled(m, b, _) | EQMicrophone::GetEnabled(m, b) => {
+                [keys.encode(*b, EQKeys::Enabled), *m as u8]
+            }
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
-            EQMicrophone::Mode(v) => v.write_beacn(),
+            EQMicrophone::Mode(v) => EQSubType::from(*v).write_beacn(),
             EQMicrophone::Type(_, _, v) => v.write_beacn(),
             EQMicrophone::Gain(_, _, v) => write_value(v),
             EQMicrophone::Frequency(_, _, v) => write_value(v),
@@ -66,21 +69,25 @@ impl BeacnSubMessage for EQMicrophone {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType, v: VersionNumber) -> Self {
         // This one's kinda interesting, we need to first check for 00,00..
         if key == [0x00, 0x00] {
-            return Self::Mode(EQMode::read_beacn(&value));
+            return Self::Mode(EQMode::from(EQSubType::read_beacn(&value)));
         }
 
-        let mode = EQMode::from(key[1]);
-        let key = PackedEnumKey::from_encoded(key[0]).unwrap();
-        let band = key.get_upper();
-        match key.get_lower() {
-            EqualiserKeys::Q => Self::Q(mode, band, read_value(&value)),
-            EqualiserKeys::Type => Self::Type(mode, band, EQBandType::read_beacn(&value)),
-            EqualiserKeys::Gain => Self::Gain(mode, band, read_value(&value)),
-            EqualiserKeys::Frequency => Self::Frequency(mode, band, read_value(&value)),
-            EqualiserKeys::Enabled => Self::Enabled(mode, band, bool::read_beacn(&value)),
+        let keys = match v > EQ_HEADPHONES_VERSION {
+            true => EQKeySet::Modern,
+            false => EQKeySet::Legacy,
+        };
+
+        let mode = EQMode::from(EQSubType::from(key[1]));
+        let (band, key) = keys.decode(key[0]).unwrap();
+        match key {
+            EQKeys::Q => Self::Q(mode, band, read_value(&value)),
+            EQKeys::Type => Self::Type(mode, band, EQBandType::read_beacn(&value)),
+            EQKeys::Gain => Self::Gain(mode, band, read_value(&value)),
+            EQKeys::Frequency => Self::Frequency(mode, band, read_value(&value)),
+            EQKeys::Enabled => Self::Enabled(mode, band, bool::read_beacn(&value)),
         }
     }
 
@@ -102,5 +109,33 @@ impl BeacnSubMessage for EQMicrophone {
         }
 
         messages
+    }
+}
+
+// This will transparent map back to EQSubType, so we can keep our naming, but share conversions
+#[derive(
+    Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
+)]
+pub enum EQMode {
+    #[default]
+    Simple,
+    Advanced,
+}
+
+impl From<EQSubType> for EQMode {
+    fn from(value: EQSubType) -> Self {
+        match value {
+            EQSubType::Zero => EQMode::Simple,
+            EQSubType::One => EQMode::Advanced,
+        }
+    }
+}
+
+impl From<EQMode> for EQSubType {
+    fn from(value: EQMode) -> Self {
+        match value {
+            EQMode::Simple => EQSubType::Zero,
+            EQMode::Advanced => EQSubType::One,
+        }
     }
 }

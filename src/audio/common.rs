@@ -9,7 +9,7 @@ use crate::transfer::{EndpointHandle, transfer};
 use crate::{BResult, beacn_bail};
 use async_trait::async_trait;
 use byteorder::{ByteOrder, LittleEndian};
-use log::warn;
+use log::{error, warn};
 use nusb::transfer::{Bulk, In, Out};
 use web_time::Duration;
 
@@ -109,7 +109,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         }
 
         // Ok, first we need to deconstruct this message into something more useful
-        let key = message.to_beacn_key();
+        let key = message.to_beacn_key(self.get_version());
 
         // Lookup the Parameter on the Mic
         let param = self.param_lookup(key).await?;
@@ -132,10 +132,10 @@ pub(crate) trait BeacnAudioMessageLocal:
             beacn_bail!("Command is not valid for this firmware version");
         }
 
-        let key = message.to_beacn_key();
-        let value = message.to_beacn_value();
-
-        let result = self.param_set(key, value).await?;
+        let key = message.to_beacn_key(self.get_version());
+        let value = message.to_beacn_value(self.get_version());
+        let validate = message.should_validate_response();
+        let result = self.param_set(key, value, validate).await?;
 
         // This can generally be ignored, because in most cases it'll be identical to the
         // original request (except fed from the Mic), but passing back anyway just in case.
@@ -178,7 +178,7 @@ pub(crate) trait BeacnAudioMessageLocal:
         Ok(buf)
     }
 
-    async fn param_set(&self, key: [u8; 3], value: [u8; 4]) -> BResult<[u8; 8]> {
+    async fn param_set(&self, key: [u8; 3], value: [u8; 4], validate: bool) -> BResult<[u8; 8]> {
         let timeout = Duration::from_millis(200);
 
         // Build the Set Request
@@ -199,13 +199,15 @@ pub(crate) trait BeacnAudioMessageLocal:
         let new = &new_value[4..8];
 
         // Compare the new response
-        if old != new {
-            warn!(
-                "Value Set: {:?} does not match value on Device: {:?}",
-                old, new
-            );
+        if validate && old != new {
+            // If we're validating this, we should reject this because the value that was returned
+            // was different from the value which was sent, however, there are some minor cases
+            // where that behaviour is actually expected (Controls->Balance, sends an i32, returns
+            // a f32)
+            error!("Send Failed: Expecting: {:?} != Received: {:?}", old, new);
             beacn_bail!("Value was not changed on the device!");
         }
+
         Ok(new_value)
     }
 

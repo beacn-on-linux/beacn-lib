@@ -60,7 +60,8 @@ pub trait MaybeFuture: Future + Sized {
 impl<F: Future> MaybeFuture for F {}
 
 // These are some helper versions, which can be used to determine feature availability
-const MIC_CLASS_COMPLIANT_VERSION: VersionNumber = VersionNumber(1, 2, 0, 188);
+pub const MIC_CLASS_COMPLIANT_VERSION: VersionNumber = VersionNumber(1, 2, 0, 188);
+pub const EQ_HEADPHONES_VERSION: VersionNumber = VersionNumber(1, 3, 0, 0);
 
 pub type BResult<T> = Result<T, BeacnError>;
 

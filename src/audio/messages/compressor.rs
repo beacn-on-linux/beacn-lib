@@ -33,7 +33,7 @@ impl BeacnSubMessage for Compressor {
         self.is_message_set()
     }
 
-    fn to_beacn_key(&self) -> [u8; 2] {
+    fn to_beacn_key(&self, _: VersionNumber) -> [u8; 2] {
         match self {
             Compressor::Mode(_) | Compressor::GetMode => [0, 0],
             Compressor::Attack(m, _) | Compressor::GetAttack(m) => {
@@ -58,7 +58,7 @@ impl BeacnSubMessage for Compressor {
         }
     }
 
-    fn to_beacn_value(&self) -> BeacnValue {
+    fn to_beacn_value(&self, _: VersionNumber) -> BeacnValue {
         match self {
             Compressor::Mode(v) => v.write_beacn(),
             Compressor::Attack(_, v) => write_value(v),
@@ -71,7 +71,7 @@ impl BeacnSubMessage for Compressor {
         }
     }
 
-    fn from_beacn(key: [u8; 2], value: BeacnValue, _device_type: DeviceType) -> Self {
+    fn from_beacn(key: [u8; 2], value: BeacnValue, _: DeviceType, _: VersionNumber) -> Self {
         if key == [0, 0] {
             return Self::Mode(CompressorMode::read_beacn(&value));
         }
