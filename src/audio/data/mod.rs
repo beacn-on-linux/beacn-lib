@@ -1,10 +1,10 @@
 //! These are special messages where multiple values are fetched at once, which is different from
 //! the more traditional Key -> Value setting. These are primarily polled to display stuff in the UI
 
+use crate::manager::DeviceType;
 use anyhow::{Result, bail};
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::Cursor;
-use crate::manager::DeviceType;
 
 #[derive(Debug, Copy, Clone)]
 pub enum BulkMessage {

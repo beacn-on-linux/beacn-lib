@@ -97,7 +97,7 @@ impl BeacnSubMessage for BassEnhancement {
                 } else {
                     v.write_beacn_u32()
                 }
-            },
+            }
             BassEnhancement::Amount(v) => write_value(v),
             BassEnhancement::Attack(v) => write_value(v),
             BassEnhancement::Release(v) => write_value(v),
