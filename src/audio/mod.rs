@@ -30,8 +30,16 @@ impl BeacnDeviceKind for BeacnStudioKind {
 }
 
 #[allow(private_bounds)]
+#[cfg(not(target_arch = "wasm32"))]
 pub trait BeacnAudioDevice:
     BeacnDeviceInfo + BeacnAudioDeviceInternal + BeacnAudioAPI + RefUnwindSafe + Sealed + Send + Sync
+{
+}
+
+#[cfg(target_arch = "wasm32")]
+#[allow(private_bounds)]
+pub trait BeacnAudioDevice:
+    BeacnDeviceInfo + BeacnAudioDeviceInternal + BeacnAudioAPI + RefUnwindSafe + Sealed
 {
 }
 

@@ -20,7 +20,7 @@ byteorder = "1.5"
 log = "0.4"
 anyhow = "1"
 
-nusb = "0.2"
+nusb = "=0.2.7"
 
 async-trait = "0.1"
 async-lock = "3.4"
