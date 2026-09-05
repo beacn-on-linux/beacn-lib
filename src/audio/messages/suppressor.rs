@@ -90,8 +90,8 @@ generate_range!(SuppressorAdaptTime, f32, 100.0..=5000.0);
     Default, Copy, Clone, Hash, Enum, EnumIter, Debug, Eq, PartialEq, Serialize, Deserialize,
 )]
 pub enum SuppressorStyle {
+    Instant = 0x00,
     #[default]
-    Off = 0x00,
     Adaptive = 0x01,
     Snapshot = 0x02,
 }
