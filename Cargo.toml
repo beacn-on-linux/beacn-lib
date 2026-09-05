@@ -56,7 +56,7 @@ paste = "1.0"
 async-io = "2.6"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "=0.2.126"
+wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 gloo-timers = { version = "0.4", features = ["futures"] }
 
@@ -72,7 +72,7 @@ image = { version = "0.25", features = ["jpeg"] }
 futures-timer = { version = "3.0.4", features = ["wasm-bindgen"] }
 
 # Used in the wasm_example to compile wasm
-wasm-bindgen-cli-support = "=0.2.126"
+wasm-bindgen-cli-support = "0.2"
 
 # Used in the wasm_example to serve files
 serde_json = "1.0.151"
@@ -80,7 +80,7 @@ tiny_http = "0.12"
 
 # WASM Features
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-web-sys = { version = "0.3.103", features = ["console", "Window", "CustomEvent", "CustomEventInit"] }
+web-sys = { version = "0.3", features = ["console", "Window", "CustomEvent", "CustomEventInit"] }
 
 
 [[example]]
