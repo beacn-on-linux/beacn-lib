@@ -42,8 +42,8 @@ struct HotPlugManager {
 }
 
 impl HotPlugManager {
-    fn thread_stopped(&self) {
-        let _ = self.sender.send(HotPlugMessage::ThreadStopped);
+    async fn thread_stopped(&self) {
+        let _ = self.sender.send_async(HotPlugMessage::ThreadStopped).await;
     }
 
     async fn device_connected(&mut self, device: &DeviceInfo, device_type: DeviceType, init: bool) {
@@ -76,19 +76,23 @@ impl HotPlugManager {
             sleep(Duration::from_millis(250)).await;
         }
 
-        let _ = self.sender.send(HotPlugMessage::DeviceAttached(
-            location,
-            device_type,
-            health_tx,
-        ));
+        let _ = self
+            .sender
+            .send_async(HotPlugMessage::DeviceAttached(
+                location,
+                device_type,
+                health_tx,
+            ))
+            .await;
     }
 
-    fn device_removed(&mut self, id: DeviceId) {
+    async fn device_removed(&mut self, id: DeviceId) {
         if let Some(dev) = self.known_devices.remove(&id) {
             debug!("Device Removed from {}", dev.location);
             let _ = self
                 .sender
-                .send(HotPlugMessage::DeviceRemoved(dev.location));
+                .send_async(HotPlugMessage::DeviceRemoved(dev.location))
+                .await;
         }
     }
 
@@ -137,15 +141,19 @@ impl HotPlugManager {
             }
             let _ = self
                 .sender
-                .send(HotPlugMessage::DeviceRemoved(location.clone()));
+                .send_async(HotPlugMessage::DeviceRemoved(location.clone()))
+                .await;
 
             // Wait a moment, just to give things time to settle
             sleep(Duration::from_millis(250)).await;
-            let _ = self.sender.send(HotPlugMessage::DeviceAttached(
-                location,
-                device_type,
-                health_tx,
-            ));
+            let _ = self
+                .sender
+                .send_async(HotPlugMessage::DeviceAttached(
+                    location,
+                    device_type,
+                    health_tx,
+                ))
+                .await;
         }
     }
 }
@@ -231,7 +239,7 @@ pub async fn watch_hotplug_devices(
         Ok(watch) => watch,
         Err(e) => {
             error!("Unable to start USB hotplug watch: {}", e);
-            let _ = sender.send(HotPlugMessage::ThreadStopped);
+            let _ = sender.send_async(HotPlugMessage::ThreadStopped).await;
             return;
         }
     };
@@ -283,7 +291,7 @@ pub async fn watch_hotplug_devices(
                 }
             }
             HotplugLoopEvent::Hotplug(Some(HotplugEvent::Disconnected(info))) => {
-                inner.device_removed(info);
+                inner.device_removed(info).await;
             }
             HotplugLoopEvent::Hotplug(None) => {
                 error!("Hotplug watch stream ended, terminating hot plug watcher");
@@ -294,7 +302,7 @@ pub async fn watch_hotplug_devices(
             }
         }
     }
-    inner.thread_stopped();
+    inner.thread_stopped().await;
 }
 
 #[derive(Debug, Clone)]
