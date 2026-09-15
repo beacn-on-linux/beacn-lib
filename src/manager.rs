@@ -46,7 +46,7 @@ impl HotPlugManager {
         let _ = self.sender.send(HotPlugMessage::ThreadStopped);
     }
 
-    async fn device_connected(&mut self, device: &DeviceInfo, device_type: DeviceType) {
+    async fn device_connected(&mut self, device: &DeviceInfo, device_type: DeviceType, init: bool) {
         let location = DeviceLocation::from(device);
         if self.known_devices.values().any(|k| k.location == location) {
             warn!("Received 'Arrived' Message for already present device!");
@@ -72,7 +72,9 @@ impl HotPlugManager {
         // device. This results in a Permission Denied error, even if we have permission!
         //
         // Shoutout to Jordahn on Discord for helping diagnose this issue.
-        sleep(Duration::from_millis(250)).await;
+        if !init {
+            sleep(Duration::from_millis(250)).await;
+        }
 
         let _ = self.sender.send(HotPlugMessage::DeviceAttached(
             location,
@@ -247,7 +249,7 @@ pub async fn watch_hotplug_devices(
 
         for (info, device_type) in devices {
             debug!("Found Beacn Device (type {:?})", device_type);
-            inner.device_connected(&info, device_type).await;
+            inner.device_connected(&info, device_type, true).await;
         }
     }
 
@@ -277,7 +279,7 @@ pub async fn watch_hotplug_devices(
             HotplugLoopEvent::Hotplug(Some(HotplugEvent::Connected(info))) => {
                 if let Some(device_type) = identify_beacn_device(&info) {
                     debug!("Found Beacn Device (type {:?})", device_type);
-                    inner.device_connected(&info, device_type).await;
+                    inner.device_connected(&info, device_type, false).await;
                 }
             }
             HotplugLoopEvent::Hotplug(Some(HotplugEvent::Disconnected(info))) => {
