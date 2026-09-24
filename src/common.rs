@@ -103,9 +103,10 @@ where
 
 pub(crate) async fn find_device(location: DeviceLocation) -> Option<DeviceDefinition> {
     // We need to iterate through the devices and find the one at this location
-    if let Ok(devices) = crate::setup::list_devices().await {
+    if let Ok(devices) = setup::list_devices().await {
         for info in devices {
-            if info.vendor_id() == VENDOR_BEACN && DeviceLocation::from(&info) == location {
+            let device_location = DeviceLocation::from(&info);
+            if info.vendor_id() == VENDOR_BEACN && device_location.hash == location.hash {
                 return Some(DeviceDefinition { descriptor: info });
             }
         }
