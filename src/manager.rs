@@ -74,6 +74,12 @@ impl HotPlugManager {
         // Shoutout to Jordahn on Discord for helping diagnose this issue.
         if !init {
             sleep(Duration::from_millis(250)).await;
+        } else {
+            // WASM is single threaded, which means that async tasks can occasionally race too
+            // quickly, and nusb doesn't get the time it needs to settle things, always add
+            // a small delay here.
+            #[cfg(target_arch = "wasm32")]
+            sleep(Duration::from_millis(250)).await;
         }
 
         let _ = self
