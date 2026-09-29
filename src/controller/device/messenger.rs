@@ -3,7 +3,6 @@ use crate::timers::sleep;
 use crate::types::RGBA;
 use anyhow::Result;
 use byteorder::{ByteOrder, LittleEndian};
-use log::error;
 use nusb::Interface;
 use nusb::transfer::TransferError;
 use web_time::{Duration, Instant};
@@ -84,54 +83,21 @@ impl Messenger {
         Ok(())
     }
 
-    pub async fn send_image(&mut self, x: u32, y: u32, img: &[u8]) -> Result<(), TransferError> {
-        let overall_budget = Duration::from_secs(10);
-        let overall_started = Instant::now();
-
-        while overall_started.elapsed() < overall_budget {
-            match self.send_image_attempt(x, y, img).await {
-                Ok(()) => {
-                    sleep(Duration::from_millis(10)).await;
-                    return Ok(());
-                }
-
-                Err(TransferError::Cancelled) => {
-                    sleep(Duration::from_millis(10)).await;
-                }
-                Err(e) => return Err(e),
-            }
-        }
-
-        error!(
-            "Failed to send image after {:?}, dropping frame.",
-            overall_started.elapsed()
-        );
-
-        Err(TransferError::Cancelled)
-    }
-
-    async fn send_image_attempt(
-        &mut self,
-        x: u32,
-        y: u32,
-        img: &[u8],
-    ) -> Result<(), TransferError> {
-        let chunk_retry = Duration::from_millis(300);
-
-        let mut output = [0u8; 1024];
+    pub(crate) fn build_image_chunks(x: u32, y: u32, img: &[u8]) -> Vec<[u8; 1024]> {
+        let mut chunks = Vec::new();
         let mut iter = img.chunks(1020).enumerate().peekable();
 
         while let Some((index, value)) = iter.next() {
-            output.fill(0);
+            let mut output = [0u8; 1024];
 
             LittleEndian::write_u24(&mut output[0..3], index as u32);
             output[3] = 0x50;
             output[4..4 + value.len()].copy_from_slice(value);
 
-            self.send_chunk(&output, chunk_retry).await?;
+            chunks.push(output);
 
             if iter.peek().is_none() {
-                output.fill(0);
+                let mut output = [0u8; 1024];
 
                 output[0] = 0xff;
                 output[1] = 0xff;
@@ -142,14 +108,18 @@ impl Messenger {
                 LittleEndian::write_u32(&mut output[8..12], x);
                 LittleEndian::write_u32(&mut output[12..16], y);
 
-                self.send_chunk(&output, chunk_retry).await?;
+                chunks.push(output);
             }
         }
 
-        Ok(())
+        chunks
     }
 
-    async fn send_chunk(&mut self, chunk: &[u8], retry: Duration) -> Result<(), TransferError> {
+    pub(crate) async fn send_chunk(
+        &mut self,
+        chunk: &[u8],
+        retry: Duration,
+    ) -> Result<(), TransferError> {
         let chunk_timeout = Duration::from_millis(100);
 
         let started = Instant::now();

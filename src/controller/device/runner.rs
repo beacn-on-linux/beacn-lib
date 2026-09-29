@@ -9,7 +9,7 @@ use crate::transfer::{EndpointHandle, transfer};
 use crate::version::VersionNumber;
 use byteorder::{BigEndian, ByteOrder};
 use flume::{Receiver, Sender};
-use futures_lite::future::or;
+use futures_lite::future::{or, poll_once};
 use futures_lite::stream::{self, Stream, StreamExt};
 use log::{debug, error, warn};
 use nusb::transfer::{In, Interrupt, TransferError};
@@ -17,7 +17,7 @@ use std::future::pending;
 use std::pin::Pin;
 use std::sync::Arc;
 use strum::IntoEnumIterator;
-use web_time::Duration;
+use web_time::{Duration, Instant};
 
 // Default Display 'Active' and 'Dimmed' brightness, and the default dim time
 static DISPLAY_DEFAULT_FULL_BRIGHTNESS: u8 = 40;
@@ -35,6 +35,90 @@ enum Event {
     InputEnded,
     Poll,
     ProcessInputs([u8; 64]),
+}
+
+#[cfg(target_arch = "wasm32")]
+type NotifyType = Pin<Box<dyn Stream<Item = [u8; 64]>>>;
+
+#[cfg(not(target_arch = "wasm32"))]
+type NotifyType = Pin<Box<dyn Stream<Item = [u8; 64]> + Send>>;
+
+// Sends an image while also checking whether we've hit a poll point between chunks and handling
+// it if we have.
+async fn send_image_with_interrupts(
+    messenger: &mut Messenger,
+    x: u32,
+    y: u32,
+    img: &[u8],
+    notify_reads: &mut NotifyType,
+    polled_in_ep: &mut Option<EndpointHandle<Interrupt, In>>,
+    poll_tick: &mut PollTick,
+    event_tx: &Sender<Event>,
+    timeout: Duration,
+) -> Result<(), TransferError> {
+    let overall_budget = Duration::from_secs(10);
+    let overall_started = Instant::now();
+    let chunk_retry = Duration::from_millis(300);
+    let chunks = Messenger::build_image_chunks(x, y, img);
+
+    'attempt: loop {
+        if overall_started.elapsed() >= overall_budget {
+            error!(
+                "Failed to send image after {:?}, dropping frame.",
+                overall_started.elapsed()
+            );
+            return Err(TransferError::Cancelled);
+        }
+
+        for chunk in &chunks {
+            if let Some(Some(input)) = poll_once(notify_reads.next()).await {
+                let _ = event_tx.send(Event::ProcessInputs(input));
+            }
+
+            // If a poll is due, handle it.
+            if poll_tick.is_due() {
+                if let Some(in_ep) = polled_in_ep.as_mut() {
+                    match run_poll_cycle(messenger, in_ep, event_tx, timeout).await {
+                        Ok(()) => poll_tick.advance(),
+                        Err(e) => {
+                            error!("Failed to Poll Inputs while sending Image: {}", e);
+                            return Err(e);
+                        }
+                    }
+                }
+            }
+
+            match messenger.send_chunk(chunk, chunk_retry).await {
+                Ok(()) => {}
+                Err(TransferError::Cancelled) => {
+                    sleep(Duration::from_millis(10)).await;
+                    continue 'attempt;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        sleep(Duration::from_millis(10)).await;
+        return Ok(());
+    }
+}
+
+/// Round-trips a single input poll and handles the result.
+async fn run_poll_cycle(
+    messenger: &mut Messenger,
+    endpoint: &mut EndpointHandle<Interrupt, In>,
+    event_tx: &Sender<Event>,
+    timeout: Duration,
+) -> Result<(), TransferError> {
+    messenger.poll_inputs().await?;
+
+    let buf = transfer(endpoint, Vec::with_capacity(64), timeout).await?;
+    let mut input = [0u8; 64];
+    let n = buf.len().min(64);
+    input[..n].copy_from_slice(&buf[..n]);
+
+    let _ = event_tx.send(Event::ProcessInputs(input));
+    Ok(())
 }
 
 pub(crate) trait BeacnControlDeviceRunner: Sealed {
@@ -76,12 +160,6 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                 return;
             }
         };
-
-        #[cfg(target_arch = "wasm32")]
-        type NotifyType = Pin<Box<dyn Stream<Item = [u8; 64]>>>;
-
-        #[cfg(not(target_arch = "wasm32"))]
-        type NotifyType = Pin<Box<dyn Stream<Item = [u8; 64]> + Send>>;
 
         let mut polled_in_ep: Option<EndpointHandle<Interrupt, In>> = None;
         let mut notify_reads: NotifyType = if is_notify {
@@ -140,10 +218,6 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
             // We're using this because we have futures-lite available as an agnostic handler,
             // it's not pretty, but should get the job done. Wait for one of our tasks to fire.
             let event = or(
-                or(async { Event::Command(rx.recv_async().await) }, async {
-                    dim_timeout.wait().await;
-                    Event::DimTimeout
-                }),
                 or(
                     async {
                         match notify_reads.next().await {
@@ -156,6 +230,10 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                         Event::Poll
                     }),
                 ),
+                or(async { Event::Command(rx.recv_async().await) }, async {
+                    dim_timeout.wait().await;
+                    Event::DimTimeout
+                }),
             )
             .await;
 
@@ -194,7 +272,19 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                                                 continue 'primary;
                                             }
 
-                                            if let Err(e) = messenger.send_image(x, y, &img).await {
+                                            let send_result = send_image_with_interrupts(
+                                                &mut messenger,
+                                                x,
+                                                y,
+                                                &img,
+                                                &mut notify_reads,
+                                                &mut polled_in_ep,
+                                                &mut poll_tick,
+                                                &event_tx,
+                                                timeout,
+                                            )
+                                            .await;
+                                            if let Err(e) = send_result {
                                                 error!(
                                                     "Failed to Send Image, dropping Frame: {}",
                                                     e
@@ -268,30 +358,15 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
                 }
                 Event::Poll => {
                     // Ok, we're at a poll interval, we need to fetch changes to inputs
-                    if let Err(e) = messenger.poll_inputs().await {
-                        error!("Failed to Poll Inputs: {}", e);
-                        break;
-                    }
-
                     let Some(in_ep) = polled_in_ep.as_mut() else {
                         error!("polled_in_ep is None when Event::Poll can fire");
                         break;
                     };
 
-                    match transfer(in_ep, Vec::with_capacity(64), timeout).await {
-                        Err(e) => {
-                            debug!("Error Reading Poll Response: {}", e);
-                            break;
-                        }
-
-                        Ok(buf) => {
-                            let mut input = [0u8; 64];
-                            let n = buf.len().min(64);
-                            input[..n].copy_from_slice(&buf[..n]);
-
-                            // Fire off to the event queue
-                            let _ = event_tx.send(Event::ProcessInputs(input));
-                        }
+                    if let Err(e) = run_poll_cycle(&mut messenger, in_ep, &event_tx, timeout).await
+                    {
+                        error!("Failed to Poll Inputs: {}", e);
+                        break;
                     }
                 }
                 Event::ProcessInputs(input) => {
@@ -435,6 +510,22 @@ impl PollTick {
         match self {
             PollTick::Disabled => pending().await,
             PollTick::Interval(ticker) => ticker.tick().await,
+        }
+    }
+
+    /// Non-blocking check for whether a Poll is due right now, without waiting for it or
+    /// advancing the underlying ticker.
+    pub fn is_due(&self) -> bool {
+        match self {
+            PollTick::Disabled => false,
+            PollTick::Interval(ticker) => ticker.is_due(),
+        }
+    }
+
+    /// Advances the underlying ticker to its next deadline, as if `wait()` had just resolved.
+    pub fn advance(&mut self) {
+        if let PollTick::Interval(ticker) = self {
+            ticker.advance();
         }
     }
 }
