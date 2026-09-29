@@ -43,6 +43,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
         rx: Receiver<ControlThreadSender>,
         handler: BeacnDeviceHandle,
         interaction: Option<Sender<Interactions>>,
+        poll_timer: Duration,
     ) where
         Self: Sized,
     {
@@ -92,7 +93,7 @@ pub(crate) trait BeacnControlDeviceRunner: Sealed {
 
         let mut poll_tick = match is_notify {
             true => PollTick::Disabled,
-            false => PollTick::Interval(Ticker::new(Duration::from_millis(50), false)),
+            false => PollTick::Interval(Ticker::new(poll_timer, false)),
         };
 
         // This tracks the button states (so we can message on Send / Receive)

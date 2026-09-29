@@ -12,6 +12,7 @@ use flume::Sender;
 use serde::{Deserialize, Serialize};
 use std::panic::RefUnwindSafe;
 use std::sync::Arc;
+use std::time::Duration;
 use strum::{Display, EnumIter};
 
 mod common;
@@ -53,6 +54,21 @@ pub async fn open_control_device(
     interaction: Option<Sender<Interactions>>,
     health_tx: Sender<()>,
 ) -> BResult<Arc<Box<dyn BeacnControlDevice>>> {
+    open_control_device_with_timer(
+        location,
+        interaction,
+        health_tx,
+        Duration::from_millis(50),
+    )
+    .await
+}
+
+pub async fn open_control_device_with_timer(
+    location: DeviceLocation,
+    interaction: Option<Sender<Interactions>>,
+    health_tx: Sender<()>,
+    poll_timer: Duration,
+) -> BResult<Arc<Box<dyn BeacnControlDevice>>> {
     let Some(device) = find_device(location).await else {
         beacn_bail!("Device not found");
     };
@@ -60,10 +76,10 @@ pub async fn open_control_device(
     let pid = device.descriptor.product_id();
     match pid {
         _ if PID_BEACN_MIX.contains(&pid) => {
-            BeacnMix::connect(device, interaction, health_tx).await
+            BeacnMix::connect(device, interaction, health_tx, poll_timer).await
         }
         _ if PID_BEACN_MIX_CREATE.contains(&pid) => {
-            BeacnMixCreate::connect(device, interaction, health_tx).await
+            BeacnMixCreate::connect(device, interaction, health_tx, poll_timer).await
         }
         _ => beacn_bail!("Unknown Device"),
     }

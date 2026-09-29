@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use flume::Sender;
 use jpeg_decoder::Decoder;
 use std::sync::Arc;
+use std::time::Duration;
 
 #[async_trait]
 pub trait BeacnControlDeviceInfo: Sealed {
@@ -21,6 +22,7 @@ pub(crate) trait BeacnControlDeviceInternal: Sealed {
         definition: DeviceDefinition,
         interaction: Option<Sender<Interactions>>,
         health_tx: Sender<()>,
+        poll_timer: Duration,
     ) -> BResult<Arc<Box<dyn BeacnControlDevice>>>
     where
         Self: Sized;
