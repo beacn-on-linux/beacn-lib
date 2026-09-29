@@ -57,6 +57,16 @@ impl Ticker {
         let wait = self.deadline.saturating_duration_since(Instant::now());
         sleep(wait).await;
 
+        self.advance();
+    }
+
+    /// Has the Deadline Elapsed?
+    pub fn is_due(&self) -> bool {
+        Instant::now() >= self.deadline
+    }
+
+    /// Advances the deadline to the next tick, as if `tick()` had just resolved.
+    pub fn advance(&mut self) {
         if self.fixed_rate {
             self.deadline += self.duration;
         } else {
