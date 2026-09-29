@@ -54,13 +54,8 @@ pub async fn open_control_device(
     interaction: Option<Sender<Interactions>>,
     health_tx: Sender<()>,
 ) -> BResult<Arc<Box<dyn BeacnControlDevice>>> {
-    open_control_device_with_timer(
-        location,
-        interaction,
-        health_tx,
-        Duration::from_millis(50),
-    )
-    .await
+    let poll = Duration::from_millis(50);
+    open_control_device_with_timer(location, interaction, health_tx, poll).await
 }
 
 pub async fn open_control_device_with_timer(

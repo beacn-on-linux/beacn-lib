@@ -80,7 +80,8 @@ impl<K: BeacnDeviceKind + RefUnwindSafe> BeacnControlDeviceInternal for BeacnDev
 
         spawn_background(K::TYPE, async move {
             debug!("Starting {} control thread", K::TYPE);
-            Self::spawn_event_handler(control_inner, receiver, handle, interaction, poll_timer).await;
+            Self::spawn_event_handler(control_inner, receiver, handle, interaction, poll_timer)
+                .await;
             debug!("{} control thread exited", K::TYPE);
             sleep(Duration::from_millis(500)).await;
             let _ = health_tx.send(());
