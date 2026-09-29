@@ -45,6 +45,7 @@ type NotifyType = Pin<Box<dyn Stream<Item = [u8; 64]> + Send>>;
 
 // Sends an image while also checking whether we've hit a poll point between chunks and handling
 // it if we have.
+#[allow(clippy::too_many_arguments)]
 async fn send_image_with_interrupts(
     messenger: &mut Messenger,
     x: u32,
@@ -76,14 +77,14 @@ async fn send_image_with_interrupts(
             }
 
             // If a poll is due, handle it.
-            if poll_tick.is_due() {
-                if let Some(in_ep) = polled_in_ep.as_mut() {
-                    match run_poll_cycle(messenger, in_ep, event_tx, timeout).await {
-                        Ok(()) => poll_tick.advance(),
-                        Err(e) => {
-                            error!("Failed to Poll Inputs while sending Image: {}", e);
-                            return Err(e);
-                        }
+            if poll_tick.is_due()
+                && let Some(in_ep) = polled_in_ep.as_mut()
+            {
+                match run_poll_cycle(messenger, in_ep, event_tx, timeout).await {
+                    Ok(()) => poll_tick.advance(),
+                    Err(e) => {
+                        error!("Failed to Poll Inputs while sending Image: {}", e);
+                        return Err(e);
                     }
                 }
             }
