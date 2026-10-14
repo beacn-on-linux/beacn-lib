@@ -1,6 +1,6 @@
 # Beacn Device Protocol
 
-This is a cross-platform library for communicating with Beacn Devices
+This is a library for communicating with Beacn Devices
 
 ***
 ### USE AT YOUR OWN RISK
